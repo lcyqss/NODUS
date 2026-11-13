@@ -1,0 +1,50 @@
+mixed-port: 7890
+allow-lan: true
+bind-address: '0.0.0.0'
+mode: rule
+log-level: info
+external-controller: '127.0.0.1:9090'
+secret: 'PLEASE_CHANGE_ME'
+external-ui: ui
+redir-port: 7892
+tcp-concurrent: true
+unified-delay: true
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: false
+  default-nameserver: [223.5.5.5, 119.29.29.29]
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  nameserver: [223.5.5.5, 119.29.29.29]
+  fallback: [1.1.1.1, 8.8.8.8]
+  fallback-filter: { geoip: true, geoip-code: CN }
+
+proxy-providers:
+  airport:
+    type: http
+    url: "https://替换成你的订阅链接"
+    interval: 86400
+    path: ./providers/airport.yaml
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 300
+
+proxy-groups:
+  - name: 节点选择
+    type: select
+    use: [airport]
+  - name: 自动选择
+    type: url-test
+    use: [airport]
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+
+rules:
+  - GEOIP,CN,DIRECT
+  - MATCH,节点选择
+
+tun:
+  enable: false

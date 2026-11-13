@@ -1,0 +1,20 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Logs
+build.log
+*.log
+
+# Bundled kernel binary (download with scripts/fetch-core.ps1)
+app/src/main/assets/mihomo
+
+# OS
+.DS_Store
+Thumbs.db
