@@ -2,6 +2,7 @@ package com.mihomo.gateway.ui.rules
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -183,12 +187,43 @@ private fun CustomRulesList(
         EmptyState("还没有自定义规则，点右上角“添加”")
         return
     }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val rowHeightPx = with(density) { 70.dp.toPx() }
+
     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items(rules, key = { it.id }) { rule ->
             val conflict = conflicts.contains(rule.key().uppercase())
+            val dragging = draggingId == rule.id
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
+                    .pointerInput(rule.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                draggingId = rule.id
+                                dragOffset = 0f
+                            },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                dragOffset += amount.y
+                            },
+                            onDragEnd = {
+                                val steps = kotlin.math.round(dragOffset / rowHeightPx).toInt()
+                                repeat(kotlin.math.abs(steps)) {
+                                    onMove(rule.id, steps < 0)
+                                }
+                                draggingId = null
+                                dragOffset = 0f
+                            },
+                            onDragCancel = {
+                                draggingId = null
+                                dragOffset = 0f
+                            }
+                        )
+                    }
                     .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically

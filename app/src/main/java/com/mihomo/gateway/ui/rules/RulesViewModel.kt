@@ -77,11 +77,17 @@ class RulesViewModel(
 
     fun addTemplate(name: String) {
         val items = TEMPLATES[name] ?: return
+        val failures = mutableListOf<String>()
         items.forEach { (kind, value, target) ->
             ruleRepository.add(kind, value, target, kind.needsNoResolve)
+                .onFailure { failures += "$value: ${it.message}" }
         }
+        val added = items.size - failures.size
         _state.value = _state.value.copy(
-            message = "已添加模板「$name」${items.size} 条，记得点“应用规则”"
+            message = buildString {
+                append("已添加模板「$name」$added 条，记得点“应用规则”")
+                if (failures.isNotEmpty()) append("；失败 ${failures.size} 条: ").append(failures.first())
+            }
         )
     }
 

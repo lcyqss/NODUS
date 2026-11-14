@@ -101,9 +101,14 @@ class RuleRepositoryImpl(
         if (value.isBlank()) return "内容不能为空"
         if (target.isBlank()) return "目标策略不能为空"
         return when (kind) {
-            RuleKind.IP_CIDR -> if (!value.matches(Regex("^\\d{1,3}(\\.\\d{1,3}){3}/\\d{1,2}$"))) "IPv4 网段格式不正确" else null
-            RuleKind.IP_CIDR6, RuleKind.SRC_IP_CIDR ->
-                if (!value.contains(":") || !value.contains("/")) "IPv6/网段格式不正确" else null
+            RuleKind.IP_CIDR, RuleKind.SRC_IP_CIDR ->
+                if (!value.matches(Regex("^\\d{1,3}(\\.\\d{1,3}){3}/\\d{1,2}$"))) {
+                    "IPv4 网段格式不正确"
+                } else {
+                    null
+                }
+            RuleKind.IP_CIDR6 ->
+                if (!value.contains(":") || !value.contains("/")) "IPv6 网段格式不正确" else null
             RuleKind.DOMAIN, RuleKind.DOMAIN_SUFFIX ->
                 if (value.contains(" ")) "域名不能包含空格" else null
             else -> null
