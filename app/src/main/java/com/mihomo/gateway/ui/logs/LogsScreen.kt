@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -49,6 +51,7 @@ fun LogsScreen(
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val logs by logsVm.logs.collectAsState()
     val level by logsVm.level.collectAsState()
+    val paused by logsVm.paused.collectAsState()
 
     LaunchedEffect(tab, level) {
         if (tab == 0) logsVm.start(level)
@@ -76,7 +79,15 @@ fun LogsScreen(
         Spacer(Modifier.height(10.dp))
 
         if (tab == 0) {
-            LogsTab(logs, level, onLevel = { logsVm.start(it) }, onClear = { logsVm.clear() })
+            LogsTab(
+                logs = logs,
+                level = level,
+                paused = paused,
+                onLevel = { logsVm.start(it) },
+                onPause = { logsVm.pause() },
+                onResume = { logsVm.resume() },
+                onClear = { logsVm.clear() }
+            )
         } else {
             val rules by rulesVm.rules.collectAsState()
             val error by rulesVm.error.collectAsState()
@@ -89,18 +100,37 @@ fun LogsScreen(
 private fun LogsTab(
     logs: List<LogEntry>,
     level: String,
+    paused: Boolean,
     onLevel: (String) -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
     onClear: () -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("info", "warning", "error").forEach { item ->
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(listOf("info", "warning", "error")) { item ->
             if (item == level) Button(onClick = { onLevel(item) }) { Text(item) }
             else OutlinedButton(onClick = { onLevel(item) }) { Text(item) }
         }
-        OutlinedButton(onClick = onClear) { Text("清空") }
+        item {
+            OutlinedButton(onClick = if (paused) onResume else onPause) {
+                Text(if (paused) "继续" else "暂停")
+            }
+        }
+        item {
+            OutlinedButton(onClick = onClear) { Text("清空") }
+        }
     }
 
     Spacer(Modifier.height(8.dp))
+
+    if (paused) {
+        Text(
+            "已暂停，列表不再更新",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
+    }
 
     if (logs.isEmpty()) {
         EmptyState("等待日志…（产生代理流量后会出现）")
@@ -108,8 +138,8 @@ private fun LogsTab(
     }
 
     val listState = rememberLazyListState()
-    LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty()) listState.scrollToItem(logs.size - 1)
+    LaunchedEffect(logs.size, paused) {
+        if (!paused && logs.isNotEmpty()) listState.scrollToItem(logs.size - 1)
     }
 
     LazyColumn(
@@ -123,7 +153,7 @@ private fun LogsTab(
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                     .padding(8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.Top
+                verticalAlignment = Alignment.Top
             ) {
                 Tag(
                     text = entry.level.take(4),
@@ -148,12 +178,17 @@ private fun LogsTab(
 @Composable
 private fun RulesTab(rules: List<RuleInfo>, error: String?, onReload: () -> Unit) {
     var query by remember { mutableStateOf("") }
-    val filtered = remember(rules, query) {
-        if (query.isBlank()) rules
-        else rules.filter {
-            it.payload.contains(query, true) ||
-                it.type.contains(query, true) ||
-                it.proxy.contains(query, true)
+    var typeFilter by remember { mutableStateOf<String?>(null) }
+
+    val types = remember(rules) { rules.map { it.type }.distinct().take(10) }
+
+    val filtered = remember(rules, query, typeFilter) {
+        rules.filter { rule ->
+            (typeFilter == null || rule.type == typeFilter) &&
+                (query.isBlank() ||
+                    rule.payload.contains(query, true) ||
+                    rule.type.contains(query, true) ||
+                    rule.proxy.contains(query, true))
         }
     }
 
@@ -167,10 +202,23 @@ private fun RulesTab(rules: List<RuleInfo>, error: String?, onReload: () -> Unit
 
     Spacer(Modifier.height(8.dp))
 
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        item {
+            if (typeFilter == null) Button(onClick = { typeFilter = null }) { Text("全部") }
+            else OutlinedButton(onClick = { typeFilter = null }) { Text("全部") }
+        }
+        items(types) { type ->
+            if (typeFilter == type) Button(onClick = { typeFilter = type }) { Text(type) }
+            else OutlinedButton(onClick = { typeFilter = type }) { Text(type) }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             "${filtered.size} / ${rules.size} 条",

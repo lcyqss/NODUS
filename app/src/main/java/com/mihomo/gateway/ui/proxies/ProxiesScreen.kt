@@ -47,6 +47,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
 
     val currentGroup = state.groups.firstOrNull { it.name == state.selectedGroup }
     var query by remember { mutableStateOf("") }
+    var sortByDelay by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(
@@ -123,19 +124,35 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
 
                     Spacer(Modifier.height(10.dp))
 
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        label = { Text("搜索节点") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            label = { Text("搜索节点") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        OutlinedButton(onClick = { sortByDelay = !sortByDelay }) {
+                            Text(if (sortByDelay) "延迟↑" else "排序")
+                        }
+                    }
 
                     Spacer(Modifier.height(8.dp))
 
-                    val members = remember(currentGroup, query) {
-                        if (query.isBlank()) currentGroup.members
+                    val members = remember(currentGroup, query, sortByDelay, delays) {
+                        val base = if (query.isBlank()) currentGroup.members
                         else currentGroup.members.filter { it.name.contains(query, true) }
+                        if (sortByDelay) {
+                            base.sortedWith(
+                                compareBy(
+                                    { delays[it.name] ?: it.delay ?: Int.MAX_VALUE },
+                                    { it.name }
+                                )
+                            )
+                        } else {
+                            base
+                        }
                     }
 
                     LazyColumn(

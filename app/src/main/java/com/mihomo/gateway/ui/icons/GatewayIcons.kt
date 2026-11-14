@@ -57,12 +57,12 @@ private fun DrawScope.drawOverview(s: Float, c: Color) {
 }
 
 private fun DrawScope.drawProxy(s: Float, c: Color, w: Float) {
-    val y1 = s * 0.32f
-    val y2 = s * 0.68f
-    drawLine(c, Offset(s * 0.10f, y1), Offset(s * 0.78f, y1), w, StrokeCap.Round)
-    arrowHead(c, Offset(s * 0.92f, y1), s * 0.16f, s * 0.14f, right = true)
-    drawLine(c, Offset(s * 0.90f, y2), Offset(s * 0.22f, y2), w, StrokeCap.Round)
-    arrowHead(c, Offset(s * 0.08f, y2), s * 0.16f, s * 0.14f, right = false)
+    val y1 = s * 0.30f
+    val y2 = s * 0.70f
+    drawLine(c, Offset(s * 0.12f, y1), Offset(s * 0.66f, y1), w, StrokeCap.Round)
+    arrowHead(c, Offset(s * 0.90f, y1), s * 0.26f, s * 0.24f, right = true)
+    drawLine(c, Offset(s * 0.88f, y2), Offset(s * 0.34f, y2), w, StrokeCap.Round)
+    arrowHead(c, Offset(s * 0.10f, y2), s * 0.26f, s * 0.24f, right = false)
 }
 
 private fun DrawScope.arrowHead(c: Color, tip: Offset, len: Float, half: Float, right: Boolean) {
@@ -92,18 +92,18 @@ private fun DrawScope.drawLogs(s: Float, c: Color) {
 
 private fun DrawScope.drawSettings(s: Float, c: Color, w: Float) {
     val center = Offset(s / 2, s / 2)
-    drawCircle(c, s * 0.22f, center, style = Stroke(w))
-    val outer = s * 0.40f
-    val inner = s * 0.30f
-    repeat(8) { i ->
-        val angle = Math.toRadians((i * 45).toDouble())
+    drawCircle(c, s * 0.20f, center, style = Stroke(w))
+    val outer = s * 0.42f
+    val inner = s * 0.26f
+    repeat(6) { i ->
+        val angle = Math.toRadians((i * 60).toDouble())
         val cos = kotlin.math.cos(angle).toFloat()
         val sin = kotlin.math.sin(angle).toFloat()
         drawLine(
             c,
             Offset(center.x + cos * inner, center.y + sin * inner),
             Offset(center.x + cos * outer, center.y + sin * outer),
-            w * 1.4f,
+            w * 2.0f,
             StrokeCap.Round
         )
     }

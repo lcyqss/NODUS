@@ -22,28 +22,40 @@ class LogsViewModel(
     private val _level = MutableStateFlow("info")
     val level: StateFlow<String> = _level.asStateFlow()
 
+    private val _paused = MutableStateFlow(false)
+    val paused: StateFlow<Boolean> = _paused.asStateFlow()
+
     private var job: Job? = null
 
-    fun start(level: String = _level.value) {
+    fun start(level: String = _level.value, clear: Boolean = true) {
         job?.cancel()
         _level.value = level
-        _logs.value = emptyList()
+        if (clear) _logs.value = emptyList()
+        _paused.value = false
         job = viewModelScope.launch {
             api.logFlow(level).collect { entry ->
-                _logs.update { current ->
-                    (current + entry).takeLast(MAX_LINES)
-                }
+                _logs.update { current -> (current + entry).takeLast(MAX_LINES) }
             }
         }
+    }
+
+    fun pause() {
+        job?.cancel()
+        job = null
+        _paused.value = true
+    }
+
+    fun resume() {
+        start(_level.value, clear = false)
+    }
+
+    fun clear() {
+        _logs.value = emptyList()
     }
 
     fun stop() {
         job?.cancel()
         job = null
-    }
-
-    fun clear() {
-        _logs.value = emptyList()
     }
 
     companion object {
