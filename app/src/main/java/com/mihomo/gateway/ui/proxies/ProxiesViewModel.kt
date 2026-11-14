@@ -74,8 +74,19 @@ class ProxiesViewModel(
     }
 
     fun load() {
+        fetch(showLoading = true)
+    }
+
+    /** 静默刷新：不显示整页 loading（用于测速/订阅切换后的状态同步）。 */
+    private fun refreshQuietly() {
+        fetch(showLoading = false)
+    }
+
+    private fun fetch(showLoading: Boolean) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = true, error = null)
+            if (showLoading) {
+                _state.value = _state.value.copy(loading = true, error = null)
+            }
             api.proxies()
                 .onSuccess { nodes ->
                     val visible = nodes.filterNot { ProxyNames.isInfoNode(it.name) }
@@ -106,7 +117,9 @@ class ProxiesViewModel(
                     )
                 }
                 .onFailure {
-                    _state.value = _state.value.copy(loading = false, error = it.message)
+                    if (showLoading) {
+                        _state.value = _state.value.copy(loading = false, error = it.message)
+                    }
                 }
         }
     }
@@ -141,6 +154,8 @@ class ProxiesViewModel(
                 testOneByOne(nodes)
             }
             _testing.value = emptySet()
+            // 测速后 URLTest 组可能已选出新节点，静默刷新让「当前节点」跟上
+            refreshQuietly()
         }
     }
 

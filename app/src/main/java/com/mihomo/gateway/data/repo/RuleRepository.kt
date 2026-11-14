@@ -21,6 +21,9 @@ interface RuleRepository {
     /** 注入到 config.yaml 顶部并重载；失败自动回滚。 */
     suspend fun apply(): Result<String>
 
+    /** 只把启用规则写进 config.yaml（不重载内核），用于内核未运行时。 */
+    suspend fun injectOnly(): Result<Unit>
+
     /** 读取 config.yaml 中当前已注入的自定义规则行（不含标记）。 */
     suspend fun appliedRuleLines(): List<String>
 
@@ -105,6 +108,20 @@ class RuleRepositoryImpl(
             }
         }
         lines
+    }
+
+    override suspend fun injectOnly(): Result<Unit> = withContext(Dispatchers.IO) {
+        val enabled = store.rules.value.filter { it.enabled }
+        val current = shell.run("cat $base/config.yaml 2>/dev/null").stdout
+        if (current.isBlank()) return@withContext Result.failure(IllegalStateException("读取配置失败"))
+
+        val injected = inject(current, enabled.map { it.toRuleLine() })
+        val cache = File(context.cacheDir, "config.rules.yaml")
+        cache.writeText(injected)
+
+        val replace = shell.run("cp -f ${cache.absolutePath} $base/config.yaml", 20_000)
+        if (replace.code == 0) Result.success(Unit)
+        else Result.failure(IllegalStateException("写入配置失败"))
     }
 
     override suspend fun conflicts(): Set<String> {

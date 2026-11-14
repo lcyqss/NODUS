@@ -322,7 +322,11 @@ data class LogEntry(val level: String, val payload: String, val time: Long)
 data class Traffic(val up: Long, val down: Long)
 data class GatewayState(val running: Boolean, val mode: IpMode,
                         val interfaces: List<NetIface>, val blockIpv6: Boolean)
-enum class IpMode { AUTO, V6, V4, DUAL }
+enum class IpMode(val label: String, val wireArg: String) {
+    AUTO("自动", "auto"), DUAL("双栈", "dual"),
+    V6("IPv6 优先", "v6"), V4("IPv4 优先", "v4"),
+    V6_ONLY("仅 IPv6", "v6-only"), V4_ONLY("仅 IPv4", "v4-only")
+}
 ```
 
 ---

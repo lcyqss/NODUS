@@ -5,8 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.ProfileRepository
-import com.mihomo.gateway.model.SubscriptionCodec
-import com.mihomo.gateway.model.SubscriptionProfile
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -92,19 +90,6 @@ class SettingsViewModel(
         }
     }
 
-    fun importSubscription(url: String) {
-        viewModelScope.launch {
-            _busy.value = true
-            _message.value = "导入中…"
-            val result = profiles.import(url)
-            _message.value = result.fold(
-                onSuccess = { "订阅导入成功" },
-                onFailure = { "导入失败: ${it.message}" }
-            )
-            _busy.value = false
-        }
-    }
-
     fun cleanup() {
         viewModelScope.launch {
             _busy.value = true
@@ -117,88 +102,6 @@ class SettingsViewModel(
         }
     }
 
-    val subscriptions: kotlinx.coroutines.flow.StateFlow<List<SubscriptionProfile>> =
-        store.settings
-            .map { SubscriptionCodec.decode(it.subscriptions) }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    fun addSubscription(name: String, url: String) {
-        val trimmed = url.trim()
-        if (trimmed.isBlank()) {
-            _message.value = "订阅链接不能为空"
-            return
-        }
-        viewModelScope.launch {
-            _busy.value = true
-            profiles.import(trimmed).onSuccess {
-                val current = settings.value
-                val list = SubscriptionCodec.decode(current.subscriptions).toMutableList()
-                val profile = SubscriptionProfile(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = name.ifBlank { "订阅 ${list.size + 1}" },
-                    url = trimmed,
-                    lastUpdateAt = current.lastUpdateAt,
-                    nodeCount = current.nodeCount
-                )
-                list.removeAll { it.url == trimmed }
-                list.add(profile)
-                store.update {
-                    it.copy(
-                        subscriptions = SubscriptionCodec.encode(list),
-                        activeSubId = profile.id,
-                        subName = profile.name
-                    )
-                }
-                _message.value = "已添加并切换到「${profile.name}」"
-            }.onFailure { _message.value = "添加失败: ${it.message}" }
-            _busy.value = false
-        }
-    }
-
-    fun activateSubscription(profile: SubscriptionProfile) {
-        viewModelScope.launch {
-            _busy.value = true
-            profiles.import(profile.url).onSuccess {
-                val current = settings.value
-                val list = SubscriptionCodec.decode(current.subscriptions).map {
-                    if (it.id == profile.id) {
-                        it.copy(
-                            lastUpdateAt = current.lastUpdateAt,
-                            nodeCount = current.nodeCount
-                        )
-                    } else {
-                        it
-                    }
-                }
-                store.update {
-                    it.copy(
-                        subscriptions = SubscriptionCodec.encode(list),
-                        activeSubId = profile.id,
-                        subName = profile.name
-                    )
-                }
-                _message.value = "已切换到「${profile.name}」"
-            }.onFailure { _message.value = "切换失败: ${it.message}" }
-            _busy.value = false
-        }
-    }
-
-    fun deleteSubscription(profile: SubscriptionProfile) {
-        viewModelScope.launch {
-            val current = settings.value
-            val wasActive = current.activeSubId == profile.id
-            val list = SubscriptionCodec.decode(current.subscriptions).filterNot { it.id == profile.id }
-            store.update {
-                it.copy(
-                    subscriptions = SubscriptionCodec.encode(list),
-                    activeSubId = if (wasActive) "" else it.activeSubId,
-                    subscriptionUrl = if (wasActive) "" else it.subscriptionUrl,
-                    lastUpdateAt = if (wasActive) 0L else it.lastUpdateAt,
-                    nodeCount = if (wasActive) 0 else it.nodeCount
-                )
-            }
-        }
-    }
     fun buildBackup(): String {
         val current = settings.value
         val rules = org.json.JSONArray()
@@ -279,29 +182,10 @@ class SettingsViewModel(
         }
     }
 
-    fun setSubName(name: String) {
-        viewModelScope.launch {
-            store.update { it.copy(subName = name) }
-        }
-    }
-
     fun setUpdateInterval(hours: Int) {
         viewModelScope.launch {
             store.update { it.copy(updateIntervalHours = hours) }
             _message.value = if (hours <= 0) "自动更新: 关闭" else "自动更新: 每 ${hours} 小时"
-        }
-    }
-
-    fun updateNow() {
-        viewModelScope.launch {
-            _busy.value = true
-            _message.value = "更新中…"
-            val result = profiles.autoUpdate()
-            _message.value = result.fold(
-                onSuccess = { "订阅已更新" },
-                onFailure = { "更新失败: ${it.message}" }
-            )
-            _busy.value = false
         }
     }
 

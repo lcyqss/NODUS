@@ -51,7 +51,7 @@ import com.mihomo.gateway.ui.logs.LogsScreen
 import com.mihomo.gateway.ui.providers.ProvidersScreen
 import kotlinx.coroutines.delay
 
-private enum class SettingsPage { MAIN, SUBSCRIPTION, PROVIDERS, DIAGNOSTICS, LOGS }
+private enum class SettingsPage { MAIN, PROVIDERS, DIAGNOSTICS, LOGS }
 
 @Composable
 fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
@@ -62,13 +62,11 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
     when (page) {
         SettingsPage.MAIN -> SettingsMain(
             vm = vm,
-            onSubscription = { page = SettingsPage.SUBSCRIPTION },
             onProviders = { page = SettingsPage.PROVIDERS },
             onDiagnostics = { page = SettingsPage.DIAGNOSTICS },
             onLogs = { page = SettingsPage.LOGS }
         )
 
-        SettingsPage.SUBSCRIPTION -> SubscriptionPage(vm, onBack = { page = SettingsPage.MAIN })
         SettingsPage.PROVIDERS -> ProvidersScreen(onBack = { page = SettingsPage.MAIN })
         SettingsPage.DIAGNOSTICS -> DiagnosticsScreen(onBack = { page = SettingsPage.MAIN })
         SettingsPage.LOGS -> LogsScreen(onBack = { page = SettingsPage.MAIN })
@@ -78,7 +76,6 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
 @Composable
 private fun SettingsMain(
     vm: SettingsViewModel,
-    onSubscription: () -> Unit,
     onProviders: () -> Unit,
     onDiagnostics: () -> Unit,
     onLogs: () -> Unit
@@ -152,13 +149,6 @@ private fun SettingsMain(
         Spacer(Modifier.height(24.dp))
 
         SettingsGroup("订阅") {
-            SettingsRow(
-                title = "订阅管理",
-                subtitle = settings.subName.ifBlank { "未设置订阅" },
-                value = if (settings.nodeCount > 0) "${settings.nodeCount} 节点" else null,
-                onClick = onSubscription
-            )
-            SettingsDivider()
             SettingsRow(
                 title = "自动更新",
                 value = intervalLabel(settings.updateIntervalHours),
@@ -394,247 +384,6 @@ private fun OptionDialog(
         }
     )
 }
-
-@Composable
-private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
-    val settings by vm.settings.collectAsState()
-    val message by vm.message.collectAsState()
-    val busy by vm.busy.collectAsState()
-    val subs by vm.subscriptions.collectAsState()
-    var showAddSub by remember { mutableStateOf(false) }
-    var addName by remember { mutableStateOf("") }
-    var addUrl by remember { mutableStateOf("") }
-    var showInterval by remember { mutableStateOf(false) }
-
-    LaunchedEffect(message) {
-        if (message != null) {
-            delay(4000)
-            vm.clearMessage()
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        SubPageHeader(
-            title = "订阅管理",
-            subtitle = "导入 Clash 订阅并自动补全网关字段",
-            onBack = onBack
-        )
-
-        Spacer(Modifier.height(14.dp))
-
-        SettingsGroup("当前") {
-            SettingsRow(
-                title = "订阅名称",
-                value = settings.subName.ifBlank { "未设置" },
-                showChevron = false
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = "节点数",
-                value = if (settings.nodeCount > 0) "${settings.nodeCount}" else "-",
-                showChevron = false
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = "上次更新",
-                value = if (settings.lastUpdateAt <= 0) "从未" else formatTime(settings.lastUpdateAt),
-                showChevron = false
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        SettingsGroup("已保存订阅") {
-            if (subs.isEmpty()) {
-                SettingsRow(
-                    title = "还没有保存的订阅",
-                    subtitle = "导入成功后会自动出现在这里",
-                    showChevron = false
-                )
-            } else {
-                subs.forEachIndexed { index, item ->
-                    SubscriptionRow(
-                        name = item.name,
-                        url = item.url,
-                        meta = "${item.nodeCount} 节点 · " +
-                            if (item.lastUpdateAt <= 0) "未更新" else formatTime(item.lastUpdateAt),
-                        active = settings.activeSubId == item.id,
-                        onActivate = { vm.activateSubscription(item) },
-                        onDelete = { vm.deleteSubscription(item) }
-                    )
-                    if (index != subs.lastIndex) SettingsDivider()
-                }
-            }
-            SettingsDivider()
-            SettingsRow(
-                title = "添加订阅",
-                subtitle = "粘贴 Clash 订阅链接，导入后自动切换",
-                enabled = !busy,
-                onClick = { showAddSub = true }
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        SettingsGroup("自动更新") {
-            SettingsRow(
-                title = "更新频率",
-                value = intervalLabel(settings.updateIntervalHours),
-                enabled = !busy,
-                onClick = { showInterval = true }
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = "立即更新",
-                subtitle = "上次：" +
-                    if (settings.lastUpdateAt <= 0) "从未" else formatTime(settings.lastUpdateAt),
-                enabled = !busy,
-                onClick = { vm.updateNow() }
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        SettingsGroup("导入流程") {
-            listOf(
-                "下载并校验是否为 Clash 配置",
-                "写入 /data/adb/mihomo/config.yaml",
-                "自动补齐 external-ui / secret / redir-port 等字段",
-                "重启内核并等待 API 就绪"
-            ).forEachIndexed { index, step ->
-                SettingsRow(
-                    title = "${index + 1}. $step",
-                    showChevron = false
-                )
-                if (index != 3) SettingsDivider()
-            }
-        }
-
-        message?.let {
-            Spacer(Modifier.height(12.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-        }
-
-        Spacer(Modifier.height(12.dp))
-    }
-
-    if (showInterval) {
-        OptionDialog(
-            title = "自动更新订阅",
-            options = listOf(
-                "0" to "关闭",
-                "6" to "每 6 小时",
-                "24" to "每 24 小时",
-                "72" to "每 72 小时"
-            ),
-            selectedKey = settings.updateIntervalHours.toString(),
-            onSelect = {
-                showInterval = false
-                vm.setUpdateInterval(it.toIntOrNull() ?: 0)
-            },
-            onDismiss = { showInterval = false }
-        )
-    }
-
-    if (showAddSub) {
-        AlertDialog(
-            onDismissRequest = { showAddSub = false },
-            title = { Text("添加订阅") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = addName,
-                        onValueChange = { addName = it },
-                        label = { Text("名称（可留空）") },
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = addUrl,
-                        onValueChange = { addUrl = it },
-                        label = { Text("订阅链接") },
-                        singleLine = true
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showAddSub = false
-                    vm.addSubscription(addName, addUrl)
-                    addName = ""
-                    addUrl = ""
-                }) { Text("添加") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddSub = false }) { Text("取消") }
-            }
-        )
-    }
-}
-
-@Composable
-private fun SubscriptionRow(
-    name: String,
-    url: String,
-    meta: String,
-    active: Boolean,
-    onActivate: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onActivate)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(selected = active, onClick = onActivate)
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (active) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "当前",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            Text(
-                url,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                meta,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        OutlinedButton(
-            onClick = onDelete,
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
-        ) { Text("删除", style = MaterialTheme.typography.bodySmall) }
-    }
-}
-
-@Composable
-private fun formatTime(millis: Long): String =
-    java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
-        .format(java.util.Date(millis))
 
 private fun ipModeHint(mode: IpMode): String = when (mode) {
     IpMode.AUTO -> "探测本机 IPv6，自动二选一"

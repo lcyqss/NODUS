@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -57,6 +58,10 @@ import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.Tag
 import com.mihomo.gateway.ui.icons.GwIcon
+import com.mihomo.gateway.ui.subscription.SubscriptionManagementPage
+import com.mihomo.gateway.ui.subscription.SubscriptionSheet
+import com.mihomo.gateway.ui.subscription.SubscriptionViewModel
+import kotlinx.coroutines.delay
 
 private val GoodColor = Color(0xFF16A34A)
 private val WarnColor = Color(0xFFEA580C)
@@ -78,6 +83,16 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     val failed by vm.failed.collectAsState()
     val favorites by vm.favorites.collectAsState()
 
+    val subVm: SubscriptionViewModel = viewModel()
+    val subs by subVm.subscriptions.collectAsState()
+    val subSettings by subVm.settings.collectAsState()
+    val subBusy by subVm.busy.collectAsState()
+    val subSwitching by subVm.switchingId.collectAsState()
+    val subMessage by subVm.message.collectAsState()
+    val subRefreshTick by subVm.refreshTick.collectAsState()
+    var showSubSheet by remember { mutableStateOf(false) }
+    var showSubPage by remember { mutableStateOf(false) }
+
     val currentGroup = state.groups.firstOrNull { it.name == state.selectedGroup }
     var query by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
@@ -92,6 +107,37 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
 
     LaunchedEffect(searchOpen) {
         if (searchOpen) focusRequester.requestFocus() else keyboard?.hide()
+    }
+
+    // 订阅切换/更新成功后：关闭弹层并重新拉取节点（分组可能整体变化）
+    // URLTest 组重载后要等首次测速才有 now：稍后补刷一次，仍为空就主动测速
+    LaunchedEffect(subRefreshTick) {
+        if (subRefreshTick > 0) {
+            showSubSheet = false
+            vm.load()
+            delay(1600)
+            vm.load()
+            val snapshot = vm.state.value
+            val group = snapshot.groups.firstOrNull { it.name == snapshot.selectedGroup }
+            if (group != null && group.type == "URLTest" && group.now == null) {
+                vm.testGroup(group)
+            }
+        }
+    }
+
+    // 操作提示几秒后消失
+    LaunchedEffect(subMessage) {
+        if (subMessage != null) {
+            delay(4000)
+            subVm.clearMessage()
+        }
+    }
+
+    BackHandler(enabled = showSubPage) { showSubPage = false }
+
+    if (showSubPage) {
+        SubscriptionManagementPage(vm = subVm, onBack = { showSubPage = false })
+        return
     }
 
     val members = remember(
@@ -130,6 +176,8 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
             if (query.isNotBlank()) append(" · 搜索“$query”")
         }
     }
+
+    val activeSub = subs.firstOrNull { it.id == subSettings.activeSubId }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(title = "节点", subtitle = subtitle) {
@@ -197,6 +245,15 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                 }
             }
         }
+
+        Spacer(Modifier.height(8.dp))
+
+        SubscriptionRow(
+            name = activeSub?.name ?: subSettings.subName.ifBlank { "未设置订阅" },
+            nodeCount = activeSub?.nodeCount ?: subSettings.nodeCount,
+            busy = subBusy,
+            onClick = { showSubSheet = true }
+        )
 
         Spacer(Modifier.height(10.dp))
 
@@ -314,6 +371,76 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                 }
             }
         }
+    }
+
+    if (showSubSheet) {
+        SubscriptionSheet(
+            subs = subs,
+            activeId = subSettings.activeSubId,
+            busy = subBusy,
+            switchingId = subSwitching,
+            message = subMessage,
+            onSelect = { subVm.activate(it) },
+            onUpdate = { subVm.updateActive() },
+            onManage = {
+                showSubSheet = false
+                showSubPage = true
+            },
+            onDismiss = { showSubSheet = false }
+        )
+    }
+}
+
+@Composable
+private fun SubscriptionRow(
+    name: String,
+    nodeCount: Int,
+    busy: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(enabled = !busy, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                "订阅",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                name,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (busy) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(8.dp))
+        } else if (nodeCount > 0) {
+            Text(
+                "$nodeCount 节点",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            "›",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.padding(start = 6.dp)
+        )
     }
 }
 
