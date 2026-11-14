@@ -258,28 +258,11 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
         }
 
         SectionCard(title = "订阅配置") {
-            OutlinedTextField(
-                value = subName,
-                onValueChange = {
-                    subName = it
-                    vm.setSubName(it)
-                },
-                label = { Text("名称（可选）") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+            Text(
+                "在下方「已保存订阅」里添加链接，导入成功后会自动切换",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            OutlinedTextField(
-                value = subUrl,
-                onValueChange = { subUrl = it },
-                label = { Text("https://…") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Button(
-                onClick = { vm.importSubscription(subUrl) },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("导入订阅") }
             Text(
                 "当前订阅：${settings.subscriptionUrl.ifBlank { "未设置" }}",
                 style = MaterialTheme.typography.bodySmall,

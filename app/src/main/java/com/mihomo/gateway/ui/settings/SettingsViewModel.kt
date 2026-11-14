@@ -178,11 +178,15 @@ class SettingsViewModel(
     fun deleteSubscription(profile: SubscriptionProfile) {
         viewModelScope.launch {
             val current = settings.value
+            val wasActive = current.activeSubId == profile.id
             val list = SubscriptionCodec.decode(current.subscriptions).filterNot { it.id == profile.id }
             store.update {
                 it.copy(
                     subscriptions = SubscriptionCodec.encode(list),
-                    activeSubId = if (it.activeSubId == profile.id) "" else it.activeSubId
+                    activeSubId = if (wasActive) "" else it.activeSubId,
+                    subscriptionUrl = if (wasActive) "" else it.subscriptionUrl,
+                    lastUpdateAt = if (wasActive) 0L else it.lastUpdateAt,
+                    nodeCount = if (wasActive) 0 else it.nodeCount
                 )
             }
         }
@@ -240,14 +244,25 @@ class SettingsViewModel(
                     for (i in 0 until rules.length()) {
                         val r = rules.optJSONObject(i) ?: continue
                         val kind = com.mihomo.gateway.model.RuleKind.fromWire(r.optString("kind")) ?: continue
+                        val value = r.optString("value")
                         ruleRepository.add(
                             kind,
-                            r.optString("value"),
+                            value,
                             r.optString("target"),
                             r.optBoolean("noResolve", kind.needsNoResolve)
                         )
+                        if (!r.optBoolean("enabled", true)) {
+                            ruleRepository.rules.value
+                                .firstOrNull { it.kind == kind && it.value == value.trim() }
+                                ?.let { ruleRepository.update(it.copy(enabled = false)) }
+                        }
                     }
                 }
+
+                // 恢复后把地址族 / IPv6 拦截真正应用到网关
+                val restored = settings.value
+                runCatching { gateway.setIpMode(restored.ipMode) }
+                runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
             }
             _message.value = result.fold(
                 onSuccess = { "配置已恢复" },

@@ -132,7 +132,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
 
         Spacer(Modifier.height(8.dp))
 
-        if (mode > 0 && deviceHistory.isNotEmpty()) {
+        if (deviceHistory.isNotEmpty()) {
             RecentDevices(
                 devices = deviceHistory.values.sortedByDescending { it.lastSeen },
                 online = data.map { it.sourceIP }.toSet(),
