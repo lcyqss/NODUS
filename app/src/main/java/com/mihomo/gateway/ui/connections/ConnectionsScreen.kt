@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -21,84 +22,227 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.ConnectionInfo
 import com.mihomo.gateway.ui.components.EmptyState
-import com.mihomo.gateway.ui.components.KeyValueRow
 import com.mihomo.gateway.ui.components.ScreenHeader
+
+private data class TopoRow(
+    val client: String,
+    val group: String,
+    val proxy: String,
+    val rule: String,
+    val count: Int,
+    val traffic: Long
+)
 
 @Composable
 fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     var expandedId by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
+    var mode by rememberSaveable { mutableIntStateOf(0) }
+    var paused by remember { mutableStateOf(false) }
+    var frozen by remember { mutableStateOf<List<ConnectionInfo>>(emptyList()) }
 
     DisposableEffect(Unit) {
         vm.startPolling()
         onDispose { vm.stopPolling() }
     }
+    LaunchedEffect(paused) {
+        if (paused) frozen = state.connections
+    }
+
+    val data = if (paused) frozen else state.connections
+    val filtered = remember(data, query) {
+        if (query.isBlank()) data
+        else data.filter {
+            it.host.contains(query, true) ||
+                it.rule.contains(query, true) ||
+                it.sourceIP.contains(query, true) ||
+                it.chains.any { c -> c.contains(query, true) }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(
             title = "连接",
-            subtitle = "${state.connections.size} 条活动连接 · ↑${formatBytes(state.connections.sumOf { it.upload })} ↓${formatBytes(state.connections.sumOf { it.download })}"
+            subtitle = if (mode == 0) {
+                "${data.size} 条活动连接 · ↑${formatBytes(data.sumOf { it.upload })} ↓${formatBytes(data.sumOf { it.download })}"
+            } else {
+                "设备 → 节点 → 规则（基于活动连接）"
+            }
         ) {
             OutlinedButton(onClick = { vm.closeAll() }) { Text("全部断开") }
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
+
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(listOf("列表", "拓扑", "树形")) { label ->
+                val index = listOf("列表", "拓扑", "树形").indexOf(label)
+                if (mode == index) Button(onClick = { mode = index }) { Text(label) }
+                else OutlinedButton(onClick = { mode = index }) { Text(label) }
+            }
+            if (mode > 0) {
+                item {
+                    OutlinedButton(onClick = {
+                        paused = !paused
+                        if (!paused) frozen = emptyList()
+                    }) { Text(if (paused) "继续" else "暂停") }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
 
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
-            label = { Text("搜索域名 / 客户端 IP / 规则") },
+            label = { Text(if (mode == 0) "搜索域名 / 客户端 IP / 规则" else "过滤客户端 / 节点 / 规则") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(8.dp))
 
-        val filtered = remember(state.connections, query) {
-            if (query.isBlank()) state.connections
-            else state.connections.filter {
-                it.host.contains(query, true) ||
-                    it.rule.contains(query, true) ||
-                    it.sourceIP.contains(query, true)
-            }
-        }
-
         state.error?.let {
             Text("错误: $it", color = MaterialTheme.colorScheme.error)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
         }
 
-        if (state.loaded && filtered.isEmpty()) {
-            EmptyState("暂无活动连接")
+        if (filtered.isEmpty()) {
+            EmptyState(if (mode == 0) "暂无活动连接" else "暂无活动连接，无法生成拓扑")
+            return@Column
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(filtered, key = { it.id }) { conn ->
-                ConnectionRow(
-                    conn = conn,
-                    expanded = expandedId == conn.id,
-                    onToggle = {
-                        expandedId = if (expandedId == conn.id) null else conn.id
-                    },
-                    onClose = { vm.close(conn.id) }
+        when (mode) {
+            0 -> ConnectionList(
+                connections = filtered,
+                expandedId = expandedId,
+                onToggle = { id -> expandedId = if (expandedId == id) null else id },
+                onClose = { id -> vm.close(id) }
+            )
+
+            1 -> {
+                val rows = remember(filtered) { aggregate(filtered) }
+                TopologyTable(rows, data)
+            }
+
+            else -> TopologyTree(filtered)
+        }
+    }
+}
+
+@Composable
+private fun ConnectionList(
+    connections: List<ConnectionInfo>,
+    expandedId: String?,
+    onToggle: (String) -> Unit,
+    onClose: (String) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(connections, key = { it.id }) { conn ->
+            ConnectionRow(
+                conn = conn,
+                expanded = expandedId == conn.id,
+                onToggle = { onToggle(conn.id) },
+                onClose = { onClose(conn.id) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun TopologyTable(rows: List<TopoRow>, all: List<ConnectionInfo>) {
+    val devices = all.map { it.sourceIP }.distinct().size
+    val totalTraffic = rows.sumOf { it.traffic }
+
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        Column {
+            Text("设备", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("$devices", style = MaterialTheme.typography.titleMedium)
+        }
+        Column {
+            Text("连接", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${all.size}", style = MaterialTheme.typography.titleMedium)
+        }
+        Column {
+            Text("流量", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(formatBytes(totalTraffic), style = MaterialTheme.typography.titleMedium)
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        items(rows, key = { "${it.client}|${it.group}|${it.proxy}|${it.rule}" }) { row ->
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        row.client,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        "${row.count} 条",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    "→ ${row.proxy}  (${groupLabel(row.group)})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
                 )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        row.rule,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        formatBytes(row.traffic),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
             }
         }
     }
@@ -152,16 +296,207 @@ private fun ConnectionRow(
 
         if (expanded) {
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-            KeyValueRow("源地址", conn.sourceIP.ifBlank { "-" })
-            KeyValueRow("目标地址", conn.destinationIP.ifBlank { "-" })
-            KeyValueRow("网络类型", conn.network)
-            KeyValueRow("规则", conn.rule.ifBlank { "-" })
-            KeyValueRow("链路", conn.chains.joinToString(" → ").ifBlank { "-" })
-            KeyValueRow("已持续", formatDuration(System.currentTimeMillis() - conn.start))
-            KeyValueRow("上传", formatBytes(conn.upload))
-            KeyValueRow("下载", formatBytes(conn.download))
+            KeyValue("源地址", "${conn.sourceIP}:${conn.sourcePort}".trimEnd(':'))
+            KeyValue("目标地址", conn.destinationIP.ifBlank { "-" })
+            KeyValue("网络类型", conn.network)
+            KeyValue("规则", buildString {
+                append(conn.rule.ifBlank { "-" })
+                if (conn.rulePayload.isNotBlank()) append(": ${conn.rulePayload}")
+            })
+            KeyValue("链路", conn.chains.joinToString(" → ").ifBlank { "-" })
+            KeyValue("已持续", formatDuration(System.currentTimeMillis() - conn.start))
         }
     }
+}
+
+@Composable
+private fun KeyValue(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(value, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+    }
+}
+
+private data class TreeRow(
+    val key: String,
+    val depth: Int,
+    val title: String,
+    val subtitle: String?,
+    val count: Int,
+    val traffic: Long,
+    val expandable: Boolean,
+    val collapsed: Boolean
+)
+
+@Composable
+private fun TopologyTree(connections: List<ConnectionInfo>) {
+    var collapsed by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val rows = remember(connections, collapsed) { buildTree(connections, collapsed) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        items(rows, key = { it.key }) { row ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        when (row.depth) {
+                            0 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                            else -> MaterialTheme.colorScheme.surface
+                        }
+                    )
+                    .clickable(enabled = row.expandable) {
+                        if (row.expandable) {
+                            collapsed = if (collapsed.contains(row.title)) {
+                                collapsed - row.title
+                            } else {
+                                collapsed + row.title
+                            }
+                        }
+                    }
+                    .padding(start = (8 + row.depth * 14).dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (row.expandable) {
+                    Text(
+                        if (row.collapsed) "▸" else "▾",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        row.title,
+                        style = if (row.depth == 0) MaterialTheme.typography.titleMedium
+                        else MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (row.depth <= 1) FontWeight.Medium else FontWeight.Normal
+                    )
+                    row.subtitle?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                }
+                Text(
+                    "${row.count} · ${formatBytes(row.traffic)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+private fun buildTree(
+    connections: List<ConnectionInfo>,
+    collapsed: Set<String>
+): List<TreeRow> {
+    val rows = mutableListOf<TreeRow>()
+    val groups = connections.groupBy { it.chains.getOrNull(1) ?: "DIRECT" }
+
+    groups.forEach { (group, groupConns) ->
+        val groupKey = "group:$group"
+        rows += TreeRow(
+            key = groupKey,
+            depth = 0,
+            title = groupLabel(group),
+            subtitle = "${groupConns.size} 条连接",
+            count = groupConns.size,
+            traffic = groupConns.sumOf { it.upload + it.download },
+            expandable = true,
+            collapsed = collapsed.contains(group)
+        )
+        if (collapsed.contains(group)) return@forEach
+
+        groupConns.groupBy { it.chains.getOrNull(0) ?: "DIRECT" }.forEach { (proxy, proxyConns) ->
+            rows += TreeRow(
+                key = "$groupKey|$proxy",
+                depth = 1,
+                title = proxy,
+                subtitle = null,
+                count = proxyConns.size,
+                traffic = proxyConns.sumOf { it.upload + it.download },
+                expandable = false,
+                collapsed = false
+            )
+
+            proxyConns.groupBy {
+                buildString {
+                    append(it.rule.ifBlank { "Match" })
+                    if (it.rulePayload.isNotBlank()) append(": ${it.rulePayload}")
+                }
+            }.forEach { (rule, ruleConns) ->
+                rows += TreeRow(
+                    key = "$groupKey|$proxy|$rule",
+                    depth = 2,
+                    title = rule,
+                    subtitle = null,
+                    count = ruleConns.size,
+                    traffic = ruleConns.sumOf { it.upload + it.download },
+                    expandable = false,
+                    collapsed = false
+                )
+                ruleConns.forEach { conn ->
+                    rows += TreeRow(
+                        key = "$groupKey|$proxy|$rule|${conn.id}",
+                        depth = 3,
+                        title = "${conn.sourceIP}:${conn.sourcePort}".trimEnd(':'),
+                        subtitle = conn.host.ifBlank { null },
+                        count = 1,
+                        traffic = conn.upload + conn.download,
+                        expandable = false,
+                        collapsed = false
+                    )
+                }
+            }
+        }
+    }
+    return rows
+}
+private fun aggregate(connections: List<ConnectionInfo>): List<TopoRow> {
+    data class Key(val client: String, val group: String, val proxy: String, val rule: String)
+
+    val map = linkedMapOf<Key, Pair<Int, Long>>()
+    connections.forEach { conn ->
+        val group = conn.chains.getOrNull(1) ?: "DIRECT"
+        val proxy = conn.chains.getOrNull(0) ?: "DIRECT"
+        val rule = buildString {
+            append(conn.rule.ifBlank { "Match" })
+            if (conn.rulePayload.isNotBlank()) append(": ${conn.rulePayload}")
+        }
+        val client = "${conn.sourceIP}:${conn.sourcePort}".trimEnd(':')
+        val key = Key(client, group, proxy, rule)
+        val (count, traffic) = map[key] ?: (0 to 0L)
+        map[key] = (count + 1) to (traffic + conn.upload + conn.download)
+    }
+
+    return map.map { (key, value) ->
+        TopoRow(
+            client = key.client,
+            group = key.group,
+            proxy = key.proxy,
+            rule = key.rule,
+            count = value.first,
+            traffic = value.second
+        )
+    }.sortedByDescending { it.traffic }
+}
+
+private fun groupLabel(group: String): String = when (group) {
+    "DIRECT" -> "直连"
+    "REJECT" -> "拦截"
+    else -> group
 }
 
 private fun formatBytes(bytes: Long): String = when {
