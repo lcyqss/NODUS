@@ -103,8 +103,8 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
         Spacer(Modifier.height(8.dp))
 
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(listOf("列表", "拓扑", "树形")) { label ->
-                val index = listOf("列表", "拓扑", "树形").indexOf(label)
+            items(listOf("列表", "拓扑", "图形")) { label ->
+                val index = listOf("列表", "拓扑", "图形").indexOf(label)
                 if (mode == index) Button(onClick = { mode = index }) { Text(label) }
                 else OutlinedButton(onClick = { mode = index }) { Text(label) }
             }
@@ -161,7 +161,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
                 TopologyTable(rows, data, labelOf)
             }
 
-            else -> TopologyTree(filtered, labelOf)
+            else -> TopologyGraph(filtered, labelOf)
         }
     }
 }
@@ -342,157 +342,6 @@ private fun KeyValue(label: String, value: String) {
     }
 }
 
-private data class TreeRow(
-    val key: String,
-    val depth: Int,
-    val title: String,
-    val subtitle: String?,
-    val count: Int,
-    val traffic: Long,
-    val expandable: Boolean,
-    val collapsed: Boolean
-)
-
-@Composable
-private fun TopologyTree(
-    connections: List<ConnectionInfo>,
-    labelOf: (String) -> String
-) {
-    var collapsed by remember { mutableStateOf<Set<String>>(emptySet()) }
-    val rows = remember(connections, collapsed) { buildTree(connections, collapsed, labelOf) }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        items(rows, key = { it.key }) { row ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        when (row.depth) {
-                            0 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                            else -> MaterialTheme.colorScheme.surface
-                        }
-                    )
-                    .clickable(enabled = row.expandable) {
-                        if (row.expandable) {
-                            collapsed = if (collapsed.contains(row.title)) {
-                                collapsed - row.title
-                            } else {
-                                collapsed + row.title
-                            }
-                        }
-                    }
-                    .padding(start = (8 + row.depth * 14).dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (row.expandable) {
-                    Text(
-                        if (row.collapsed) "▸" else "▾",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.width(4.dp))
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        row.title,
-                        style = if (row.depth == 0) MaterialTheme.typography.titleMedium
-                        else MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (row.depth <= 1) FontWeight.Medium else FontWeight.Normal
-                    )
-                    row.subtitle?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
-                }
-                Text(
-                    "${row.count} · ${formatBytes(row.traffic)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-private fun buildTree(
-    connections: List<ConnectionInfo>,
-    collapsed: Set<String>,
-    labelOf: (String) -> String
-): List<TreeRow> {
-    val rows = mutableListOf<TreeRow>()
-    val groups = connections.groupBy { it.chains.getOrNull(1) ?: "DIRECT" }
-
-    groups.forEach { (group, groupConns) ->
-        val groupKey = "group:$group"
-        rows += TreeRow(
-            key = groupKey,
-            depth = 0,
-            title = groupLabel(group),
-            subtitle = "${groupConns.size} 条连接",
-            count = groupConns.size,
-            traffic = groupConns.sumOf { it.upload + it.download },
-            expandable = true,
-            collapsed = collapsed.contains(group)
-        )
-        if (collapsed.contains(group)) return@forEach
-
-        groupConns.groupBy { it.chains.getOrNull(0) ?: "DIRECT" }.forEach { (proxy, proxyConns) ->
-            rows += TreeRow(
-                key = "$groupKey|$proxy",
-                depth = 1,
-                title = proxy,
-                subtitle = null,
-                count = proxyConns.size,
-                traffic = proxyConns.sumOf { it.upload + it.download },
-                expandable = false,
-                collapsed = false
-            )
-
-            proxyConns.groupBy {
-                buildString {
-                    append(it.rule.ifBlank { "Match" })
-                    if (it.rulePayload.isNotBlank()) append(": ${it.rulePayload}")
-                }
-            }.forEach { (rule, ruleConns) ->
-                rows += TreeRow(
-                    key = "$groupKey|$proxy|$rule",
-                    depth = 2,
-                    title = rule,
-                    subtitle = null,
-                    count = ruleConns.size,
-                    traffic = ruleConns.sumOf { it.upload + it.download },
-                    expandable = false,
-                    collapsed = false
-                )
-                ruleConns.forEach { conn ->
-                    rows += TreeRow(
-                        key = "$groupKey|$proxy|$rule|${conn.id}",
-                        depth = 3,
-                        title = labelOf(conn.sourceIP),
-                        subtitle = buildString {
-                            append(conn.sourceIP)
-                            if (conn.sourcePort.isNotBlank()) append(":").append(conn.sourcePort)
-                            if (conn.host.isNotBlank()) append(" · ").append(conn.host)
-                        },
-                        count = 1,
-                        traffic = conn.upload + conn.download,
-                        expandable = false,
-                        collapsed = false
-                    )
-                }
-            }
-        }
-    }
-    return rows
-}
 @Composable
 private fun RecentDevices(devices: List<DeviceSeen>, online: Set<String>) {
     androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
