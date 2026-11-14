@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -9,6 +10,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
+        android:name=".MihomoApp"
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
         android:label="Mihomo Gateway"
@@ -23,12 +25,8 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".DashboardActivity"
-            android:exported="false" />
-
         <service
-            android:name=".GatewayService"
+            android:name=".service.GatewayService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
@@ -37,7 +35,7 @@
         </service>
 
         <receiver
-            android:name=".BootReceiver"
+            android:name=".service.BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
