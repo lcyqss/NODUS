@@ -51,12 +51,12 @@ private val DarkColors = darkColorScheme(
 )
 
 private val AppTypography = Typography(
-    headlineSmall = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold),
+    headlineSmall = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Bold),
     titleLarge = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
     titleMedium = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
-    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
+    bodyMedium = TextStyle(fontSize = 15.sp, lineHeight = 21.sp),
     bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
-    labelSmall = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    labelSmall = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium)
 )
 
 @Composable

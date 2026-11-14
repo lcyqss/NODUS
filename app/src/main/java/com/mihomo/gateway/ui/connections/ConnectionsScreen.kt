@@ -16,12 +16,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.ConnectionInfo
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.ScreenHeader
+import com.mihomo.gateway.ui.components.SegmentedControl
 
 private data class TopoRow(
     val clientIp: String,
@@ -101,29 +102,25 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
             subtitle = if (mode == 0) {
                 "${data.size} 条活动连接 · ↑${formatBytes(data.sumOf { it.upload })} ↓${formatBytes(data.sumOf { it.download })}"
             } else {
-                "设备 → 节点 → 规则（基于活动连接）"
+                "设备 → 节点 → 规则"
             }
         ) {
-            OutlinedButton(onClick = { vm.closeAll() }) { Text("全部断开") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = {
+                    paused = !paused
+                    if (!paused) frozen = emptyList()
+                }) { Text(if (paused) "继续" else "暂停") }
+                OutlinedButton(onClick = { vm.closeAll() }) { Text("全部断开") }
+            }
         }
 
         Spacer(Modifier.height(8.dp))
 
-        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(listOf("列表", "拓扑", "图形")) { label ->
-                val index = listOf("列表", "拓扑", "图形").indexOf(label)
-                if (mode == index) Button(onClick = { mode = index }) { Text(label) }
-                else OutlinedButton(onClick = { mode = index }) { Text(label) }
-            }
-            if (mode > 0) {
-                item {
-                    OutlinedButton(onClick = {
-                        paused = !paused
-                        if (!paused) frozen = emptyList()
-                    }) { Text(if (paused) "继续" else "暂停") }
-                }
-            }
-        }
+        SegmentedControl(
+            options = listOf("列表", "拓扑", "图形"),
+            selectedIndex = mode,
+            onSelect = { mode = it }
+        )
 
         Spacer(Modifier.height(8.dp))
 
@@ -234,12 +231,11 @@ private fun TopologyTable(
 
     Spacer(Modifier.height(6.dp))
 
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("流量↓", "设备", "规则").forEachIndexed { index, label ->
-            if (sort == index) Button(onClick = { sort = index }) { Text(label) }
-            else OutlinedButton(onClick = { sort = index }) { Text(label) }
-        }
-    }
+    SegmentedControl(
+        options = listOf("流量↓", "设备", "规则"),
+        selectedIndex = sort,
+        onSelect = { sort = it }
+    )
 
     Spacer(Modifier.height(6.dp))
 
@@ -251,7 +247,7 @@ private fun TopologyTable(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {

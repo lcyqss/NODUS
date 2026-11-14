@@ -1,5 +1,7 @@
 package com.mihomo.gateway.ui.nav
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.NavigationBar
@@ -7,11 +9,14 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import com.mihomo.gateway.ui.connections.ConnectionsScreen
 import com.mihomo.gateway.ui.icons.GwIcon
@@ -48,7 +53,13 @@ fun AppNav() {
             }
         }
     ) { padding ->
-        Box(Modifier.padding(padding)) {
+        // 200ms 淡入；不用 Crossfade，避免新旧页面同时存在导致连接页轮询被旧实例关掉
+        val fade = remember { Animatable(1f) }
+        LaunchedEffect(tab) {
+            fade.snapTo(0f)
+            fade.animateTo(1f, animationSpec = tween(durationMillis = 200))
+        }
+        Box(Modifier.padding(padding).alpha(fade.value)) {
             when (tab) {
                 0 -> OverviewScreen(onOpenNodes = { tab = 1 })
                 1 -> ProxiesScreen()

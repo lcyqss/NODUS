@@ -56,7 +56,11 @@ fun ProvidersScreen(onBack: () -> Unit, vm: ProvidersViewModel = viewModel()) {
         if (state.loading && state.providers.isEmpty()) {
             EmptyState("加载中…")
         } else if (state.providers.isEmpty()) {
-            EmptyState("没有 provider（订阅可能是内联 proxies）")
+            EmptyState(
+                "没有 provider（订阅可能是内联 proxies）",
+                actionLabel = "刷新",
+                onAction = { vm.load() }
+            )
         }
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
