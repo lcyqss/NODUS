@@ -356,11 +356,11 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                                     delay = delays[node.name],
                                     testing = testing.contains(node.name),
                                     failed = failed.contains(node.name),
-                                    canSelect = currentGroup.type == "Selector" && !node.isGroup,
+                                    canSelect = currentGroup.type == "Selector",
                                     favorite = favorites.contains(node.name),
                                     onFavorite = { vm.toggleFavorite(node.name) },
                                     onClick = {
-                                        if (currentGroup.type == "Selector" && !node.isGroup) {
+                                        if (currentGroup.type == "Selector") {
                                             vm.selectNode(currentGroup.name, node.name)
                                         }
                                     }
@@ -608,17 +608,39 @@ private fun NodeRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Tag(node.type)
-                if (node.isGroup) Tag("组", MaterialTheme.colorScheme.secondary)
+                if (node.isGroup) {
+                    Tag("组", MaterialTheme.colorScheme.secondary)
+                    node.now?.takeUnless { ProxyNames.isInfoNode(it) }?.let { current ->
+                        Text(
+                            "→ $current",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
         Spacer(Modifier.width(8.dp))
-        DelayMeter(
-            delay = delay ?: node.delay,
-            testing = testing,
-            failed = failed
-        )
+        if (node.isGroup) {
+            Text(
+                "子组",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            DelayMeter(
+                delay = delay ?: node.delay,
+                testing = testing,
+                failed = failed
+            )
+        }
     }
 }
 
