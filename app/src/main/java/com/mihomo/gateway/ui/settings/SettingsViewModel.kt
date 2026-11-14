@@ -125,6 +125,7 @@ class SettingsViewModel(
             return
         }
         viewModelScope.launch {
+            _busy.value = true
             profiles.import(trimmed).onSuccess {
                 val current = settings.value
                 val list = SubscriptionCodec.decode(current.subscriptions).toMutableList()
@@ -146,11 +147,13 @@ class SettingsViewModel(
                 }
                 _message.value = "已添加并切换到「${profile.name}」"
             }.onFailure { _message.value = "添加失败: ${it.message}" }
+            _busy.value = false
         }
     }
 
     fun activateSubscription(profile: SubscriptionProfile) {
         viewModelScope.launch {
+            _busy.value = true
             profiles.import(profile.url).onSuccess {
                 val current = settings.value
                 val list = SubscriptionCodec.decode(current.subscriptions).map {
@@ -172,6 +175,7 @@ class SettingsViewModel(
                 }
                 _message.value = "已切换到「${profile.name}」"
             }.onFailure { _message.value = "切换失败: ${it.message}" }
+            _busy.value = false
         }
     }
 

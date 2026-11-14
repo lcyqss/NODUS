@@ -44,6 +44,17 @@ class GatewayService : Service() {
             return START_STICKY
         }
 
+        if (intent?.action == ACTION_START) {
+            scope.launch {
+                AppContainer.settings.update { it.copy(desiredRunning = true) }
+                AppContainer.gateway.start()
+                withMain {
+                    startForeground(NOTIFICATION_ID, buildNotification("网关服务运行中", true))
+                }
+            }
+            return START_STICKY
+        }
+
         startForeground(NOTIFICATION_ID, buildNotification("网关服务运行中", true))
 
         scope.launch {
@@ -112,6 +123,15 @@ class GatewayService : Service() {
             builder.addAction(
                 Notification.Action.Builder(null, "停止网关", stopIntent).build()
             )
+        } else {
+            val startIntent = PendingIntent.getService(
+                this, 2,
+                Intent(this, GatewayService::class.java).setAction(ACTION_START),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(
+                Notification.Action.Builder(null, "启动网关", startIntent).build()
+            )
         }
         builder.addAction(
             Notification.Action.Builder(null, "打开", openIntent).build()
@@ -135,5 +155,6 @@ class GatewayService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val TAG = "GW-Service"
         const val ACTION_STOP = "com.mihomo.gateway.STOP"
+        const val ACTION_START = "com.mihomo.gateway.START"
     }
 }

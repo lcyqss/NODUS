@@ -75,7 +75,12 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
         onDispose { vm.stopPolling() }
     }
     LaunchedEffect(paused) {
-        if (paused) frozen = state.connections
+        if (paused) {
+            frozen = state.connections
+            vm.stopPolling()
+        } else {
+            vm.startPolling()
+        }
     }
 
     val raw = if (paused) frozen else state.connections

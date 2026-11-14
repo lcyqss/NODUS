@@ -13,10 +13,24 @@ import kotlinx.coroutines.withContext
 class GatewayTileService : TileService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var watchJob: kotlinx.coroutines.Job? = null
 
     override fun onStartListening() {
         super.onStartListening()
         updateTile()
+        if (watchJob == null) {
+            watchJob = scope.launch {
+                AppContainer.gateway.state.collect {
+                    withContext(Dispatchers.Main) { updateTile() }
+                }
+            }
+        }
+    }
+
+    override fun onStopListening() {
+        watchJob?.cancel()
+        watchJob = null
+        super.onStopListening()
     }
 
     override fun onClick() {

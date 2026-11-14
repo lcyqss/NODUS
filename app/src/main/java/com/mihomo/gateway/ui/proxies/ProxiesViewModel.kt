@@ -42,16 +42,15 @@ class ProxiesViewModel(
 ) : ViewModel() {
 
     val favorites: StateFlow<Set<String>> = settings.settings
-        .map { it.favoriteNodes.split(',').map(String::trim).filter(String::isNotEmpty).toSet() }
+        .map { decodeFavorites(it.favoriteNodes) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     fun toggleFavorite(name: String) {
         viewModelScope.launch {
             settings.update { current ->
-                val set = current.favoriteNodes.split(',').map(String::trim)
-                    .filter(String::isNotEmpty).toMutableSet()
+                val set = decodeFavorites(current.favoriteNodes).toMutableSet()
                 if (set.contains(name)) set.remove(name) else set.add(name)
-                current.copy(favoriteNodes = set.joinToString(","))
+                current.copy(favoriteNodes = encodeFavorites(set))
             }
         }
     }
@@ -164,4 +163,21 @@ class ProxiesViewModel(
             }.awaitAll()
         }
     }
+}
+private fun decodeFavorites(raw: String): Set<String> {
+    if (raw.isBlank()) return emptySet()
+    return runCatching {
+        if (raw.trimStart().startsWith("[")) {
+            val array = org.json.JSONArray(raw)
+            (0 until array.length()).map { array.optString(it) }.filter(String::isNotEmpty).toSet()
+        } else {
+            raw.split(',').map(String::trim).filter(String::isNotEmpty).toSet()
+        }
+    }.getOrDefault(emptySet())
+}
+
+private fun encodeFavorites(values: Set<String>): String {
+    val array = org.json.JSONArray()
+    values.forEach { array.put(it) }
+    return array.toString()
 }
