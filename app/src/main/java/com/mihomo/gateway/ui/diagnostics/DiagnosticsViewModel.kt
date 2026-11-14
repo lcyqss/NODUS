@@ -49,6 +49,38 @@ class DiagnosticsViewModel(
         }
     }
 
+    private val _actionMessage = MutableStateFlow<String?>(null)
+    val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
+
+    fun restartCore() {
+        viewModelScope.launch {
+            _actionMessage.value = "重启中…"
+            api.restartCore()
+                .onSuccess {
+                    kotlinx.coroutines.delay(1500)
+                    _actionMessage.value = "内核已重启"
+                    refresh()
+                }
+                .onFailure { _actionMessage.value = "重启失败: ${it.message}" }
+        }
+    }
+
+    fun flushFakeIp() {
+        viewModelScope.launch {
+            api.flushFakeIp()
+                .onSuccess { _actionMessage.value = "fake-ip 缓存已清空" }
+                .onFailure { _actionMessage.value = "清理失败: ${it.message}" }
+        }
+    }
+
+    fun flushDns() {
+        viewModelScope.launch {
+            api.flushDns()
+                .onSuccess { _actionMessage.value = "DNS 缓存已清空" }
+                .onFailure { _actionMessage.value = "清理失败: ${it.message}" }
+        }
+    }
+
     fun snapshot() {
         viewModelScope.launch {
             val result = shell.run(

@@ -34,7 +34,7 @@ class MihomoApiImpl(
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
@@ -78,6 +78,8 @@ class MihomoApiImpl(
                     .header("Authorization", "Bearer $secret")
                 when (method) {
                     "PUT" -> builder.put((body ?: "").toRequestBody(JSON_MEDIA))
+                    "PATCH" -> builder.patch((body ?: "").toRequestBody(JSON_MEDIA))
+                    "POST" -> builder.post((body ?: "").toRequestBody(JSON_MEDIA))
                     "DELETE" -> builder.delete()
                     else -> builder.get()
                 }
@@ -169,6 +171,42 @@ class MihomoApiImpl(
                 Result.failure(AppError.Network(e))
             }
         }
+
+    override suspend fun groupDelay(group: String, timeoutMs: Int, url: String): Result<Map<String, Int>> =
+        withContext(Dispatchers.IO) {
+            val httpUrl = (baseUrl + "/group/" + group.encodePath() + "/delay").toHttpUrl()
+                .newBuilder()
+                .addQueryParameter("timeout", timeoutMs.toString())
+                .addQueryParameter("url", url)
+                .build()
+            try {
+                val request = Request.Builder()
+                    .url(httpUrl)
+                    .header("Authorization", "Bearer $secret")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.code == 401) return@withContext Result.failure(AppError.Unauthorized)
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(AppError.Protocol("HTTP ${response.code}"))
+                    }
+                    val obj = JSONObject(response.body?.string().orEmpty())
+                    val map = mutableMapOf<String, Int>()
+                    obj.keys().forEach { key -> map[key] = obj.optInt(key, 0) }
+                    Result.success(map)
+                }
+            } catch (e: IOException) {
+                Result.failure(AppError.Network(e))
+            }
+        }
+
+    override suspend fun setMode(mode: String): Result<Unit> =
+        requestUnit("PATCH", "/configs", JSONObject().put("mode", mode).toString())
+
+    override suspend fun restartCore(): Result<Unit> = requestUnit("POST", "/restart")
+
+    override suspend fun flushFakeIp(): Result<Unit> = requestUnit("POST", "/cache/fakeip/flush")
+
+    override suspend fun flushDns(): Result<Unit> = requestUnit("POST", "/cache/dns/flush")
 
     override suspend fun connections(): Result<List<ConnectionInfo>> = getJson("/connections") { root ->
         val arr = root.optJSONArray("connections") ?: return@getJson emptyList()

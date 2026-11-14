@@ -33,6 +33,20 @@ interface MihomoApi {
 
     suspend fun rules(): Result<List<RuleInfo>>
 
+    /** 整组测速：一次请求返回该组所有节点延迟（ms）。 */    suspend fun groupDelay(group: String, timeoutMs: Int = 3000, url: String = DEFAULT_TEST_URL): Result<Map<String, Int>>
+
+    /** 切换运行模式：rule / global / direct。 */
+    suspend fun setMode(mode: String): Result<Unit>
+
+    /** 重启内核。 */
+    suspend fun restartCore(): Result<Unit>
+
+    /** 清空 fake-ip 缓存。 */
+    suspend fun flushFakeIp(): Result<Unit>
+
+    /** 清空 DNS 缓存。 */
+    suspend fun flushDns(): Result<Unit>
+
     fun trafficFlow(): Flow<Traffic>
 
     /** 内核内存占用（字节）。 */

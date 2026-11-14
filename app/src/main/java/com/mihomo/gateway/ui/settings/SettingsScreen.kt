@@ -90,6 +90,24 @@ private fun SettingsMain(
             )
         }
 
+        SectionCard(title = "运行模式") {
+            val runtimeMode by vm.runtimeMode.collectAsState()
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("rule" to "规则", "global" to "全局", "direct" to "直连").forEach { (mode, label) ->
+                    if (runtimeMode == mode) {
+                        Button(onClick = { vm.setRuntimeMode(mode) }, enabled = !busy) { Text(label) }
+                    } else {
+                        OutlinedButton(onClick = { vm.setRuntimeMode(mode) }, enabled = !busy) { Text(label) }
+                    }
+                }
+            }
+            Text(
+                "规则=按分流；全局=全部走代理；直连=全部不走代理",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         SectionCard(title = "开关") {
             SwitchRow(
                 title = "IPv6 拦截",

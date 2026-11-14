@@ -2,6 +2,7 @@ package com.mihomo.gateway.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.ProfileRepository
 import com.mihomo.gateway.data.store.SettingsStore
@@ -18,7 +19,8 @@ import kotlinx.coroutines.launch
 class SettingsViewModel(
     private val store: SettingsStore = AppContainer.settings,
     private val gateway: GatewayController = AppContainer.gateway,
-    private val profiles: ProfileRepository = AppContainer.profiles
+    private val profiles: ProfileRepository = AppContainer.profiles,
+    private val api: MihomoApi = AppContainer.api
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = store.settings
@@ -29,6 +31,28 @@ class SettingsViewModel(
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
+    private val _runtimeMode = MutableStateFlow("rule")
+    val runtimeMode: StateFlow<String> = _runtimeMode.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            api.configs().onSuccess { _runtimeMode.value = it.mode }
+        }
+    }
+
+    fun setRuntimeMode(mode: String) {
+        viewModelScope.launch {
+            _busy.value = true
+            api.setMode(mode)
+                .onSuccess {
+                    _runtimeMode.value = mode
+                    _message.value = "运行模式: ${modeLabel(mode)}"
+                }
+                .onFailure { _message.value = "切换失败: ${it.message}" }
+            _busy.value = false
+        }
+    }
 
     fun setMode(mode: IpMode) {
         viewModelScope.launch {
@@ -83,5 +107,11 @@ class SettingsViewModel(
             )
             _busy.value = false
         }
+    }
+
+    private fun modeLabel(mode: String): String = when (mode) {
+        "global" -> "全局"
+        "direct" -> "直连"
+        else -> "规则"
     }
 }

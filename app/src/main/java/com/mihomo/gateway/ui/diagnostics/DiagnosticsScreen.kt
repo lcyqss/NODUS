@@ -31,6 +31,7 @@ fun DiagnosticsScreen(
 ) {
     val state by vm.state.collectAsState()
     val records by vm.records.collectAsState()
+    val actionMessage by vm.actionMessage.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) { vm.refresh() }
@@ -70,6 +71,20 @@ fun DiagnosticsScreen(
                             fontFamily = FontFamily.Monospace
                         )
                     }
+                }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("内核操作", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { vm.restartCore() }) { Text("重启内核") }
+                    OutlinedButton(onClick = { vm.flushFakeIp() }) { Text("清 fake-ip") }
+                    OutlinedButton(onClick = { vm.flushDns() }) { Text("清 DNS") }
+                }
+                actionMessage?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }

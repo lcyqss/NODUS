@@ -67,7 +67,7 @@ class ProxiesViewModel(
                             ProxyGroupUi(
                                 name = g.name,
                                 type = g.type,
-                                now = g.now,
+                                now = g.now?.takeUnless { ProxyNames.isInfoNode(it) },
                                 members = g.all.mapNotNull { byName[it] }
                                     .filterNot { ProxyNames.isInfoNode(it.name) }
                             )
@@ -102,29 +102,46 @@ class ProxiesViewModel(
         }
     }
 
+    /**
+     * 优先使用内核的整组测速（一次请求返回全部延迟），
+     * 失败时回退到逐个测速（并发 5）。
+     */
     fun testGroup(group: ProxyGroupUi) {
         testJob?.cancel()
         val nodes = group.members.filter { !it.isGroup }
         if (nodes.isEmpty()) return
         _testing.value = nodes.map { it.name }.toSet()
         testJob = viewModelScope.launch {
-            val semaphore = Semaphore(5)
-            coroutineScope {
-                nodes.map { node ->
-                    async {
-                        semaphore.withPermit {
-                            val delay = api.delay(node.name).getOrNull()
-                            if (delay != null) {
-                                _delays.update { it + (node.name to delay) }
-                                _failed.update { it - node.name }
-                            } else {
-                                _failed.update { it + node.name }
-                            }
-                            _testing.update { it - node.name }
-                        }
-                    }
-                }.awaitAll()
+            val result = api.groupDelay(group.name)
+            result.onSuccess { delays ->
+                val ok = delays.filterValues { it > 0 }
+                val bad = delays.filterValues { it <= 0 }.keys
+                _delays.update { it + ok }
+                _failed.update { current -> (current - ok.keys) + bad }
+            }.onFailure {
+                testOneByOne(nodes)
             }
+            _testing.value = emptySet()
+        }
+    }
+
+    private suspend fun testOneByOne(nodes: List<ProxyNode>) {
+        val semaphore = Semaphore(5)
+        coroutineScope {
+            nodes.map { node ->
+                async {
+                    semaphore.withPermit {
+                        val delay = api.delay(node.name).getOrNull()
+                        if (delay != null) {
+                            _delays.update { it + (node.name to delay) }
+                            _failed.update { it - node.name }
+                        } else {
+                            _failed.update { it + node.name }
+                        }
+                        _testing.update { it - node.name }
+                    }
+                }
+            }.awaitAll()
         }
     }
 }
