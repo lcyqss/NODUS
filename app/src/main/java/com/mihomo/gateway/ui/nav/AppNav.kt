@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mihomo.gateway.ui.connections.ConnectionsScreen
 import com.mihomo.gateway.ui.icons.GwIcon
-import com.mihomo.gateway.ui.logs.LogsScreen
+import com.mihomo.gateway.ui.rules.RulesScreen
 import com.mihomo.gateway.ui.overview.OverviewScreen
 import com.mihomo.gateway.ui.proxies.ProxiesScreen
 import com.mihomo.gateway.ui.settings.SettingsScreen
@@ -23,10 +23,10 @@ import com.mihomo.gateway.ui.settings.SettingsScreen
 private data class NavItem(val label: String, val icon: GwIcon)
 
 private val items = listOf(
-    NavItem("概览", GwIcon.Overview),
-    NavItem("代理", GwIcon.Proxy),
+    NavItem("首页", GwIcon.Overview),
+    NavItem("节点", GwIcon.Proxy),
+    NavItem("分流", GwIcon.Logs),
     NavItem("连接", GwIcon.Connections),
-    NavItem("日志", GwIcon.Logs),
     NavItem("设置", GwIcon.Settings)
 )
 
@@ -52,8 +52,8 @@ fun AppNav() {
             when (tab) {
                 0 -> OverviewScreen()
                 1 -> ProxiesScreen()
-                2 -> ConnectionsScreen()
-                3 -> LogsScreen()
+                2 -> RulesScreen()
+                3 -> ConnectionsScreen()
                 else -> SettingsScreen()
             }
         }

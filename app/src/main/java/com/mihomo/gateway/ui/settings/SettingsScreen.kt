@@ -39,9 +39,10 @@ import com.mihomo.gateway.ui.components.NavRow
 import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SectionCard
 import com.mihomo.gateway.ui.diagnostics.DiagnosticsScreen
+import com.mihomo.gateway.ui.logs.LogsScreen
 import com.mihomo.gateway.ui.providers.ProvidersScreen
 
-private enum class SettingsPage { MAIN, SUBSCRIPTION, PROVIDERS, DIAGNOSTICS }
+private enum class SettingsPage { MAIN, SUBSCRIPTION, PROVIDERS, DIAGNOSTICS, LOGS }
 
 @Composable
 fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
@@ -51,12 +52,14 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
             vm = vm,
             onSubscription = { page = SettingsPage.SUBSCRIPTION },
             onProviders = { page = SettingsPage.PROVIDERS },
-            onDiagnostics = { page = SettingsPage.DIAGNOSTICS }
+            onDiagnostics = { page = SettingsPage.DIAGNOSTICS },
+        onLogs = { page = SettingsPage.LOGS }
         )
 
         SettingsPage.SUBSCRIPTION -> SubscriptionPage(vm, onBack = { page = SettingsPage.MAIN })
         SettingsPage.PROVIDERS -> ProvidersScreen(onBack = { page = SettingsPage.MAIN })
         SettingsPage.DIAGNOSTICS -> DiagnosticsScreen(onBack = { page = SettingsPage.MAIN })
+        SettingsPage.LOGS -> LogsScreen()
     }
 }
 
@@ -65,7 +68,8 @@ private fun SettingsMain(
     vm: SettingsViewModel,
     onSubscription: () -> Unit,
     onProviders: () -> Unit,
-    onDiagnostics: () -> Unit
+    onDiagnostics: () -> Unit,
+    onLogs: () -> Unit
 ) {
     val settings by vm.settings.collectAsState()
     val message by vm.message.collectAsState()
@@ -148,6 +152,11 @@ private fun SettingsMain(
                 title = "Provider",
                 subtitle = "节点来源 / 节点数 / 健康检查",
                 onClick = onProviders
+            )
+            NavRow(
+                title = "日志",
+                subtitle = "实时日志 / 搜索 / 导出",
+                onClick = onLogs
             )
             NavRow(
                 title = "诊断",

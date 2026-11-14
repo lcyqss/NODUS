@@ -45,7 +45,7 @@ import com.mihomo.gateway.ui.rules.RulesScreen
 import android.content.Intent
 
 @Composable
-fun LogsScreen(logsVm: LogsViewModel = viewModel()) {
+fun LogsScreen(logsVm: LogsViewModel = viewModel(), showRulesTab: Boolean = false) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val logs by logsVm.logs.collectAsState()
     val level by logsVm.level.collectAsState()
@@ -62,14 +62,17 @@ fun LogsScreen(logsVm: LogsViewModel = viewModel()) {
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(
-            title = if (tab == 0) "日志" else "规则",
-            subtitle = if (tab == 0) "实时输出 · 最多保留 500 行" else "自定义规则优先于订阅规则"
+            title = if (showRulesTab && tab == 1) "规则" else "日志",
+            subtitle = if (showRulesTab && tab == 1) "自定义规则优先于订阅规则"
+            else "实时输出 · 最多保留 500 行"
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (tab == 0) Button(onClick = { tab = 0 }) { Text("日志") }
-                else OutlinedButton(onClick = { tab = 0 }) { Text("日志") }
-                if (tab == 1) Button(onClick = { tab = 1 }) { Text("规则") }
-                else OutlinedButton(onClick = { tab = 1 }) { Text("规则") }
+            if (showRulesTab) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (tab == 0) Button(onClick = { tab = 0 }) { Text("日志") }
+                    else OutlinedButton(onClick = { tab = 0 }) { Text("日志") }
+                    if (tab == 1) Button(onClick = { tab = 1 }) { Text("规则") }
+                    else OutlinedButton(onClick = { tab = 1 }) { Text("规则") }
+                }
             }
         }
 

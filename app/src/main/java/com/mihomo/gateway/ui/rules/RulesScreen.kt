@@ -58,7 +58,12 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
     var showAdd by remember { mutableStateOf(false) }
     var showTemplates by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        com.mihomo.gateway.ui.components.ScreenHeader(
+            title = "分流",
+            subtitle = "自定义规则优先于订阅规则 · 长按拖动排序"
+        )
+        Spacer(Modifier.height(10.dp))
         // 顶部汇总
         Column(
             Modifier
