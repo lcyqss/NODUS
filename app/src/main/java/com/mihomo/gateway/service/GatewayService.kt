@@ -48,6 +48,12 @@ class GatewayService : Service() {
         scope.launch {
             AppContainer.core.ensure().onFailure { Log.w(TAG, "install failed: ${it.message}") }
 
+            // 把 gateway.conf 中真实生效的配置同步回设置，避免界面与实际不一致
+            runCatching {
+                val conf = AppContainer.gateway.readConf()
+                AppContainer.settings.update { it.copy(ipMode = conf.mode, blockIpv6 = conf.blockIpv6) }
+            }.onFailure { Log.w(TAG, "sync conf failed: ${it.message}") }
+
             // 恢复上次运行状态：只有 desiredRunning 为 true 才拉起网关
             val desired = runCatching {
                 AppContainer.settings.settings.first().desiredRunning

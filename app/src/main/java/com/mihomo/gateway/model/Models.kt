@@ -42,6 +42,8 @@ data class Traffic(val up: Long, val down: Long)
 
 data class NetIface(val name: String, val cidr: String)
 
+data class GatewayConf(val mode: IpMode = IpMode.AUTO, val blockIpv6: Boolean = true)
+
 data class GatewayState(
     val running: Boolean = false,
     val mode: IpMode = IpMode.AUTO,

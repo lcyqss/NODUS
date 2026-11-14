@@ -44,6 +44,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     val delays by vm.delays.collectAsState()
     val testing by vm.testing.collectAsState()
+    val failed by vm.failed.collectAsState()
 
     val currentGroup = state.groups.firstOrNull { it.name == state.selectedGroup }
     var query by remember { mutableStateOf("") }
@@ -122,6 +123,15 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                         Tag(currentGroup.type)
                     }
 
+                    if (failed.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "${failed.size} 个节点测速失败，可能是节点不可达或网络受限",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
                     Spacer(Modifier.height(10.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -165,6 +175,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                                 selected = node.name == currentGroup.now,
                                 delay = delays[node.name],
                                 testing = testing.contains(node.name),
+                                failed = failed.contains(node.name),
                                 canSelect = currentGroup.type == "Selector" && !node.isGroup,
                                 onClick = {
                                     if (currentGroup.type == "Selector" && !node.isGroup) {
@@ -186,6 +197,7 @@ private fun NodeRow(
     selected: Boolean,
     delay: Int?,
     testing: Boolean,
+    failed: Boolean,
     canSelect: Boolean,
     onClick: () -> Unit
 ) {
@@ -223,20 +235,23 @@ private fun NodeRow(
         }
         DelayBadge(
             delay = delay ?: node.delay,
-            testing = testing
+            testing = testing,
+            failed = failed
         )
     }
 }
 
 @Composable
-private fun DelayBadge(delay: Int?, testing: Boolean) {
+private fun DelayBadge(delay: Int?, testing: Boolean, failed: Boolean) {
     val text = when {
         testing -> "…"
+        failed -> "失败"
         delay != null -> "${delay}ms"
         else -> "—"
     }
     val color = when {
         testing -> MaterialTheme.colorScheme.outline
+        failed -> Color(0xFFDC2626)
         delay == null -> MaterialTheme.colorScheme.outline
         delay < 200 -> Color(0xFF16A34A)
         delay < 500 -> Color(0xFFEA580C)

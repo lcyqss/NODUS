@@ -44,6 +44,9 @@ class ProxiesViewModel(
     private val _testing = MutableStateFlow<Set<String>>(emptySet())
     val testing: StateFlow<Set<String>> = _testing.asStateFlow()
 
+    private val _failed = MutableStateFlow<Set<String>>(emptySet())
+    val failed: StateFlow<Set<String>> = _failed.asStateFlow()
+
     private var testJob: Job? = null
 
     init {
@@ -110,6 +113,9 @@ class ProxiesViewModel(
                             val delay = api.delay(node.name).getOrNull()
                             if (delay != null) {
                                 _delays.update { it + (node.name to delay) }
+                                _failed.update { it - node.name }
+                            } else {
+                                _failed.update { it + node.name }
                             }
                             _testing.update { it - node.name }
                         }
