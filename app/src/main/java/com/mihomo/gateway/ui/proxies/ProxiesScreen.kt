@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mihomo.gateway.model.ProxyNames
 import com.mihomo.gateway.model.ProxyNode
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.ScreenHeader
@@ -115,7 +116,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                currentGroup.now ?: "-",
+                                currentGroup.now?.takeUnless { ProxyNames.isInfoNode(it) } ?: "-",
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 1
                             )

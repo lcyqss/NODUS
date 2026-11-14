@@ -34,14 +34,21 @@ import com.mihomo.gateway.ui.components.Metric
 import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SectionCard
 import com.mihomo.gateway.ui.components.StatusPill
-import com.mihomo.gateway.ui.components.TrafficSparkline
+import com.mihomo.gateway.ui.components.TrafficChart
 import com.mihomo.gateway.ui.icons.GwIcon
+
+private val UpColor = Color(0xFF0F766E)
+private val DownColor = Color(0xFF4F46E5)
 
 @Composable
 fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     val traffic by vm.traffic.collectAsState()
-    val history by vm.history.collectAsState()
+    val upHistory by vm.upHistory.collectAsState()
+    val downHistory by vm.downHistory.collectAsState()
+    val memory by vm.memory.collectAsState()
+    val stats by vm.stats.collectAsState()
+    val currentNode by vm.currentNode.collectAsState()
     val busy by vm.busy.collectAsState()
 
     Column(
@@ -88,6 +95,7 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
             }
 
             Spacer(Modifier.height(4.dp))
+            KeyValueRow("当前节点", currentNode ?: "-")
             KeyValueRow("节点地址族", state.mode.name)
             KeyValueRow("IPv6 拦截", if (state.blockIpv6) "开" else "关")
             state.error?.let {
@@ -99,24 +107,63 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
             title = "实时流量",
             trailing = {
                 Text(
-                    "最近 ${history.size}s",
+                    "最近 ${upHistory.size}s",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                Metric("上传", formatRate(traffic.up), Color(0xFF0F766E))
-                Metric("下载", formatRate(traffic.down), Color(0xFF4F46E5))
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Metric("上传", formatRate(traffic.up), UpColor)
+                Metric("下载", formatRate(traffic.down), DownColor)
             }
-            if (history.any { it > 0 }) {
-                TrafficSparkline(history)
+            if (upHistory.any { it > 0 } || downHistory.any { it > 0 }) {
+                TrafficChart(upValues = upHistory, downValues = downHistory)
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    LegendDot(UpColor, "上传")
+                    LegendDot(DownColor, "下载")
+                }
+            } else {
+                Text(
+                    "暂无流量，产生代理连接后显示曲线",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        SectionCard(title = "运行统计") {
+            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                Metric("连接数", "${stats.connections}", MaterialTheme.colorScheme.onSurface)
+                Metric("内存", formatMemory(memory), MaterialTheme.colorScheme.onSurface)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                Metric("累计上传", formatBytes(stats.uploadTotal), UpColor)
+                Metric("累计下载", formatBytes(stats.downloadTotal), DownColor)
             }
         }
 
         Text(
-            "状态与流量均来自 mihomo 本地 API（127.0.0.1:9090）",
+            "数据来自 mihomo 本地 API（/traffic、/memory、/connections）",
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun LegendDot(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(Modifier.size(6.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -156,4 +203,17 @@ private fun formatRate(bytesPerSec: Long): String {
         kb < 1024 -> String.format("%.0f KB/s", kb)
         else -> String.format("%.1f MB/s", kb / 1024.0)
     }
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes < 1024 -> "${bytes}B"
+    bytes < 1024 * 1024 -> String.format("%.1fKB", bytes / 1024.0)
+    bytes < 1024L * 1024 * 1024 -> String.format("%.1fMB", bytes / 1024.0 / 1024.0)
+    else -> String.format("%.2fGB", bytes / 1024.0 / 1024.0 / 1024.0)
+}
+
+private fun formatMemory(bytes: Long): String = when {
+    bytes <= 0 -> "-"
+    bytes < 1024L * 1024 * 1024 -> String.format("%.0f MB", bytes / 1024.0 / 1024.0)
+    else -> String.format("%.1f GB", bytes / 1024.0 / 1024.0 / 1024.0)
 }

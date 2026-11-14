@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.di.AppContainer
+import com.mihomo.gateway.model.ProxyNames
 import com.mihomo.gateway.model.ProxyNode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -58,8 +59,9 @@ class ProxiesViewModel(
             _state.value = _state.value.copy(loading = true, error = null)
             api.proxies()
                 .onSuccess { nodes ->
-                    val byName = nodes.associateBy { it.name }
-                    val groups = nodes
+                    val visible = nodes.filterNot { ProxyNames.isInfoNode(it.name) }
+                    val byName = visible.associateBy { it.name }
+                    val groups = visible
                         .filter { it.isGroup }
                         .map { g ->
                             ProxyGroupUi(
@@ -67,6 +69,7 @@ class ProxiesViewModel(
                                 type = g.type,
                                 now = g.now,
                                 members = g.all.mapNotNull { byName[it] }
+                                    .filterNot { ProxyNames.isInfoNode(it.name) }
                             )
                         }
                         .filter { it.members.isNotEmpty() }

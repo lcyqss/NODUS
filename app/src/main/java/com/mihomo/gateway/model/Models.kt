@@ -26,6 +26,8 @@ data class ProxyNode(
 data class ConnectionInfo(
     val id: String,
     val host: String,
+    val sourceIP: String,
+    val destinationIP: String,
     val network: String,
     val rule: String,
     val chains: List<String>,

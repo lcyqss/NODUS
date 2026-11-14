@@ -167,6 +167,56 @@ fun EmptyState(text: String) {
     }
 }
 
+/** 双线流量面积图（上传 / 下载）。 */
+@Composable
+fun TrafficChart(upValues: List<Long>, downValues: List<Long>, modifier: Modifier = Modifier) {
+    val upColor = Color(0xFF0F766E)
+    val downColor = Color(0xFF4F46E5)
+    Canvas(modifier.fillMaxWidth().height(110.dp)) {
+        val n = maxOf(upValues.size, downValues.size, 2)
+        val max = maxOf(
+            upValues.maxOrNull() ?: 0L,
+            downValues.maxOrNull() ?: 0L,
+            1L
+        )
+
+        fun xAt(index: Int): Float = size.width * index / (n - 1)
+        fun yAt(value: Long): Float = size.height - (value.toFloat() / max) * size.height
+
+        fun buildFill(values: List<Long>): Path {
+            val path = Path()
+            values.forEachIndexed { index, value ->
+                val x = xAt(index)
+                val y = yAt(value)
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            path.lineTo(size.width, size.height)
+            path.lineTo(0f, size.height)
+            path.close()
+            return path
+        }
+
+        fun buildLine(values: List<Long>): Path {
+            val path = Path()
+            values.forEachIndexed { index, value ->
+                val x = xAt(index)
+                val y = yAt(value)
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            return path
+        }
+
+        if (upValues.isNotEmpty()) {
+            drawPath(buildFill(upValues), upColor.copy(alpha = 0.14f))
+            drawPath(buildLine(upValues), upColor, style = Stroke(width = 2.dp.toPx()))
+        }
+        if (downValues.isNotEmpty()) {
+            drawPath(buildFill(downValues), downColor.copy(alpha = 0.14f))
+            drawPath(buildLine(downValues), downColor, style = Stroke(width = 2.dp.toPx()))
+        }
+    }
+}
+
 /** 简单流量折线图。 */
 @Composable
 fun TrafficSparkline(values: List<Long>, modifier: Modifier = Modifier) {

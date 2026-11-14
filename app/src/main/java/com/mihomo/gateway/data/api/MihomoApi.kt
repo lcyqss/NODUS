@@ -35,6 +35,9 @@ interface MihomoApi {
 
     fun trafficFlow(): Flow<Traffic>
 
+    /** 内核内存占用（字节）。 */
+    fun memoryFlow(): Flow<Long>
+
     fun logFlow(level: String = "info"): Flow<LogEntry>
 
     companion object {

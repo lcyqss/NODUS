@@ -181,6 +181,8 @@ class MihomoApiImpl(
             ConnectionInfo(
                 id = c.optString("id"),
                 host = meta.optString("host").ifBlank { meta.optString("destinationIP") },
+                sourceIP = meta.optString("sourceIP"),
+                destinationIP = meta.optString("destinationIP"),
                 network = meta.optString("network"),
                 rule = c.optString("rule"),
                 chains = chains,
@@ -216,6 +218,20 @@ class MihomoApiImpl(
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val obj = runCatching { JSONObject(text) }.getOrNull() ?: return
                 trySend(Traffic(obj.optLong("up"), obj.optLong("down")))
+            }
+        })
+        awaitClose { socket.cancel() }
+    }
+
+    override fun memoryFlow(): Flow<Long> = callbackFlow {
+        val request = Request.Builder()
+            .url("$wsBase/memory")
+            .header("Authorization", "Bearer $secret")
+            .build()
+        val socket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                val obj = runCatching { JSONObject(text) }.getOrNull() ?: return
+                trySend(obj.optLong("inuse"))
             }
         })
         awaitClose { socket.cancel() }

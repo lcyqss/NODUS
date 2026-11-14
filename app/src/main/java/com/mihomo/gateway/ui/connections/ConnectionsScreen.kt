@@ -49,7 +49,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(
             title = "连接",
-            subtitle = "${state.connections.size} 条活动连接"
+            subtitle = "${state.connections.size} 条活动连接 · ↑${formatBytes(state.connections.sumOf { it.upload })} ↓${formatBytes(state.connections.sumOf { it.download })}"
         ) {
             OutlinedButton(onClick = { vm.closeAll() }) { Text("全部断开") }
         }
@@ -131,6 +131,8 @@ private fun ConnectionRow(
 
         if (expanded) {
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+            KeyValueRow("源地址", conn.sourceIP.ifBlank { "-" })
+            KeyValueRow("目标地址", conn.destinationIP.ifBlank { "-" })
             KeyValueRow("网络类型", conn.network)
             KeyValueRow("规则", conn.rule.ifBlank { "-" })
             KeyValueRow("链路", conn.chains.joinToString(" → ").ifBlank { "-" })

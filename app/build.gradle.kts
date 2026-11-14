@@ -11,8 +11,8 @@ android {
         applicationId = "com.mihomo.gateway"
         minSdk = 29
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.3.1"
+        versionCode = 18
+        versionName = "1.4.1"
     }
 
     buildTypes {
