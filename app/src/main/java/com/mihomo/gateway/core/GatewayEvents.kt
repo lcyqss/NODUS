@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 网络变化 → 防抖 → 重下发规则。
- * 不包含业务判断，只负责触发。
+ * 只负责触发；网关未运行时不做任何事（避免把已停止的内核重新拉起）。
  */
 class GatewayEvents(private val context: Context) {
 
@@ -23,6 +23,10 @@ class GatewayEvents(private val context: Context) {
 
     private val applyTask = Runnable {
         scope.launch {
+            if (!AppContainer.gateway.state.value.running) {
+                Log.i(TAG, "skip apply: gateway not running")
+                return@launch
+            }
             val result = AppContainer.gateway.applyRules()
             if (result.isFailure) {
                 Log.w(TAG, "apply rules failed: ${result.exceptionOrNull()?.message}")

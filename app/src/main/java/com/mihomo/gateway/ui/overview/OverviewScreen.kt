@@ -1,6 +1,9 @@
 package com.mihomo.gateway.ui.overview
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,18 +11,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.ui.components.KeyValueRow
@@ -28,6 +35,7 @@ import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SectionCard
 import com.mihomo.gateway.ui.components.StatusPill
 import com.mihomo.gateway.ui.components.TrafficSparkline
+import com.mihomo.gateway.ui.icons.GwIcon
 
 @Composable
 fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
@@ -47,27 +55,39 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
             title = "Mihomo Gateway",
             subtitle = "root 透明代理网关 · 热点 / 旁路由"
         ) {
-            StatusPill(running = state.running)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusPill(running = state.running)
+                Spacer(Modifier.size(4.dp))
+                IconButton(onClick = { vm.refresh() }, enabled = !busy) {
+                    GwIcon(GwIcon.Refresh, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
 
         SectionCard {
-            Row(
+            Column(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column {
-                    Text(
-                        if (state.running) "网关运行中" else "网关未启动",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    Text(
-                        "内核 ${state.version.ifBlank { "-" }}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                PowerButton(running = state.running, busy = busy) { vm.toggle() }
+                Text(
+                    when {
+                        busy -> "处理中…"
+                        state.running -> "点击停止"
+                        else -> "点击启动"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "内核 ${state.version.ifBlank { "-" }}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
-            Spacer(Modifier.height(2.dp))
+
+            Spacer(Modifier.height(4.dp))
             KeyValueRow("节点地址族", state.mode.name)
             KeyValueRow("IPv6 拦截", if (state.blockIpv6) "开" else "关")
             state.error?.let {
@@ -89,24 +109,9 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
                 Metric("上传", formatRate(traffic.up), Color(0xFF0F766E))
                 Metric("下载", formatRate(traffic.down), Color(0xFF4F46E5))
             }
-            TrafficSparkline(history)
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = { vm.start() },
-                enabled = !busy,
-                modifier = Modifier.weight(1f)
-            ) { Text("启动") }
-            FilledTonalButton(
-                onClick = { vm.stop() },
-                enabled = !busy,
-                modifier = Modifier.weight(1f)
-            ) { Text("停止") }
-            OutlinedButton(
-                onClick = { vm.refresh() },
-                enabled = !busy
-            ) { Text("刷新") }
+            if (history.any { it > 0 }) {
+                TrafficSparkline(history)
+            }
         }
 
         Text(
@@ -114,6 +119,33 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+private fun PowerButton(running: Boolean, busy: Boolean, onClick: () -> Unit) {
+    val background = when {
+        busy -> MaterialTheme.colorScheme.surfaceVariant
+        running -> Color(0xFF16A34A)
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Box(
+        modifier = Modifier
+            .size(104.dp)
+            .clip(CircleShape)
+            .background(background)
+            .clickable(enabled = !busy, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (busy) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(34.dp),
+                strokeWidth = 3.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        } else {
+            GwIcon(GwIcon.Power, Modifier.size(44.dp), Color.White)
+        }
     }
 }
 

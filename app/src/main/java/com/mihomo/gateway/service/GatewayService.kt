@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class GatewayService : Service() {
@@ -37,7 +38,7 @@ class GatewayService : Service() {
         )
         val notification: Notification = Notification.Builder(this, CHANNEL)
             .setContentTitle("Mihomo Gateway")
-            .setContentText("网关运行中")
+            .setContentText("网关服务运行中")
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
             .setContentIntent(pending)
             .setOngoing(true)
@@ -46,9 +47,19 @@ class GatewayService : Service() {
 
         scope.launch {
             AppContainer.core.ensure().onFailure { Log.w(TAG, "install failed: ${it.message}") }
-            AppContainer.gateway.start().onFailure { Log.w(TAG, "start failed: ${it.message}") }
-            if (events == null) {
-                events = GatewayEvents(applicationContext).also { it.start() }
+
+            // 恢复上次运行状态：只有 desiredRunning 为 true 才拉起网关
+            val desired = runCatching {
+                AppContainer.settings.settings.first().desiredRunning
+            }.getOrDefault(true)
+
+            if (desired) {
+                AppContainer.gateway.start().onFailure { Log.w(TAG, "start failed: ${it.message}") }
+                if (events == null) {
+                    events = GatewayEvents(applicationContext).also { it.start() }
+                }
+            } else {
+                AppContainer.gateway.refresh()
             }
         }
 

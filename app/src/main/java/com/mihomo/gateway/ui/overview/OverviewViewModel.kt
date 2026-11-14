@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.data.repo.GatewayController
+import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.model.GatewayState
 import com.mihomo.gateway.model.Traffic
@@ -16,7 +17,8 @@ import kotlinx.coroutines.launch
 
 class OverviewViewModel(
     private val gateway: GatewayController = AppContainer.gateway,
-    private val api: MihomoApi = AppContainer.api
+    private val api: MihomoApi = AppContainer.api,
+    private val settings: SettingsStore = AppContainer.settings
 ) : ViewModel() {
 
     val state: StateFlow<GatewayState> = gateway.state
@@ -40,18 +42,14 @@ class OverviewViewModel(
         }
     }
 
-    fun start() {
+    /** 单一开关：运行中则停止，否则启动；同时持久化期望状态。 */
+    fun toggle() {
+        if (_busy.value) return
         viewModelScope.launch {
             _busy.value = true
-            gateway.start()
-            _busy.value = false
-        }
-    }
-
-    fun stop() {
-        viewModelScope.launch {
-            _busy.value = true
-            gateway.stop()
+            val running = gateway.state.value.running
+            settings.update { it.copy(desiredRunning = !running) }
+            if (running) gateway.stop() else gateway.start()
             _busy.value = false
         }
     }

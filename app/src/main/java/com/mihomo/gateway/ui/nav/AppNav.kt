@@ -12,20 +12,22 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.mihomo.gateway.ui.connections.ConnectionsScreen
+import com.mihomo.gateway.ui.icons.GwIcon
 import com.mihomo.gateway.ui.logs.LogsScreen
 import com.mihomo.gateway.ui.overview.OverviewScreen
 import com.mihomo.gateway.ui.proxies.ProxiesScreen
 import com.mihomo.gateway.ui.settings.SettingsScreen
 
-private data class NavItem(val label: String, val icon: String)
+private data class NavItem(val label: String, val icon: GwIcon)
 
 private val items = listOf(
-    NavItem("概览", "◎"),
-    NavItem("代理", "⇄"),
-    NavItem("连接", "⇅"),
-    NavItem("日志", "≡"),
-    NavItem("设置", "⚙")
+    NavItem("概览", GwIcon.Overview),
+    NavItem("代理", GwIcon.Proxy),
+    NavItem("连接", GwIcon.Connections),
+    NavItem("日志", GwIcon.Logs),
+    NavItem("设置", GwIcon.Settings)
 )
 
 @Composable
@@ -39,7 +41,7 @@ fun AppNav() {
                     NavigationBarItem(
                         selected = tab == index,
                         onClick = { tab = index },
-                        icon = { Text(item.icon) },
+                        icon = { GwIcon(item.icon, modifier = Modifier.padding(2.dp)) },
                         label = { Text(item.label) }
                     )
                 }

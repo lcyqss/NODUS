@@ -55,7 +55,8 @@ data class AppSettings(
     val subscriptionUrl: String = "",
     val ipMode: IpMode = IpMode.AUTO,
     val blockIpv6: Boolean = true,
-    val autoStart: Boolean = true
+    val autoStart: Boolean = true,
+    val desiredRunning: Boolean = true
 )
 
 sealed class AppError(override val message: String?) : Throwable(message) {

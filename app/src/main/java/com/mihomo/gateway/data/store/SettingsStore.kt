@@ -25,6 +25,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putString(KEY_IP_MODE, next.ipMode.name)
                 .putBoolean(KEY_BLOCK_V6, next.blockIpv6)
                 .putBoolean(KEY_AUTOSTART, next.autoStart)
+                .putBoolean(KEY_DESIRED, next.desiredRunning)
                 .apply()
             _settings.value = next
         }
@@ -36,7 +37,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
             IpMode.valueOf(prefs.getString(KEY_IP_MODE, IpMode.AUTO.name) ?: IpMode.AUTO.name)
         }.getOrDefault(IpMode.AUTO),
         blockIpv6 = prefs.getBoolean(KEY_BLOCK_V6, true),
-        autoStart = prefs.getBoolean(KEY_AUTOSTART, true)
+        autoStart = prefs.getBoolean(KEY_AUTOSTART, true),
+        desiredRunning = prefs.getBoolean(KEY_DESIRED, true)
     )
 
     companion object {
@@ -44,5 +46,6 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_IP_MODE = "ip_mode"
         private const val KEY_BLOCK_V6 = "block_ipv6"
         private const val KEY_AUTOSTART = "auto_start"
+        private const val KEY_DESIRED = "desired_running"
     }
 }
