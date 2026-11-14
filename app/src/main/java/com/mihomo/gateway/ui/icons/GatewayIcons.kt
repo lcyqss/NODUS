@@ -11,13 +11,15 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 
 enum class GwIcon {
     Overview, Proxy, Connections, Logs, Settings,
-    Power, Refresh, Search, Close, Speed, Download, Chevron
+    Power, Refresh, Search, Close, Speed, Download, Chevron,
+    Sort, Star, StarFilled
 }
 
 @Composable
@@ -42,6 +44,9 @@ fun GwIcon(
             GwIcon.Speed -> drawSpeed(s, tint, stroke)
             GwIcon.Download -> drawDownload(s, tint, stroke)
             GwIcon.Chevron -> drawChevron(s, tint, stroke)
+            GwIcon.Sort -> drawSort(s, tint, stroke)
+            GwIcon.Star -> drawStar(s, tint, stroke, filled = false)
+            GwIcon.StarFilled -> drawStar(s, tint, stroke, filled = true)
         }
     }
 }
@@ -182,4 +187,39 @@ private fun DrawScope.drawDownload(s: Float, c: Color, w: Float) {
 private fun DrawScope.drawChevron(s: Float, c: Color, w: Float) {
     drawLine(c, Offset(s * 0.38f, s * 0.24f), Offset(s * 0.64f, s * 0.5f), w, StrokeCap.Round)
     drawLine(c, Offset(s * 0.64f, s * 0.5f), Offset(s * 0.38f, s * 0.76f), w, StrokeCap.Round)
+}
+
+/** 排序：三条递减横线 + 向下箭头。 */
+private fun DrawScope.drawSort(s: Float, c: Color, w: Float) {
+    val widths = listOf(0.54f, 0.40f, 0.26f)
+    widths.forEachIndexed { i, width ->
+        val y = s * (0.26f + i * 0.24f)
+        drawLine(c, Offset(s * 0.12f, y), Offset(s * (0.12f + width), y), w, StrokeCap.Round)
+    }
+    drawLine(c, Offset(s * 0.80f, s * 0.22f), Offset(s * 0.80f, s * 0.66f), w, StrokeCap.Round)
+    val head = Path().apply {
+        moveTo(s * 0.80f, s * 0.82f)
+        lineTo(s * 0.70f, s * 0.62f)
+        lineTo(s * 0.90f, s * 0.62f)
+        close()
+    }
+    drawPath(head, c)
+}
+
+/** 五角星，可描边或填充。 */
+private fun DrawScope.drawStar(s: Float, c: Color, w: Float, filled: Boolean) {
+    val cx = s / 2f
+    val cy = s / 2f
+    val outer = s * 0.44f
+    val inner = outer * 0.44f
+    val path = Path()
+    for (i in 0 until 10) {
+        val radius = if (i % 2 == 0) outer else inner
+        val angle = Math.toRadians((-90 + i * 36).toDouble())
+        val x = cx + (radius * kotlin.math.cos(angle)).toFloat()
+        val y = cy + (radius * kotlin.math.sin(angle)).toFloat()
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    if (filled) drawPath(path, c) else drawPath(path, c, style = Stroke(w * 0.9f, join = StrokeJoin.Round))
 }
