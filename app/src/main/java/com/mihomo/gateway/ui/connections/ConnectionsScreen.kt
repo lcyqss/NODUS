@@ -60,6 +60,11 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
             Spacer(Modifier.height(8.dp))
         }
 
+        if (state.loaded && state.connections.isEmpty()) {
+            Text("暂无活动连接", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(6.dp)

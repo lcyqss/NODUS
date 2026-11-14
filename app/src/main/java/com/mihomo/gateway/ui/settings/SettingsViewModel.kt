@@ -35,7 +35,8 @@ class SettingsViewModel(
             _busy.value = true
             store.update { it.copy(ipMode = mode) }
             val result = gateway.setIpMode(mode)
-            _message.value = if (result.isSuccess) "已切换: ${mode.name}" else "切换失败: ${result.exceptionOrNull()?.message}"
+            _message.value = if (result.isSuccess) "已切换: ${mode.name}"
+            else "切换失败: ${result.exceptionOrNull()?.message}"
             _busy.value = false
         }
     }
@@ -48,6 +49,13 @@ class SettingsViewModel(
             _message.value = if (result.isSuccess) "IPv6 拦截: ${if (enabled) "开" else "关"}"
             else "设置失败: ${result.exceptionOrNull()?.message}"
             _busy.value = false
+        }
+    }
+
+    fun setAutoStart(enabled: Boolean) {
+        viewModelScope.launch {
+            store.update { it.copy(autoStart = enabled) }
+            _message.value = if (enabled) "开机自启: 开" else "开机自启: 关"
         }
     }
 

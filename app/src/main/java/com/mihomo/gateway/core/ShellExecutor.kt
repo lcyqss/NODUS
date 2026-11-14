@@ -42,27 +42,41 @@ class ShellExecutorImpl : ShellExecutor {
                     reader.start()
 
                     val finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+                    val cost = SystemClock.elapsedRealtime() - startedAt
                     if (!finished) {
                         process.destroyForcibly()
                         reader.join(1000)
+                        record(trace, command, -1, cost)
                         Log.w(TAG, "trace=$trace timeout cmd=$command")
                         return@withContext ShellResult(-1, output.toString(), "timeout")
                     }
                     reader.join(1000)
 
-                    Log.i(
-                        TAG,
-                        "trace=$trace code=${process.exitValue()} cost=${SystemClock.elapsedRealtime() - startedAt}ms cmd=$command"
-                    )
-                    return@withContext ShellResult(process.exitValue(), output.toString(), "")
+                    val code = process.exitValue()
+                    record(trace, command, code, cost)
+                    Log.i(TAG, "trace=$trace code=$code cost=${cost}ms cmd=$command")
+                    return@withContext ShellResult(code, output.toString(), "")
                 } catch (_: Throwable) {
                     // try next su candidate
                 }
             }
 
+            record(trace, command, -1, SystemClock.elapsedRealtime() - startedAt)
             Log.e(TAG, "trace=$trace no root available")
             ShellResult(-1, "", "no root")
         }
+
+    private fun record(trace: String, command: String, code: Int, costMs: Long) {
+        ShellLog.add(
+            ShellRecord(
+                trace = trace,
+                command = command.take(200),
+                code = code,
+                costMs = costMs,
+                time = System.currentTimeMillis()
+            )
+        )
+    }
 
     companion object {
         private const val TAG = "GW-Shell"
