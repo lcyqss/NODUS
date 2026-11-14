@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.di.AppContainer
+import com.mihomo.gateway.data.store.SettingsStore
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import com.mihomo.gateway.model.ProxyNames
 import com.mihomo.gateway.model.ProxyNode
 import kotlinx.coroutines.Job
@@ -33,8 +37,24 @@ data class ProxiesUiState(
 )
 
 class ProxiesViewModel(
-    private val api: MihomoApi = AppContainer.api
+    private val api: MihomoApi = AppContainer.api,
+    private val settings: SettingsStore = AppContainer.settings
 ) : ViewModel() {
+
+    val favorites: StateFlow<Set<String>> = settings.settings
+        .map { it.favoriteNodes.split(',').map(String::trim).filter(String::isNotEmpty).toSet() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    fun toggleFavorite(name: String) {
+        viewModelScope.launch {
+            settings.update { current ->
+                val set = current.favoriteNodes.split(',').map(String::trim)
+                    .filter(String::isNotEmpty).toMutableSet()
+                if (set.contains(name)) set.remove(name) else set.add(name)
+                current.copy(favoriteNodes = set.joinToString(","))
+            }
+        }
+    }
 
     private val _state = MutableStateFlow(ProxiesUiState())
     val state: StateFlow<ProxiesUiState> = _state.asStateFlow()

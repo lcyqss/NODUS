@@ -78,7 +78,8 @@ data class AppSettings(
     val todayUp: Long = 0L,
     val todayDown: Long = 0L,
     val subName: String = "",
-    val nodeCount: Int = 0
+    val nodeCount: Int = 0,
+    val favoriteNodes: String = ""
 )
 
 sealed class AppError(override val message: String?) : Throwable(message) {

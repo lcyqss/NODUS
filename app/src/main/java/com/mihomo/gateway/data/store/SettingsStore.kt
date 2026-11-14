@@ -33,6 +33,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putLong(KEY_TODAY_DOWN, next.todayDown)
                 .putString(KEY_SUB_NAME, next.subName)
                 .putInt(KEY_NODE_COUNT, next.nodeCount)
+                .putString(KEY_FAVORITES, next.favoriteNodes)
                 .apply()
             _settings.value = next
         }
@@ -52,7 +53,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         todayUp = prefs.getLong(KEY_TODAY_UP, 0L),
         todayDown = prefs.getLong(KEY_TODAY_DOWN, 0L),
         subName = prefs.getString(KEY_SUB_NAME, "").orEmpty(),
-        nodeCount = prefs.getInt(KEY_NODE_COUNT, 0)
+        nodeCount = prefs.getInt(KEY_NODE_COUNT, 0),
+        favoriteNodes = prefs.getString(KEY_FAVORITES, "").orEmpty()
     )
 
     companion object {
@@ -68,5 +70,6 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_TODAY_DOWN = "today_down"
         private const val KEY_SUB_NAME = "sub_name"
         private const val KEY_NODE_COUNT = "node_count"
+        private const val KEY_FAVORITES = "favorite_nodes"
     }
 }

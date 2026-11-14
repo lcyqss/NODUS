@@ -51,6 +51,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     var query by remember { mutableStateOf("") }
     var sortByDelay by remember { mutableStateOf(false) }
     var hideUnavailable by remember { mutableStateOf(false) }
+    val favorites by vm.favorites.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(
@@ -161,11 +162,11 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
 
                     Spacer(Modifier.height(8.dp))
 
-                    val members = remember(currentGroup, query, sortByDelay, delays, failed, hideUnavailable) {
+                    val members = remember(currentGroup, query, sortByDelay, delays, failed, hideUnavailable, favorites) {
                         val base = currentGroup.members
                             .filter { it.name.contains(query, true) }
                             .filter { !hideUnavailable || ((delays[it.name] ?: it.delay) != null && !failed.contains(it.name)) }
-                        if (sortByDelay) {
+                        val ordered = if (sortByDelay) {
                             base.sortedWith(
                                 compareBy(
                                     { delays[it.name] ?: it.delay ?: Int.MAX_VALUE },
@@ -175,6 +176,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                         } else {
                             base
                         }
+                        ordered.sortedByDescending { favorites.contains(it.name) }
                     }
 
                     LazyColumn(
@@ -189,6 +191,8 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                                 testing = testing.contains(node.name),
                                 failed = failed.contains(node.name),
                                 canSelect = currentGroup.type == "Selector" && !node.isGroup,
+                                favorite = favorites.contains(node.name),
+                                onFavorite = { vm.toggleFavorite(node.name) },
                                 onClick = {
                                     if (currentGroup.type == "Selector" && !node.isGroup) {
                                         vm.selectNode(currentGroup.name, node.name)
@@ -211,6 +215,8 @@ private fun NodeRow(
     testing: Boolean,
     failed: Boolean,
     canSelect: Boolean,
+    favorite: Boolean,
+    onFavorite: () -> Unit,
     onClick: () -> Unit
 ) {
     val background = if (selected) MaterialTheme.colorScheme.primaryContainer
@@ -245,6 +251,14 @@ private fun NodeRow(
                 if (node.isGroup) Tag("组", MaterialTheme.colorScheme.secondary)
             }
         }
+        Text(
+            if (favorite) "★" else "☆",
+            color = if (favorite) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .clickable(onClick = onFavorite)
+                .padding(horizontal = 6.dp, vertical = 4.dp)
+        )
+        Spacer(Modifier.width(4.dp))
         DelayBadge(
             delay = delay ?: node.delay,
             testing = testing,

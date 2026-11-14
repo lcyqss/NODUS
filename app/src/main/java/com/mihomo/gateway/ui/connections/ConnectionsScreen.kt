@@ -62,6 +62,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     var mode by rememberSaveable { mutableIntStateOf(0) }
     var paused by remember { mutableStateOf(false) }
     var frozen by remember { mutableStateOf<List<ConnectionInfo>>(emptyList()) }
+    var deviceFilter by remember { mutableStateOf<String?>(null) }
 
     val neighborMap by vm.neighborMap.collectAsState()
     val deviceHistory by vm.deviceHistory.collectAsState()
@@ -77,7 +78,8 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
         if (paused) frozen = state.connections
     }
 
-    val data = if (paused) frozen else state.connections
+    val raw = if (paused) frozen else state.connections
+    val data = if (deviceFilter == null) raw else raw.filter { it.sourceIP == deviceFilter }
     val filtered = remember(data, query) {
         if (query.isBlank()) data
         else data.filter {
@@ -133,7 +135,9 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
         if (mode > 0 && deviceHistory.isNotEmpty()) {
             RecentDevices(
                 devices = deviceHistory.values.sortedByDescending { it.lastSeen },
-                online = data.map { it.sourceIP }.toSet()
+                online = data.map { it.sourceIP }.toSet(),
+                selected = deviceFilter,
+                onSelect = { ip -> deviceFilter = if (ip == null || deviceFilter == ip) null else ip }
             )
             Spacer(Modifier.height(8.dp))
         }
@@ -196,6 +200,14 @@ private fun TopologyTable(
 ) {
     val devices = all.map { it.sourceIP }.distinct().size
     val totalTraffic = rows.sumOf { it.traffic }
+    var sort by remember { mutableIntStateOf(0) }
+    val sortedRows = remember(rows, sort) {
+        when (sort) {
+            0 -> rows.sortedByDescending { it.traffic }
+            1 -> rows.sortedBy { it.clientIp }
+            else -> rows.sortedBy { it.rule }
+        }
+    }
 
     Row(
         Modifier.fillMaxWidth(),
@@ -215,13 +227,22 @@ private fun TopologyTable(
         }
     }
 
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(6.dp))
+
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf("流量↓", "设备", "规则").forEachIndexed { index, label ->
+            if (sort == index) Button(onClick = { sort = index }) { Text(label) }
+            else OutlinedButton(onClick = { sort = index }) { Text(label) }
+        }
+    }
+
+    Spacer(Modifier.height(6.dp))
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        items(rows, key = { "${it.clientIp}|${it.clientPort}|${it.group}|${it.proxy}|${it.rule}" }) { row ->
+        items(sortedRows, key = { "${it.clientIp}|${it.clientPort}|${it.group}|${it.proxy}|${it.rule}" }) { row ->
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -343,13 +364,38 @@ private fun KeyValue(label: String, value: String) {
 }
 
 @Composable
-private fun RecentDevices(devices: List<DeviceSeen>, online: Set<String>) {
+private fun RecentDevices(
+    devices: List<DeviceSeen>,
+    online: Set<String>,
+    selected: String?,
+    onSelect: (String?) -> Unit
+) {
     androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        items(devices, key = { it.ip }) { device ->
-            val isOnline = online.contains(device.ip)
+        item {
+            val active = selected == null
             Row(
                 Modifier
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
+                    .clickable { onSelect(null) }
+                    .background(
+                        if (active) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surface,
+                        RoundedCornerShape(50)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) { Text("全部", style = MaterialTheme.typography.labelSmall) }
+        }
+        items(devices, key = { it.ip }) { device ->
+            val isOnline = online.contains(device.ip)
+            val active = selected == device.ip
+            Row(
+                Modifier
+                    .clickable { onSelect(device.ip) }
+                    .background(
+                        if (active) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surface,
+                        RoundedCornerShape(50)
+                    )
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
