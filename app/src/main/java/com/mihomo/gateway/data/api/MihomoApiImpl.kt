@@ -143,31 +143,32 @@ class MihomoApiImpl(
         return requestUnit("PUT", "/proxies/" + group.encodePath(), body)
     }
 
-    override suspend fun delay(name: String, timeoutMs: Int, url: String): Result<Int> {
-        val httpUrl = (baseUrl + "/proxies/" + name.encodePath() + "/delay").toHttpUrl()
-            .newBuilder()
-            .addQueryParameter("timeout", timeoutMs.toString())
-            .addQueryParameter("url", url)
-            .build()
-        return try {
+    override suspend fun delay(name: String, timeoutMs: Int, url: String): Result<Int> =
+        withContext(Dispatchers.IO) {
+            val httpUrl = (baseUrl + "/proxies/" + name.encodePath() + "/delay").toHttpUrl()
+                .newBuilder()
+                .addQueryParameter("timeout", timeoutMs.toString())
+                .addQueryParameter("url", url)
+                .build()
+            try {
             val request = Request.Builder()
                 .url(httpUrl)
                 .header("Authorization", "Bearer $secret")
                 .build()
             client.newCall(request).execute().use { response ->
-                if (response.code == 401) return Result.failure(AppError.Unauthorized)
+                if (response.code == 401) return@withContext Result.failure(AppError.Unauthorized)
                 if (!response.isSuccessful) {
-                    return Result.failure(AppError.Protocol("HTTP ${response.code}"))
+                    return@withContext Result.failure(AppError.Protocol("HTTP ${response.code}"))
                 }
                 val obj = JSONObject(response.body?.string().orEmpty())
                 val delay = obj.optInt("delay")
                 if (delay > 0) Result.success(delay)
                 else Result.failure(AppError.Protocol(obj.optString("message", "timeout")))
             }
-        } catch (e: IOException) {
-            Result.failure(AppError.Network(e))
+            } catch (e: IOException) {
+                Result.failure(AppError.Network(e))
+            }
         }
-    }
 
     override suspend fun connections(): Result<List<ConnectionInfo>> = getJson("/connections") { root ->
         val arr = root.optJSONArray("connections") ?: return@getJson emptyList()

@@ -13,12 +13,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.mihomo.gateway.ui.overview.OverviewScreen
+import com.mihomo.gateway.ui.proxies.ProxiesScreen
 import com.mihomo.gateway.ui.settings.SettingsScreen
 
 private data class NavItem(val label: String, val icon: String)
 
 private val items = listOf(
     NavItem("概览", "◎"),
+    NavItem("代理", "⇄"),
     NavItem("设置", "⚙")
 )
 
@@ -43,6 +45,7 @@ fun AppNav() {
         Box(Modifier.padding(padding)) {
             when (tab) {
                 0 -> OverviewScreen()
+                1 -> ProxiesScreen()
                 else -> SettingsScreen()
             }
         }
