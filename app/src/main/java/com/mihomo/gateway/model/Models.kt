@@ -73,7 +73,12 @@ data class AppSettings(
     val autoStart: Boolean = true,
     val desiredRunning: Boolean = true,
     val updateIntervalHours: Int = 0,
-    val lastUpdateAt: Long = 0L
+    val lastUpdateAt: Long = 0L,
+    val todayDate: String = "",
+    val todayUp: Long = 0L,
+    val todayDown: Long = 0L,
+    val subName: String = "",
+    val nodeCount: Int = 0
 )
 
 sealed class AppError(override val message: String?) : Throwable(message) {

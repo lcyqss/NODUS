@@ -28,6 +28,11 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putBoolean(KEY_DESIRED, next.desiredRunning)
                 .putInt(KEY_UPDATE_INTERVAL, next.updateIntervalHours)
                 .putLong(KEY_LAST_UPDATE, next.lastUpdateAt)
+                .putString(KEY_TODAY_DATE, next.todayDate)
+                .putLong(KEY_TODAY_UP, next.todayUp)
+                .putLong(KEY_TODAY_DOWN, next.todayDown)
+                .putString(KEY_SUB_NAME, next.subName)
+                .putInt(KEY_NODE_COUNT, next.nodeCount)
                 .apply()
             _settings.value = next
         }
@@ -42,7 +47,12 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         autoStart = prefs.getBoolean(KEY_AUTOSTART, true),
         desiredRunning = prefs.getBoolean(KEY_DESIRED, true),
         updateIntervalHours = prefs.getInt(KEY_UPDATE_INTERVAL, 0),
-        lastUpdateAt = prefs.getLong(KEY_LAST_UPDATE, 0L)
+        lastUpdateAt = prefs.getLong(KEY_LAST_UPDATE, 0L),
+        todayDate = prefs.getString(KEY_TODAY_DATE, "").orEmpty(),
+        todayUp = prefs.getLong(KEY_TODAY_UP, 0L),
+        todayDown = prefs.getLong(KEY_TODAY_DOWN, 0L),
+        subName = prefs.getString(KEY_SUB_NAME, "").orEmpty(),
+        nodeCount = prefs.getInt(KEY_NODE_COUNT, 0)
     )
 
     companion object {
@@ -53,5 +63,10 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_DESIRED = "desired_running"
         private const val KEY_UPDATE_INTERVAL = "update_interval_hours"
         private const val KEY_LAST_UPDATE = "last_update_at"
+        private const val KEY_TODAY_DATE = "today_date"
+        private const val KEY_TODAY_UP = "today_up"
+        private const val KEY_TODAY_DOWN = "today_down"
+        private const val KEY_SUB_NAME = "sub_name"
+        private const val KEY_NODE_COUNT = "node_count"
     }
 }

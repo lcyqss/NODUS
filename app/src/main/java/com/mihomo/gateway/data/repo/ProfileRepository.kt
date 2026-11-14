@@ -51,8 +51,13 @@ class ProfileRepositoryImpl(
         val installed = install(file)
         if (installed.isFailure) return@withContext installed
 
+        val count = api.proxies().getOrNull()?.count { !it.isGroup } ?: 0
         settings.update {
-            it.copy(subscriptionUrl = trimmed, lastUpdateAt = System.currentTimeMillis())
+            it.copy(
+                subscriptionUrl = trimmed,
+                lastUpdateAt = System.currentTimeMillis(),
+                nodeCount = count
+            )
         }
         Result.success(Unit)
     }
@@ -68,7 +73,10 @@ class ProfileRepositoryImpl(
         val installed = install(file)
         if (installed.isFailure) return@withContext installed
 
-        settings.update { it.copy(lastUpdateAt = System.currentTimeMillis()) }
+        val count = api.proxies().getOrNull()?.count { !it.isGroup } ?: 0
+        settings.update {
+            it.copy(lastUpdateAt = System.currentTimeMillis(), nodeCount = count)
+        }
         Result.success(Unit)
     }
 

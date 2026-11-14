@@ -52,6 +52,7 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     var tab by remember { mutableStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
+    var showTemplates by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         // 顶部汇总
@@ -103,6 +104,7 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
             ) {
+                OutlinedButton(onClick = { showTemplates = true }) { Text("模板") }
                 OutlinedButton(onClick = { showAdd = true }) { Text("添加规则") }
                 Button(onClick = { vm.apply() }, enabled = !state.applying) {
                     Text(if (state.applying) "应用中…" else "应用", maxLines = 1)
@@ -132,6 +134,29 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
         } else {
             BuiltInRulesList(state.builtIn)
         }
+    }
+
+    if (showTemplates) {
+        AlertDialog(
+            onDismissRequest = { showTemplates = false },
+            title = { Text("规则模板") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RulesViewModel.TEMPLATE_NAMES.forEach { name ->
+                        OutlinedButton(
+                            onClick = {
+                                vm.addTemplate(name)
+                                showTemplates = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(name) }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTemplates = false }) { Text("关闭") }
+            }
+        )
     }
 
     if (showAdd) {

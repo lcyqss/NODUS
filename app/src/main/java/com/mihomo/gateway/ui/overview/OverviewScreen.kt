@@ -53,6 +53,7 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
     val currentNode by vm.currentNode.collectAsState()
     val busy by vm.busy.collectAsState()
     val runtimeMode by vm.runtimeMode.collectAsState()
+    val today by vm.today.collectAsState()
 
     Column(
         modifier = Modifier
@@ -152,6 +153,10 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
             Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                 Metric("累计上传", formatBytes(stats.uploadTotal), UpColor)
                 Metric("累计下载", formatBytes(stats.downloadTotal), DownColor)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                Metric("今日上传", formatBytes(today.up), UpColor)
+                Metric("今日下载", formatBytes(today.down), DownColor)
             }
         }
 

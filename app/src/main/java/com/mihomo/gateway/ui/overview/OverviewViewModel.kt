@@ -45,6 +45,15 @@ class OverviewViewModel(
     private val _memory = MutableStateFlow(0L)
     val memory: StateFlow<Long> = _memory.asStateFlow()
 
+    private val _today = MutableStateFlow(Traffic(0, 0))
+    val today: StateFlow<Traffic> = _today.asStateFlow()
+
+    private var sampleCount = 0
+
+    private fun todayKey(): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            .format(java.util.Date())
+
     private val _stats = MutableStateFlow(OverviewStats())
     val stats: StateFlow<OverviewStats> = _stats.asStateFlow()
 
@@ -63,12 +72,30 @@ class OverviewViewModel(
     init {
         viewModelScope.launch { gateway.refresh() }
         viewModelScope.launch { api.configs().onSuccess { _runtimeMode.value = it.mode } }
+        viewModelScope.launch {
+            val s = settings.settings.first()
+            if (s.todayDate == todayKey()) {
+                _today.value = Traffic(s.todayUp, s.todayDown)
+            }
+        }
         loadCurrentNode()
         viewModelScope.launch {
             api.trafficFlow().catch { }.collect { traffic ->
                 _traffic.value = traffic
                 _upHistory.update { list -> (list + traffic.up).takeLast(60) }
                 _downHistory.update { list -> (list + traffic.down).takeLast(60) }
+                _today.update { current -> Traffic(current.up + traffic.up, current.down + traffic.down) }
+                sampleCount++
+                if (sampleCount % 10 == 0) {
+                    val snapshot = _today.value
+                    settings.update {
+                        it.copy(
+                            todayDate = todayKey(),
+                            todayUp = snapshot.up,
+                            todayDown = snapshot.down
+                        )
+                    }
+                }
             }
         }
         viewModelScope.launch {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import android.content.Intent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -68,6 +69,8 @@ private fun SettingsMain(
     val busy by vm.busy.collectAsState()
     val context = LocalContext.current
     var showCleanup by remember { mutableStateOf(false) }
+    var showRestore by remember { mutableStateOf(false) }
+    var restoreJson by remember { mutableStateOf("") }
     val versionName = remember {
         runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
@@ -149,6 +152,22 @@ private fun SettingsMain(
                 onClick = onDiagnostics
             )
             NavRow(
+                title = "备份配置",
+                subtitle = "导出规则与设置（分享文本）",
+                onClick = {
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, vm.buildBackup())
+                    }
+                    context.startActivity(Intent.createChooser(send, "备份配置"))
+                }
+            )
+            NavRow(
+                title = "恢复配置",
+                subtitle = "粘贴备份内容并导入",
+                onClick = { showRestore = true }
+            )
+            NavRow(
                 title = "清理运行数据（卸载前）",
                 subtitle = "停止网关、清除规则、删除 /data/adb/mihomo",
                 onClick = { showCleanup = true }
@@ -157,6 +176,30 @@ private fun SettingsMain(
                 title = "安装 / 更新核心",
                 subtitle = "从 APK 资源重新解压内核与脚本",
                 onClick = { vm.installCore() }
+            )
+        }
+
+        if (showRestore) {
+            AlertDialog(
+                onDismissRequest = { showRestore = false },
+                title = { Text("恢复配置") },
+                text = {
+                    OutlinedTextField(
+                        value = restoreJson,
+                        onValueChange = { restoreJson = it },
+                        label = { Text("粘贴备份 JSON") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showRestore = false
+                        vm.restoreBackup(restoreJson)
+                    }) { Text("恢复") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRestore = false }) { Text("取消") }
+                }
             )
         }
 
@@ -194,6 +237,7 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
     val message by vm.message.collectAsState()
     val busy by vm.busy.collectAsState()
     var subUrl by remember(settings.subscriptionUrl) { mutableStateOf(settings.subscriptionUrl) }
+    var subName by remember(settings.subName) { mutableStateOf(settings.subName) }
 
     Column(
         modifier = Modifier
@@ -206,7 +250,17 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
             OutlinedButton(onClick = onBack) { Text("返回") }
         }
 
-        SectionCard(title = "订阅链接") {
+        SectionCard(title = "订阅配置") {
+            OutlinedTextField(
+                value = subName,
+                onValueChange = {
+                    subName = it
+                    vm.setSubName(it)
+                },
+                label = { Text("名称（可选）") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
             OutlinedTextField(
                 value = subUrl,
                 onValueChange = { subUrl = it },
@@ -221,6 +275,11 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
             ) { Text("导入订阅") }
             Text(
                 "当前订阅：${settings.subscriptionUrl.ifBlank { "未设置" }}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "节点数：${if (settings.nodeCount > 0) settings.nodeCount else "-"}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -75,6 +75,42 @@ class RulesViewModel(
             .onFailure { _state.value = _state.value.copy(message = "添加失败: ${it.message}") }
     }
 
+    fun addTemplate(name: String) {
+        val items = TEMPLATES[name] ?: return
+        items.forEach { (kind, value, target) ->
+            ruleRepository.add(kind, value, target, kind.needsNoResolve)
+        }
+        _state.value = _state.value.copy(
+            message = "已添加模板「$name」${items.size} 条，记得点“应用规则”"
+        )
+    }
+
+    companion object {
+        val TEMPLATE_NAMES = listOf("绕过局域网", "广告拦截", "常用直连")
+
+        private val TEMPLATES: Map<String, List<Triple<RuleKind, String, String>>> = mapOf(
+            "绕过局域网" to listOf(
+                Triple(RuleKind.SRC_IP_CIDR, "192.168.0.0/16", "DIRECT"),
+                Triple(RuleKind.SRC_IP_CIDR, "10.0.0.0/8", "DIRECT"),
+                Triple(RuleKind.SRC_IP_CIDR, "172.16.0.0/12", "DIRECT"),
+                Triple(RuleKind.DOMAIN_SUFFIX, "local", "DIRECT"),
+                Triple(RuleKind.DOMAIN_SUFFIX, "lan", "DIRECT")
+            ),
+            "广告拦截" to listOf(
+                Triple(RuleKind.DOMAIN_KEYWORD, "doubleclick", "REJECT"),
+                Triple(RuleKind.DOMAIN_SUFFIX, "googlesyndication.com", "REJECT"),
+                Triple(RuleKind.DOMAIN_SUFFIX, "adservice.google.com", "REJECT"),
+                Triple(RuleKind.DOMAIN_SUFFIX, "ads.youtube.com", "REJECT")
+            ),
+            "常用直连" to listOf(
+                Triple(RuleKind.DOMAIN_SUFFIX, "cn", "DIRECT"),
+                Triple(RuleKind.DOMAIN_SUFFIX, "qq.com", "DIRECT"),
+                Triple(RuleKind.DOMAIN_SUFFIX, "taobao.com", "DIRECT"),
+                Triple(RuleKind.DOMAIN_SUFFIX, "bilibili.com", "DIRECT")
+            )
+        )
+    }
+
     fun setEnabled(rule: CustomRule, enabled: Boolean) {
         ruleRepository.update(rule.copy(enabled = enabled))
     }

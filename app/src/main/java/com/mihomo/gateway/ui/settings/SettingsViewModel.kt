@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.ProfileRepository
+import com.mihomo.gateway.data.repo.RuleRepository
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.model.AppSettings
@@ -20,7 +21,8 @@ class SettingsViewModel(
     private val store: SettingsStore = AppContainer.settings,
     private val gateway: GatewayController = AppContainer.gateway,
     private val profiles: ProfileRepository = AppContainer.profiles,
-    private val api: MihomoApi = AppContainer.api
+    private val api: MihomoApi = AppContainer.api,
+    private val ruleRepository: RuleRepository = AppContainer.rules
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = store.settings
@@ -105,6 +107,81 @@ class SettingsViewModel(
                 onFailure = { "清理失败: ${it.message}" }
             )
             _busy.value = false
+        }
+    }
+
+    fun buildBackup(): String {
+        val current = settings.value
+        val rules = org.json.JSONArray()
+        ruleRepository.rules.value.forEach { rule ->
+            rules.put(
+                org.json.JSONObject()
+                    .put("kind", rule.kind.wire)
+                    .put("value", rule.value)
+                    .put("target", rule.target)
+                    .put("enabled", rule.enabled)
+                    .put("noResolve", rule.noResolve)
+            )
+        }
+        return org.json.JSONObject()
+            .put("version", 1)
+            .put(
+                "settings",
+                org.json.JSONObject()
+                    .put("subscriptionUrl", current.subscriptionUrl)
+                    .put("subName", current.subName)
+                    .put("ipMode", current.ipMode.name)
+                    .put("blockIpv6", current.blockIpv6)
+                    .put("updateIntervalHours", current.updateIntervalHours)
+            )
+            .put("rules", rules)
+            .toString(2)
+    }
+
+    fun restoreBackup(json: String) {
+        viewModelScope.launch {
+            val result = runCatching {
+                val root = org.json.JSONObject(json)
+                val s = root.optJSONObject("settings")
+                if (s != null) {
+                    store.update { current ->
+                        current.copy(
+                            subscriptionUrl = s.optString("subscriptionUrl", current.subscriptionUrl),
+                            subName = s.optString("subName", current.subName),
+                            ipMode = runCatching {
+                                com.mihomo.gateway.model.IpMode.valueOf(
+                                    s.optString("ipMode", current.ipMode.name)
+                                )
+                            }.getOrDefault(current.ipMode),
+                            blockIpv6 = s.optBoolean("blockIpv6", current.blockIpv6),
+                            updateIntervalHours = s.optInt("updateIntervalHours", current.updateIntervalHours)
+                        )
+                    }
+                }
+                val rules = root.optJSONArray("rules")
+                if (rules != null) {
+                    for (i in 0 until rules.length()) {
+                        val r = rules.optJSONObject(i) ?: continue
+                        val kind = com.mihomo.gateway.model.RuleKind.fromWire(r.optString("kind")) ?: continue
+                        ruleRepository.add(
+                            kind,
+                            r.optString("value"),
+                            r.optString("target"),
+                            r.optBoolean("noResolve", kind.needsNoResolve)
+                        )
+                    }
+                }
+            }
+            _message.value = result.fold(
+                onSuccess = { "配置已恢复" },
+                onFailure = { "恢复失败: ${it.message}" }
+            )
+        }
+    }
+
+    fun setSubName(name: String) {
+        viewModelScope.launch {
+            store.update { it.copy(subName = name) }
         }
     }
 
