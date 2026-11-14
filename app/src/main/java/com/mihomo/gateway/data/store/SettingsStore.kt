@@ -26,6 +26,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putBoolean(KEY_BLOCK_V6, next.blockIpv6)
                 .putBoolean(KEY_AUTOSTART, next.autoStart)
                 .putBoolean(KEY_DESIRED, next.desiredRunning)
+                .putInt(KEY_UPDATE_INTERVAL, next.updateIntervalHours)
+                .putLong(KEY_LAST_UPDATE, next.lastUpdateAt)
                 .apply()
             _settings.value = next
         }
@@ -38,7 +40,9 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         }.getOrDefault(IpMode.AUTO),
         blockIpv6 = prefs.getBoolean(KEY_BLOCK_V6, true),
         autoStart = prefs.getBoolean(KEY_AUTOSTART, true),
-        desiredRunning = prefs.getBoolean(KEY_DESIRED, true)
+        desiredRunning = prefs.getBoolean(KEY_DESIRED, true),
+        updateIntervalHours = prefs.getInt(KEY_UPDATE_INTERVAL, 0),
+        lastUpdateAt = prefs.getLong(KEY_LAST_UPDATE, 0L)
     )
 
     companion object {
@@ -47,5 +51,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_BLOCK_V6 = "block_ipv6"
         private const val KEY_AUTOSTART = "auto_start"
         private const val KEY_DESIRED = "desired_running"
+        private const val KEY_UPDATE_INTERVAL = "update_interval_hours"
+        private const val KEY_LAST_UPDATE = "last_update_at"
     }
 }

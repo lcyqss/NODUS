@@ -41,6 +41,7 @@ class MihomoApiImpl(
         .build()
 
     private val wsBase = baseUrl.replaceFirst("http", "ws")
+    private val baseUrlPath = "/data/adb/mihomo/config.yaml"
 
     // ---------- REST ----------
 
@@ -199,6 +200,9 @@ class MihomoApiImpl(
                 Result.failure(AppError.Network(e))
             }
         }
+
+    override suspend fun reloadConfigs(): Result<Unit> =
+        requestUnit("PUT", "/configs?force=true", JSONObject().put("path", "$baseUrlPath").toString())
 
     override suspend fun setMode(mode: String): Result<Unit> =
         requestUnit("PATCH", "/configs", JSONObject().put("mode", mode).toString())

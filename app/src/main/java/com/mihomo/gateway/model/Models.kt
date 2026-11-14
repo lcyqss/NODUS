@@ -71,7 +71,9 @@ data class AppSettings(
     val ipMode: IpMode = IpMode.AUTO,
     val blockIpv6: Boolean = true,
     val autoStart: Boolean = true,
-    val desiredRunning: Boolean = true
+    val desiredRunning: Boolean = true,
+    val updateIntervalHours: Int = 0,
+    val lastUpdateAt: Long = 0L
 )
 
 sealed class AppError(override val message: String?) : Throwable(message) {

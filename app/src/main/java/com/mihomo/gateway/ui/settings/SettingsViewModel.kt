@@ -108,6 +108,26 @@ class SettingsViewModel(
         }
     }
 
+    fun setUpdateInterval(hours: Int) {
+        viewModelScope.launch {
+            store.update { it.copy(updateIntervalHours = hours) }
+            _message.value = if (hours <= 0) "自动更新: 关闭" else "自动更新: 每 ${hours} 小时"
+        }
+    }
+
+    fun updateNow() {
+        viewModelScope.launch {
+            _busy.value = true
+            _message.value = "更新中…"
+            val result = profiles.autoUpdate()
+            _message.value = result.fold(
+                onSuccess = { "订阅已更新" },
+                onFailure = { "更新失败: ${it.message}" }
+            )
+            _busy.value = false
+        }
+    }
+
     fun installCore() {
         viewModelScope.launch {
             _busy.value = true

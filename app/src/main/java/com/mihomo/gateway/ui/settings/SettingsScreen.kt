@@ -226,6 +226,21 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
             )
         }
 
+        SectionCard(title = "自动更新") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0 to "关闭", 6 to "6h", 24 to "24h", 72 to "72h").forEach { (hours, label) ->
+                    val selected = settings.updateIntervalHours == hours
+                    if (selected) Button(onClick = { vm.setUpdateInterval(hours) }, enabled = !busy) { Text(label) }
+                    else OutlinedButton(onClick = { vm.setUpdateInterval(hours) }, enabled = !busy) { Text(label) }
+                }
+            }
+            Text(
+                "上次更新：" + if (settings.lastUpdateAt <= 0) "从未" else formatTime(settings.lastUpdateAt),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(onClick = { vm.updateNow() }, enabled = !busy) { Text("立即更新") }
+        }
         SectionCard(title = "导入流程") {
             listOf(
                 "下载并校验是否为 Clash 配置",
@@ -244,6 +259,11 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
         message?.let { Text(it) }
     }
 }
+
+@Composable
+private fun formatTime(millis: Long): String =
+    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+        .format(java.util.Date(millis))
 
 @Composable
 private fun SwitchRow(

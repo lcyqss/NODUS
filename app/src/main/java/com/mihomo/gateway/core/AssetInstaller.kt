@@ -44,7 +44,9 @@ class AssetInstaller(
         val c = cache.absolutePath
         val command = """
             mkdir -p $base
-            cp -f $c/mihomo $base/mihomo
+            cp -f $c/mihomo $base/mihomo.new
+            chmod 755 $base/mihomo.new
+            mv -f $base/mihomo.new $base/mihomo
             cp -f $c/scripts/*.sh $base/
             chmod 755 $base/mihomo $base/*.sh
             [ -f $base/config.yaml ] || cp -f $c/config.template.yaml $base/config.yaml

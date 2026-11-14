@@ -12,6 +12,9 @@ import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.GatewayControllerImpl
 import com.mihomo.gateway.data.repo.ProfileRepository
 import com.mihomo.gateway.data.repo.ProfileRepositoryImpl
+import com.mihomo.gateway.data.repo.RuleRepository
+import com.mihomo.gateway.data.repo.RuleRepositoryImpl
+import com.mihomo.gateway.data.store.RuleStore
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.data.store.SettingsStoreImpl
 
@@ -37,6 +40,8 @@ object AppContainer {
         private set
     lateinit var neighbors: NeighborResolver
         private set
+    lateinit var rules: RuleRepository
+        private set
 
     private var initialized = false
 
@@ -51,12 +56,14 @@ object AppContainer {
         settings = SettingsStoreImpl(app)
         core = AssetInstaller(app, shell, base = BASE)
         neighbors = NeighborResolver(shell)
+        rules = RuleRepositoryImpl(app, shell, api, RuleStore(app), base = BASE)
         profiles = ProfileRepositoryImpl(
             context = app,
             shell = shell,
             api = api,
             settings = settings,
             coreInstaller = core,
+            rules = rules,
             base = BASE
         )
     }

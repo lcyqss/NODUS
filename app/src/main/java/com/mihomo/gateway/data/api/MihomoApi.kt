@@ -44,6 +44,9 @@ interface MihomoApi {
 
     /** 整组测速：一次请求返回该组所有节点延迟（ms）。 */    suspend fun groupDelay(group: String, timeoutMs: Int = 3000, url: String = DEFAULT_TEST_URL): Result<Map<String, Int>>
 
+    /** 重载配置文件（自定义规则注入后调用）。 */
+    suspend fun reloadConfigs(): Result<Unit>
+
     /** 切换运行模式：rule / global / direct。 */
     suspend fun setMode(mode: String): Result<Unit>
 

@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -26,8 +25,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,17 +34,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.LogEntry
-import com.mihomo.gateway.model.RuleInfo
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.Tag
-import com.mihomo.gateway.ui.rules.RulesViewModel
+import com.mihomo.gateway.ui.rules.RulesScreen
 
 @Composable
-fun LogsScreen(
-    logsVm: LogsViewModel = viewModel(),
-    rulesVm: RulesViewModel = viewModel()
-) {
+fun LogsScreen(logsVm: LogsViewModel = viewModel()) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val logs by logsVm.logs.collectAsState()
     val level by logsVm.level.collectAsState()
@@ -59,14 +52,11 @@ fun LogsScreen(
     DisposableEffect(Unit) {
         onDispose { logsVm.stop() }
     }
-    LaunchedEffect(tab) {
-        if (tab == 1) rulesVm.loadIfNeeded()
-    }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(
             title = if (tab == 0) "日志" else "规则",
-            subtitle = if (tab == 0) "实时输出 · 最多保留 500 行" else null
+            subtitle = if (tab == 0) "实时输出 · 最多保留 500 行" else "自定义规则优先于订阅规则"
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (tab == 0) Button(onClick = { tab = 0 }) { Text("日志") }
@@ -89,9 +79,7 @@ fun LogsScreen(
                 onClear = { logsVm.clear() }
             )
         } else {
-            val rules by rulesVm.rules.collectAsState()
-            val error by rulesVm.error.collectAsState()
-            RulesTab(rules, error, onReload = { rulesVm.load() })
+            RulesScreen()
         }
     }
 }
@@ -169,86 +157,6 @@ private fun LogsTab(
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.weight(1f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RulesTab(rules: List<RuleInfo>, error: String?, onReload: () -> Unit) {
-    var query by remember { mutableStateOf("") }
-    var typeFilter by remember { mutableStateOf<String?>(null) }
-
-    val types = remember(rules) { rules.map { it.type }.distinct().take(10) }
-
-    val filtered = remember(rules, query, typeFilter) {
-        rules.filter { rule ->
-            (typeFilter == null || rule.type == typeFilter) &&
-                (query.isBlank() ||
-                    rule.payload.contains(query, true) ||
-                    rule.type.contains(query, true) ||
-                    rule.proxy.contains(query, true))
-        }
-    }
-
-    OutlinedTextField(
-        value = query,
-        onValueChange = { query = it },
-        label = { Text("搜索规则 / 策略") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
-
-    Spacer(Modifier.height(8.dp))
-
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        item {
-            if (typeFilter == null) Button(onClick = { typeFilter = null }) { Text("全部") }
-            else OutlinedButton(onClick = { typeFilter = null }) { Text("全部") }
-        }
-        items(types) { type ->
-            if (typeFilter == type) Button(onClick = { typeFilter = type }) { Text(type) }
-            else OutlinedButton(onClick = { typeFilter = type }) { Text(type) }
-        }
-    }
-
-    Spacer(Modifier.height(8.dp))
-
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            "${filtered.size} / ${rules.size} 条",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        OutlinedButton(onClick = onReload) { Text("刷新") }
-    }
-
-    error?.let { Text("错误: $it", color = MaterialTheme.colorScheme.error) }
-
-    Spacer(Modifier.height(6.dp))
-
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        items(filtered) { rule ->
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Tag(rule.type)
-                }
-                Text(rule.payload, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    "→ ${rule.proxy}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }

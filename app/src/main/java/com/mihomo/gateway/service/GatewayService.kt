@@ -15,6 +15,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -66,6 +68,25 @@ class GatewayService : Service() {
                 }
             } else {
                 AppContainer.gateway.refresh()
+            }
+        }
+
+        // 自动更新订阅：启动时检查一次，之后每 30 分钟检查
+        scope.launch {
+            while (isActive) {
+                runCatching {
+                    val current = AppContainer.settings.settings.first()
+                    val interval = current.updateIntervalHours
+                    if (interval > 0 && current.subscriptionUrl.isNotBlank()) {
+                        val due = System.currentTimeMillis() - current.lastUpdateAt >= interval * 3600_000L
+                        if (due) {
+                            Log.i(TAG, "auto update subscription, interval=${interval}h")
+                            AppContainer.profiles.autoUpdate()
+                                .onFailure { Log.w(TAG, "auto update failed: ${it.message}") }
+                        }
+                    }
+                }.onFailure { Log.w(TAG, "auto update loop: ${it.message}") }
+                delay(30 * 60_000L)
             }
         }
 
