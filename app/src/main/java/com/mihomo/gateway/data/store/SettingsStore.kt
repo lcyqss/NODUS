@@ -34,6 +34,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putString(KEY_SUB_NAME, next.subName)
                 .putInt(KEY_NODE_COUNT, next.nodeCount)
                 .putString(KEY_FAVORITES, next.favoriteNodes)
+                .putString(KEY_SUBSCRIPTIONS, next.subscriptions)
+                .putString(KEY_ACTIVE_SUB, next.activeSubId)
                 .apply()
             _settings.value = next
         }
@@ -54,7 +56,9 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         todayDown = prefs.getLong(KEY_TODAY_DOWN, 0L),
         subName = prefs.getString(KEY_SUB_NAME, "").orEmpty(),
         nodeCount = prefs.getInt(KEY_NODE_COUNT, 0),
-        favoriteNodes = prefs.getString(KEY_FAVORITES, "").orEmpty()
+        favoriteNodes = prefs.getString(KEY_FAVORITES, "").orEmpty(),
+        subscriptions = prefs.getString(KEY_SUBSCRIPTIONS, "").orEmpty(),
+        activeSubId = prefs.getString(KEY_ACTIVE_SUB, "").orEmpty()
     )
 
     companion object {
@@ -71,5 +75,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_SUB_NAME = "sub_name"
         private const val KEY_NODE_COUNT = "node_count"
         private const val KEY_FAVORITES = "favorite_nodes"
+        private const val KEY_SUBSCRIPTIONS = "subscriptions"
+        private const val KEY_ACTIVE_SUB = "active_sub_id"
     }
 }

@@ -79,8 +79,54 @@ data class AppSettings(
     val todayDown: Long = 0L,
     val subName: String = "",
     val nodeCount: Int = 0,
-    val favoriteNodes: String = ""
+    val favoriteNodes: String = "",
+    val subscriptions: String = "",
+    val activeSubId: String = ""
 )
+
+data class SubscriptionProfile(
+    val id: String,
+    val name: String,
+    val url: String,
+    val lastUpdateAt: Long = 0L,
+    val nodeCount: Int = 0
+)
+
+object SubscriptionCodec {
+    fun decode(raw: String): List<SubscriptionProfile> {
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val array = org.json.JSONArray(raw)
+            (0 until array.length()).mapNotNull { index ->
+                val obj = array.optJSONObject(index) ?: return@mapNotNull null
+                val url = obj.optString("url")
+                if (url.isBlank()) return@mapNotNull null
+                SubscriptionProfile(
+                    id = obj.optString("id").ifBlank { url },
+                    name = obj.optString("name").ifBlank { "订阅" },
+                    url = url,
+                    lastUpdateAt = obj.optLong("lastUpdateAt", 0L),
+                    nodeCount = obj.optInt("nodeCount", 0)
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun encode(list: List<SubscriptionProfile>): String {
+        val array = org.json.JSONArray()
+        list.forEach { item ->
+            array.put(
+                org.json.JSONObject()
+                    .put("id", item.id)
+                    .put("name", item.name)
+                    .put("url", item.url)
+                    .put("lastUpdateAt", item.lastUpdateAt)
+                    .put("nodeCount", item.nodeCount)
+            )
+        }
+        return array.toString()
+    }
+}
 
 sealed class AppError(override val message: String?) : Throwable(message) {
     data object CoreDown : AppError("内核未运行")

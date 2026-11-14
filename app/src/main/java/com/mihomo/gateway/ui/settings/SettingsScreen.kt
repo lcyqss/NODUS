@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import android.content.Intent
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -238,6 +241,10 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
     val busy by vm.busy.collectAsState()
     var subUrl by remember(settings.subscriptionUrl) { mutableStateOf(settings.subscriptionUrl) }
     var subName by remember(settings.subName) { mutableStateOf(settings.subName) }
+    val subs by vm.subscriptions.collectAsState()
+    var showAddSub by remember { mutableStateOf(false) }
+    var addName by remember { mutableStateOf("") }
+    var addUrl by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -285,6 +292,56 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
             )
         }
 
+        SectionCard(title = "已保存订阅") {
+            if (subs.isEmpty()) {
+                Text(
+                    "还没有保存的订阅，导入成功后会出现在这里",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            subs.forEach { item ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { vm.activateSubscription(item) }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = settings.activeSubId == item.id,
+                        onClick = { vm.activateSubscription(item) }
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            item.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (settings.activeSubId == item.id) FontWeight.SemiBold
+                            else FontWeight.Normal
+                        )
+                        Text(
+                            item.url,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                        Text(
+                            "${item.nodeCount} 节点 · " +
+                                if (item.lastUpdateAt <= 0) "未更新" else formatTime(item.lastUpdateAt),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    TextButton(onClick = { vm.deleteSubscription(item) }) { Text("删除") }
+                }
+            }
+            OutlinedButton(
+                onClick = { showAddSub = true },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("添加订阅") }
+        }
+
         SectionCard(title = "自动更新") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0 to "关闭", 6 to "6h", 24 to "24h", 72 to "72h").forEach { (hours, label) ->
@@ -316,6 +373,40 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
         }
 
         message?.let { Text(it) }
+
+        if (showAddSub) {
+            AlertDialog(
+                onDismissRequest = { showAddSub = false },
+                title = { Text("添加订阅") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = addName,
+                            onValueChange = { addName = it },
+                            label = { Text("名称") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = addUrl,
+                            onValueChange = { addUrl = it },
+                            label = { Text("订阅链接") },
+                            singleLine = true
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showAddSub = false
+                        vm.addSubscription(addName, addUrl)
+                        addName = ""
+                        addUrl = ""
+                    }) { Text("添加") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddSub = false }) { Text("取消") }
+                }
+            )
+        }
     }
 }
 
