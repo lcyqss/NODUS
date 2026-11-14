@@ -57,8 +57,12 @@ class OverviewViewModel(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    private val _runtimeMode = MutableStateFlow("rule")
+    val runtimeMode: StateFlow<String> = _runtimeMode.asStateFlow()
+
     init {
         viewModelScope.launch { gateway.refresh() }
+        viewModelScope.launch { api.configs().onSuccess { _runtimeMode.value = it.mode } }
         loadCurrentNode()
         viewModelScope.launch {
             api.trafficFlow().catch { }.collect { traffic ->
@@ -91,6 +95,12 @@ class OverviewViewModel(
                 }
                 delay(3000)
             }
+        }
+    }
+
+    fun setRuntimeMode(mode: String) {
+        viewModelScope.launch {
+            api.setMode(mode).onSuccess { _runtimeMode.value = mode }
         }
     }
 

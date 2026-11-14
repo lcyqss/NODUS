@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -25,6 +26,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,12 +35,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.LogEntry
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.Tag
 import com.mihomo.gateway.ui.rules.RulesScreen
+import android.content.Intent
 
 @Composable
 fun LogsScreen(logsVm: LogsViewModel = viewModel()) {
@@ -45,6 +50,8 @@ fun LogsScreen(logsVm: LogsViewModel = viewModel()) {
     val logs by logsVm.logs.collectAsState()
     val level by logsVm.level.collectAsState()
     val paused by logsVm.paused.collectAsState()
+    var query by remember { mutableStateOf("") }
+    val context = LocalContext.current
 
     LaunchedEffect(tab, level) {
         if (tab == 0) logsVm.start(level)
@@ -69,14 +76,33 @@ fun LogsScreen(logsVm: LogsViewModel = viewModel()) {
         Spacer(Modifier.height(10.dp))
 
         if (tab == 0) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("搜索日志") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(6.dp))
+            val filtered = remember(logs, query) {
+                if (query.isBlank()) logs else logs.filter { it.payload.contains(query, true) }
+            }
             LogsTab(
-                logs = logs,
+                logs = filtered,
                 level = level,
                 paused = paused,
                 onLevel = { logsVm.start(it) },
                 onPause = { logsVm.pause() },
                 onResume = { logsVm.resume() },
-                onClear = { logsVm.clear() }
+                onClear = { logsVm.clear() },
+                onExport = {
+                    val text = filtered.joinToString("\n") { "${it.level.uppercase()} ${it.payload}" }
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text.ifBlank { "(无日志)" })
+                    }
+                    context.startActivity(Intent.createChooser(intent, "导出日志"))
+                }
             )
         } else {
             RulesScreen()
@@ -92,7 +118,8 @@ private fun LogsTab(
     onLevel: (String) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    onExport: () -> Unit
 ) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(listOf("info", "warning", "error")) { item ->
@@ -106,6 +133,9 @@ private fun LogsTab(
         }
         item {
             OutlinedButton(onClick = onClear) { Text("清空") }
+        }
+        item {
+            OutlinedButton(onClick = onExport) { Text("导出") }
         }
     }
 

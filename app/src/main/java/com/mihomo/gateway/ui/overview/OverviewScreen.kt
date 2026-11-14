@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -50,6 +52,7 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
     val stats by vm.stats.collectAsState()
     val currentNode by vm.currentNode.collectAsState()
     val busy by vm.busy.collectAsState()
+    val runtimeMode by vm.runtimeMode.collectAsState()
 
     Column(
         modifier = Modifier
@@ -95,6 +98,15 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
             }
 
             Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("rule" to "规则", "global" to "全局", "direct" to "直连").forEach { (mode, label) ->
+                    if (runtimeMode == mode) {
+                        Button(onClick = { vm.setRuntimeMode(mode) }, enabled = !busy) { Text(label) }
+                    } else {
+                        OutlinedButton(onClick = { vm.setRuntimeMode(mode) }, enabled = !busy) { Text(label) }
+                    }
+                }
+            }
             KeyValueRow("当前节点", currentNode ?: "-")
             KeyValueRow("节点地址族", state.mode.name)
             KeyValueRow("IPv6 拦截", if (state.blockIpv6) "开" else "关")

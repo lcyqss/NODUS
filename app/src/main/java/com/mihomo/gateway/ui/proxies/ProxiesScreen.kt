@@ -50,6 +50,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     val currentGroup = state.groups.firstOrNull { it.name == state.selectedGroup }
     var query by remember { mutableStateOf("") }
     var sortByDelay by remember { mutableStateOf(false) }
+    var hideUnavailable by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(
@@ -149,11 +150,21 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                         }
                     }
 
+                    Spacer(Modifier.height(6.dp))
+
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        item {
+                            if (hideUnavailable) Button(onClick = { hideUnavailable = false }) { Text("隐藏不可用") }
+                            else OutlinedButton(onClick = { hideUnavailable = true }) { Text("隐藏不可用") }
+                        }
+                    }
+
                     Spacer(Modifier.height(8.dp))
 
-                    val members = remember(currentGroup, query, sortByDelay, delays) {
-                        val base = if (query.isBlank()) currentGroup.members
-                        else currentGroup.members.filter { it.name.contains(query, true) }
+                    val members = remember(currentGroup, query, sortByDelay, delays, failed, hideUnavailable) {
+                        val base = currentGroup.members
+                            .filter { it.name.contains(query, true) }
+                            .filter { !hideUnavailable || ((delays[it.name] ?: it.delay) != null && !failed.contains(it.name)) }
                         if (sortByDelay) {
                             base.sortedWith(
                                 compareBy(

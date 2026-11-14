@@ -15,9 +15,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class GatewayService : Service() {
@@ -33,19 +33,18 @@ class GatewayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val pending = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        val notification: Notification = Notification.Builder(this, CHANNEL)
-            .setContentTitle("Mihomo Gateway")
-            .setContentText("网关服务运行中")
-            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
-            .setContentIntent(pending)
-            .setOngoing(true)
-            .build()
-        startForeground(1, notification)
+        if (intent?.action == ACTION_STOP) {
+            scope.launch {
+                AppContainer.gateway.stop()
+                AppContainer.settings.update { it.copy(desiredRunning = false) }
+                withMain {
+                    startForeground(NOTIFICATION_ID, buildNotification("网关已停止，服务待命", false))
+                }
+            }
+            return START_STICKY
+        }
+
+        startForeground(NOTIFICATION_ID, buildNotification("网关服务运行中", true))
 
         scope.launch {
             AppContainer.core.ensure().onFailure { Log.w(TAG, "install failed: ${it.message}") }
@@ -56,7 +55,6 @@ class GatewayService : Service() {
                 AppContainer.settings.update { it.copy(ipMode = conf.mode, blockIpv6 = conf.blockIpv6) }
             }.onFailure { Log.w(TAG, "sync conf failed: ${it.message}") }
 
-            // 恢复上次运行状态：只有 desiredRunning 为 true 才拉起网关
             val desired = runCatching {
                 AppContainer.settings.settings.first().desiredRunning
             }.getOrDefault(true)
@@ -93,6 +91,38 @@ class GatewayService : Service() {
         return START_STICKY
     }
 
+    private fun buildNotification(text: String, running: Boolean): Notification {
+        val openIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val stopIntent = PendingIntent.getService(
+            this, 1,
+            Intent(this, GatewayService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = Notification.Builder(this, CHANNEL)
+            .setContentTitle("Mihomo Gateway")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
+            .setContentIntent(openIntent)
+            .setOngoing(true)
+        if (running) {
+            builder.addAction(
+                Notification.Action.Builder(null, "停止网关", stopIntent).build()
+            )
+        }
+        builder.addAction(
+            Notification.Action.Builder(null, "打开", openIntent).build()
+        )
+        return builder.build()
+    }
+
+    private suspend fun withMain(block: () -> Unit) {
+        kotlinx.coroutines.withContext(Dispatchers.Main) { block() }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
@@ -102,6 +132,8 @@ class GatewayService : Service() {
 
     companion object {
         private const val CHANNEL = "mihomo_gateway"
+        private const val NOTIFICATION_ID = 1
         private const val TAG = "GW-Service"
+        const val ACTION_STOP = "com.mihomo.gateway.STOP"
     }
 }
