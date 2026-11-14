@@ -25,7 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.ProviderInfo
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.KeyValueRow
-import com.mihomo.gateway.ui.components.ScreenHeader
+import com.mihomo.gateway.ui.components.SubPageHeader
 import com.mihomo.gateway.ui.components.Tag
 
 @Composable
@@ -35,11 +35,12 @@ fun ProvidersScreen(onBack: () -> Unit, vm: ProvidersViewModel = viewModel()) {
     LaunchedEffect(Unit) { vm.load() }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        ScreenHeader(title = "Provider", subtitle = "节点来源与健康检查") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onBack) { Text("返回") }
-                OutlinedButton(onClick = { vm.load() }) { Text("刷新") }
-            }
+        SubPageHeader(
+            title = "节点来源",
+            subtitle = "Provider · 节点数 / 健康检查",
+            onBack = onBack
+        ) {
+            OutlinedButton(onClick = { vm.load() }) { Text("刷新") }
         }
 
         Spacer(Modifier.height(10.dp))

@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mihomo.gateway.ui.components.SubPageHeader
 
 @Composable
 fun DiagnosticsScreen(
@@ -50,9 +51,12 @@ fun DiagnosticsScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onBack) { Text("返回") }
-            Button(onClick = { vm.refresh() }) { Text("刷新") }
+        SubPageHeader(
+            title = "诊断",
+            subtitle = "内核状态 / root 命令 / 规则快照",
+            onBack = onBack
+        ) {
+            OutlinedButton(onClick = { vm.refresh() }) { Text("刷新") }
         }
 
         Card(Modifier.fillMaxWidth()) {

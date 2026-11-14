@@ -37,6 +37,10 @@ class SettingsViewModel(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    fun clearMessage() {
+        _message.value = null
+    }
+
     private val _runtimeMode = MutableStateFlow("rule")
     val runtimeMode: StateFlow<String> = _runtimeMode.asStateFlow()
 

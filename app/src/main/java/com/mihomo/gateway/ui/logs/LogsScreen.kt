@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,12 +39,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.LogEntry
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.ScreenHeader
+import com.mihomo.gateway.ui.components.SegmentedControl
+import com.mihomo.gateway.ui.components.SubPageHeader
 import com.mihomo.gateway.ui.components.Tag
 import com.mihomo.gateway.ui.rules.RulesScreen
 import android.content.Intent
 
 @Composable
-fun LogsScreen(logsVm: LogsViewModel = viewModel(), showRulesTab: Boolean = false) {
+fun LogsScreen(
+    logsVm: LogsViewModel = viewModel(),
+    showRulesTab: Boolean = false,
+    onBack: (() -> Unit)? = null
+) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val logs by logsVm.logs.collectAsState()
     val level by logsVm.level.collectAsState()
@@ -61,17 +66,26 @@ fun LogsScreen(logsVm: LogsViewModel = viewModel(), showRulesTab: Boolean = fals
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        ScreenHeader(
-            title = if (showRulesTab && tab == 1) "规则" else "日志",
-            subtitle = if (showRulesTab && tab == 1) "自定义规则优先于订阅规则"
-            else "实时输出 · 最多保留 500 行"
-        ) {
-            if (showRulesTab) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (tab == 0) Button(onClick = { tab = 0 }) { Text("日志") }
-                    else OutlinedButton(onClick = { tab = 0 }) { Text("日志") }
-                    if (tab == 1) Button(onClick = { tab = 1 }) { Text("规则") }
-                    else OutlinedButton(onClick = { tab = 1 }) { Text("规则") }
+        if (onBack != null) {
+            SubPageHeader(
+                title = if (showRulesTab && tab == 1) "规则" else "日志",
+                subtitle = if (showRulesTab && tab == 1) "自定义规则优先于订阅规则"
+                else "实时输出 · 最多保留 500 行",
+                onBack = onBack
+            )
+        } else {
+            ScreenHeader(
+                title = if (showRulesTab && tab == 1) "规则" else "日志",
+                subtitle = if (showRulesTab && tab == 1) "自定义规则优先于订阅规则"
+                else "实时输出 · 最多保留 500 行"
+            ) {
+                if (showRulesTab) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (tab == 0) Button(onClick = { tab = 0 }) { Text("日志") }
+                        else OutlinedButton(onClick = { tab = 0 }) { Text("日志") }
+                        if (tab == 1) Button(onClick = { tab = 1 }) { Text("规则") }
+                        else OutlinedButton(onClick = { tab = 1 }) { Text("规则") }
+                    }
                 }
             }
         }
@@ -124,22 +138,21 @@ private fun LogsTab(
     onClear: () -> Unit,
     onExport: () -> Unit
 ) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(listOf("info", "warning", "error")) { item ->
-            if (item == level) Button(onClick = { onLevel(item) }) { Text(item) }
-            else OutlinedButton(onClick = { onLevel(item) }) { Text(item) }
+    val levels = listOf("info", "warning", "error")
+    SegmentedControl(
+        options = levels,
+        selectedIndex = levels.indexOf(level),
+        onSelect = { onLevel(levels[it]) }
+    )
+
+    Spacer(Modifier.height(8.dp))
+
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = if (paused) onResume else onPause) {
+            Text(if (paused) "继续" else "暂停")
         }
-        item {
-            OutlinedButton(onClick = if (paused) onResume else onPause) {
-                Text(if (paused) "继续" else "暂停")
-            }
-        }
-        item {
-            OutlinedButton(onClick = onClear) { Text("清空") }
-        }
-        item {
-            OutlinedButton(onClick = onExport) { Text("导出") }
-        }
+        OutlinedButton(onClick = onClear) { Text("清空") }
+        OutlinedButton(onClick = onExport) { Text("导出") }
     }
 
     Spacer(Modifier.height(8.dp))
