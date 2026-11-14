@@ -21,6 +21,8 @@ data class RulesUiState(
     val mode: String = "rule",
     val loading: Boolean = true,
     val applying: Boolean = false,
+    /** 当前规则与上一次成功应用时的快照是否不同。 */
+    val dirty: Boolean = false,
     val error: String? = null,
     val message: String? = null
 )
@@ -33,13 +35,23 @@ class RulesViewModel(
     private val _state = MutableStateFlow(RulesUiState())
     val state: StateFlow<RulesUiState> = _state.asStateFlow()
 
+    /** 上一次成功应用时的规则快照，用于判断「有无未应用的改动」。 */
+    private var appliedSnapshot: List<CustomRule> = ruleRepository.rules.value
+
     init {
         viewModelScope.launch {
             ruleRepository.rules.collect { list ->
-                _state.value = _state.value.copy(custom = list)
+                _state.value = _state.value.copy(
+                    custom = list,
+                    dirty = list != appliedSnapshot
+                )
             }
         }
         load()
+    }
+
+    fun clearMessage() {
+        _state.value = _state.value.copy(message = null)
     }
 
     fun load() {
@@ -58,20 +70,27 @@ class RulesViewModel(
             }.distinct()
             val mode = api.configs().getOrNull()?.mode ?: "rule"
             val conflicts = ruleRepository.conflicts()
+            val appliedLines = ruleRepository.appliedRuleLines()
+            val enabledLines = ruleRepository.rules.value
+                .filter { it.enabled }
+                .map { it.toRuleLine() }
+            val applied = appliedLines == enabledLines
+            appliedSnapshot = if (applied) ruleRepository.rules.value else emptyList()
             _state.value = RulesUiState(
                 builtIn = builtIn,
                 custom = ruleRepository.rules.value,
                 conflicts = conflicts,
                 targets = targets,
                 mode = mode,
-                loading = false
+                loading = false,
+                dirty = !applied
             )
         }
     }
 
     fun add(kind: RuleKind, value: String, target: String, noResolve: Boolean) {
         ruleRepository.add(kind, value, target, noResolve)
-            .onSuccess { _state.value = _state.value.copy(message = "已添加，记得点“应用规则”") }
+            .onSuccess { _state.value = _state.value.copy(message = "已添加，记得点右上角「应用」") }
             .onFailure { _state.value = _state.value.copy(message = "添加失败: ${it.message}") }
     }
 
@@ -85,7 +104,7 @@ class RulesViewModel(
         val added = items.size - failures.size
         _state.value = _state.value.copy(
             message = buildString {
-                append("已添加模板「$name」$added 条，记得点“应用规则”")
+                append("已添加模板「$name」$added 条，记得点右上角「应用」")
                 if (failures.isNotEmpty()) append("；失败 ${failures.size} 条: ").append(failures.first())
             }
         )
@@ -93,6 +112,16 @@ class RulesViewModel(
 
     companion object {
         val TEMPLATE_NAMES = listOf("绕过局域网", "广告拦截", "常用直连")
+
+        private val TEMPLATE_DESCRIPTIONS = mapOf(
+            "绕过局域网" to "私有网段与 .local / .lan 域名直连",
+            "广告拦截" to "常见广告域名走 REJECT",
+            "常用直连" to "国内常用站点直连"
+        )
+
+        fun templateDescription(name: String): String = TEMPLATE_DESCRIPTIONS[name].orEmpty()
+
+        fun templateCount(name: String): Int = TEMPLATES[name]?.size ?: 0
 
         private val TEMPLATES: Map<String, List<Triple<RuleKind, String, String>>> = mapOf(
             "绕过局域网" to listOf(
@@ -123,7 +152,7 @@ class RulesViewModel(
 
     fun delete(id: String) {
         ruleRepository.delete(id)
-        _state.value = _state.value.copy(message = "已删除，记得点“应用规则”")
+        _state.value = _state.value.copy(message = "已删除，记得点右上角「应用」")
     }
 
     fun move(id: String, up: Boolean) {
@@ -136,8 +165,11 @@ class RulesViewModel(
             _state.value = _state.value.copy(applying = true, message = null)
             val result = ruleRepository.apply()
             val conflicts = ruleRepository.conflicts()
+            val ok = result.isSuccess
+            if (ok) appliedSnapshot = ruleRepository.rules.value
             _state.value = _state.value.copy(
                 applying = false,
+                dirty = if (ok) false else _state.value.dirty,
                 message = result.getOrElse { "应用失败: ${it.message}" },
                 conflicts = conflicts
             )

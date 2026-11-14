@@ -2,7 +2,6 @@ package com.mihomo.gateway.ui.overview
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +36,7 @@ import com.mihomo.gateway.ui.components.KeyValueRow
 import com.mihomo.gateway.ui.components.Metric
 import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SectionCard
+import com.mihomo.gateway.ui.components.SegmentedControl
 import com.mihomo.gateway.ui.components.StatusPill
 import com.mihomo.gateway.ui.components.TrafficChart
 import com.mihomo.gateway.ui.icons.GwIcon
@@ -101,38 +101,13 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
             }
 
             Spacer(Modifier.height(4.dp))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        RoundedCornerShape(10.dp)
-                    )
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                listOf("rule" to "规则", "global" to "全局", "direct" to "直连").forEach { (mode, label) ->
-                    val selected = runtimeMode == mode
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primary
-                                else Color.Transparent
-                            )
-                            .clickable(enabled = !busy) { vm.setRuntimeMode(mode) }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            label,
-                            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-                        )
-                    }
-                }
-            }
+            val modes = listOf("rule" to "规则", "global" to "全局", "direct" to "直连")
+            SegmentedControl(
+                options = modes.map { it.second },
+                selectedIndex = modes.indexOfFirst { it.first == runtimeMode },
+                onSelect = { index -> vm.setRuntimeMode(modes[index].first) },
+                enabled = !busy
+            )
             Row(
                 Modifier
                     .fillMaxWidth()

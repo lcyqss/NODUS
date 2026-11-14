@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 enum class GwIcon {
     Overview, Proxy, Connections, Logs, Settings,
     Power, Refresh, Search, Close, Speed, Download, Chevron,
-    Sort, Star, StarFilled
+    Sort, Star, StarFilled, Plus
 }
 
 @Composable
@@ -47,6 +47,7 @@ fun GwIcon(
             GwIcon.Sort -> drawSort(s, tint, stroke)
             GwIcon.Star -> drawStar(s, tint, stroke, filled = false)
             GwIcon.StarFilled -> drawStar(s, tint, stroke, filled = true)
+            GwIcon.Plus -> drawPlus(s, tint, stroke)
         }
     }
 }
@@ -222,4 +223,10 @@ private fun DrawScope.drawStar(s: Float, c: Color, w: Float, filled: Boolean) {
     }
     path.close()
     if (filled) drawPath(path, c) else drawPath(path, c, style = Stroke(w * 0.9f, join = StrokeJoin.Round))
+}
+
+/** 加号，用于「添加」。 */
+private fun DrawScope.drawPlus(s: Float, c: Color, w: Float) {
+    drawLine(c, Offset(s / 2, s * 0.18f), Offset(s / 2, s * 0.82f), w, StrokeCap.Round)
+    drawLine(c, Offset(s * 0.18f, s / 2), Offset(s * 0.82f, s / 2), w, StrokeCap.Round)
 }

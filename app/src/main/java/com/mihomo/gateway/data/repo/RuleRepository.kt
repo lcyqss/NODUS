@@ -21,6 +21,9 @@ interface RuleRepository {
     /** 注入到 config.yaml 顶部并重载；失败自动回滚。 */
     suspend fun apply(): Result<String>
 
+    /** 读取 config.yaml 中当前已注入的自定义规则行（不含标记）。 */
+    suspend fun appliedRuleLines(): List<String>
+
     /** 与订阅自带规则重复（同类型同内容）的规则 key 集合。 */
     suspend fun conflicts(): Set<String>
 }
@@ -84,7 +87,24 @@ class RuleRepositoryImpl(
                 IllegalStateException("重载失败，已回滚: ${reload.exceptionOrNull()?.message}")
             )
         }
-        Result.success("已应用 ${enabled.size} 条自定义规则")
+        Result.success(
+            if (enabled.isEmpty()) "已清除自定义规则" else "已应用 ${enabled.size} 条自定义规则"
+        )
+    }
+
+    override suspend fun appliedRuleLines(): List<String> = withContext(Dispatchers.IO) {
+        val text = shell.run("cat $base/config.yaml 2>/dev/null").stdout
+        val lines = mutableListOf<String>()
+        var inside = false
+        text.lineSequence().forEach { raw ->
+            val line = raw.trim()
+            when {
+                line == MARK_START -> inside = true
+                line == MARK_END -> inside = false
+                inside && line.startsWith("- ") -> lines += line.removePrefix("- ").trim()
+            }
+        }
+        lines
     }
 
     override suspend fun conflicts(): Set<String> {

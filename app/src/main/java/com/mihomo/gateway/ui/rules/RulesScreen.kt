@@ -6,34 +6,41 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -42,92 +49,85 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.CustomRule
 import com.mihomo.gateway.model.RuleInfo
 import com.mihomo.gateway.model.RuleKind
 import com.mihomo.gateway.ui.components.EmptyState
-import com.mihomo.gateway.ui.components.Tag
+import com.mihomo.gateway.ui.components.ScreenHeader
+import com.mihomo.gateway.ui.components.SegmentedControl
+import com.mihomo.gateway.ui.icons.GwIcon
+import kotlinx.coroutines.delay
 
+private val WarnColor = Color(0xFFEA580C)
+private val OkColor = Color(0xFF16A34A)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RulesScreen(vm: RulesViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     var tab by remember { mutableStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
-    var showTemplates by remember { mutableStateOf(false) }
+    var showSheet by remember { mutableStateOf(false) }
+
+    // 操作提示几秒后自动消失，避免“记得应用”之类文案一直挂着
+    LaunchedEffect(state.message) {
+        if (state.message != null) {
+            delay(4000)
+            vm.clearMessage()
+        }
+    }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        com.mihomo.gateway.ui.components.ScreenHeader(
+        ScreenHeader(
             title = "分流",
             subtitle = "自定义规则优先于订阅规则 · 长按拖动排序"
         )
+
         Spacer(Modifier.height(10.dp))
-        // 顶部汇总
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            val enabled = state.custom.count { it.enabled }
-            Text(
-                "自定义规则 ${state.custom.size} 条（启用 $enabled）",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                "与订阅规则重复 ${state.conflicts.size} 条",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (state.conflicts.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
-                else Color(0xFFEA580C)
-            )
-            Text(
-                "当前模式：${state.mode}",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (state.mode == "rule") MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.error
-            )
-            if (state.mode != "rule") {
-                Text(
-                    "全局/直连模式下规则不会生效，请到设置里切回“规则”",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
+        SummaryLine(state)
+        if (state.mode != "rule") ModeWarning(state.mode)
 
-        Spacer(Modifier.height(8.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (tab == 0) Button(onClick = { tab = 0 }) { Text("自定义") }
-            else OutlinedButton(onClick = { tab = 0 }) { Text("自定义") }
-            if (tab == 1) Button(onClick = { tab = 1 }) { Text("订阅规则") }
-            else OutlinedButton(onClick = { tab = 1 }) { Text("订阅规则") }
-        }
-
-        if (tab == 0) {
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
-            ) {
-                OutlinedButton(onClick = { showTemplates = true }) { Text("模板") }
-                OutlinedButton(onClick = { showAdd = true }) { Text("添加规则") }
-                Button(onClick = { vm.apply() }, enabled = !state.applying) {
-                    Text(if (state.applying) "应用中…" else "应用", maxLines = 1)
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SegmentedControl(
+                options = listOf("自定义", "订阅规则"),
+                selectedIndex = tab,
+                onSelect = { tab = it },
+                modifier = Modifier.weight(1f)
+            )
+            if (tab == 0) {
+                Spacer(Modifier.width(4.dp))
+                IconButton(onClick = { showSheet = true }, enabled = !state.applying) {
+                    GwIcon(GwIcon.Plus, tint = MaterialTheme.colorScheme.primary)
+                }
+                if (state.dirty || state.applying) {
+                    Spacer(Modifier.width(2.dp))
+                    Button(onClick = vm::apply, enabled = !state.applying) {
+                        Text(if (state.applying) "应用中…" else "应用", maxLines = 1)
+                    }
                 }
             }
         }
 
-        state.message?.let {
-            Spacer(Modifier.height(6.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-        }
-        state.error?.let {
-            Spacer(Modifier.height(6.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        if (tab == 0) {
+            state.message?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+            state.error?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -138,34 +138,27 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
                 conflicts = state.conflicts,
                 onToggle = vm::setEnabled,
                 onMove = vm::move,
-                onDelete = vm::delete
+                onDelete = vm::delete,
+                onAdd = { showSheet = true }
             )
         } else {
             BuiltInRulesList(state.builtIn)
         }
     }
 
-    if (showTemplates) {
-        AlertDialog(
-            onDismissRequest = { showTemplates = false },
-            title = { Text("规则模板") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RulesViewModel.TEMPLATE_NAMES.forEach { name ->
-                        OutlinedButton(
-                            onClick = {
-                                vm.addTemplate(name)
-                                showTemplates = false
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text(name) }
-                    }
+    if (showSheet) {
+        ModalBottomSheet(onDismissRequest = { showSheet = false }) {
+            AddSheet(
+                onManual = {
+                    showSheet = false
+                    showAdd = true
+                },
+                onTemplate = { name ->
+                    vm.addTemplate(name)
+                    showSheet = false
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showTemplates = false }) { Text("关闭") }
-            }
-        )
+            )
+        }
     }
 
     if (showAdd) {
@@ -180,30 +173,90 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
     }
 }
 
+/** 汇总收敛成一行：条数 · 启用 · 重复 · 生效状态。 */
+@Composable
+private fun SummaryLine(state: RulesUiState) {
+    val enabled = state.custom.count { it.enabled }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("自定义 ${state.custom.size} 条", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Text(" · ", color = MaterialTheme.colorScheme.outline)
+        Text("启用 $enabled", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(" · ", color = MaterialTheme.colorScheme.outline)
+        Text(
+            "重复 ${state.conflicts.size}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (state.conflicts.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else WarnColor
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            when {
+                state.applying -> "应用中…"
+                state.dirty -> "有未应用的改动"
+                else -> "已生效"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = when {
+                state.applying -> MaterialTheme.colorScheme.primary
+                state.dirty -> WarnColor
+                else -> OkColor
+            }
+        )
+    }
+}
+
+@Composable
+private fun ModeWarning(mode: String) {
+    Spacer(Modifier.height(6.dp))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            "当前为${if (mode == "global") "全局" else "直连"}模式，规则不会生效；请到「设置 → 网关 → 运行模式」切回规则",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+}
+
 @Composable
 private fun CustomRulesList(
     rules: List<CustomRule>,
     conflicts: Set<String>,
     onToggle: (CustomRule, Boolean) -> Unit,
     onMove: (String, Boolean) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onAdd: () -> Unit
 ) {
     if (rules.isEmpty()) {
-        EmptyState("还没有自定义规则，点右上角“添加”")
+        Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            EmptyState("还没有自定义规则")
+            OutlinedButton(onClick = onAdd) { Text("添加规则") }
+        }
         return
     }
+
     var draggingId by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val rowHeightPx = with(density) { 70.dp.toPx() }
+    val rowStepPx = with(LocalDensity.current) { 76.dp.toPx() }
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 12.dp)
+    ) {
         items(rules, key = { it.id }) { rule ->
             val conflict = conflicts.contains(rule.key().uppercase())
             val dragging = draggingId == rule.id
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .height(68.dp)
                     .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
                     .pointerInput(rule.id) {
                         detectDragGesturesAfterLongPress(
@@ -216,7 +269,7 @@ private fun CustomRulesList(
                                 dragOffset += amount.y
                             },
                             onDragEnd = {
-                                val steps = kotlin.math.round(dragOffset / rowHeightPx).toInt()
+                                val steps = kotlin.math.round(dragOffset / rowStepPx).toInt()
                                 repeat(kotlin.math.abs(steps)) {
                                     onMove(rule.id, steps < 0)
                                 }
@@ -229,44 +282,134 @@ private fun CustomRulesList(
                             }
                         )
                     }
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (dragging) MaterialTheme.colorScheme.surfaceVariant
+                        else MaterialTheme.colorScheme.surface
+                    )
+                    .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Switch(
-                    checked = rule.enabled,
-                    onCheckedChange = { onToggle(rule, it) }
+                GwIcon(
+                    GwIcon.Logs,
+                    Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
                 Column(Modifier.weight(1f)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Tag(rule.kind.wire)
-                        Tag(rule.target, MaterialTheme.colorScheme.secondary)
-                        if (conflict) Tag("重复", Color(0xFFEA580C))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RuleTag(rule.kind.wire, kindColor(rule.kind))
+                        Spacer(Modifier.width(4.dp))
+                        RuleTag(
+                            rule.target,
+                            MaterialTheme.colorScheme.secondary,
+                            Modifier.weight(1f, fill = false)
+                        )
+                        if (conflict) {
+                            Spacer(Modifier.width(4.dp))
+                            RuleTag("重复", WarnColor)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        CompactSwitch(checked = rule.enabled) { onToggle(rule, it) }
                     }
-                    Text(
-                        rule.value,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+                    Spacer(Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            rule.value,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (rule.enabled) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        RuleAction("↑") { onMove(rule.id, true) }
+                        RuleAction("↓") { onMove(rule.id, false) }
+                        RuleAction("✕", MaterialTheme.colorScheme.error) { onDelete(rule.id) }
+                    }
                 }
-                Text("↑", modifier = Modifier.clickable { onMove(rule.id, true) }.padding(6.dp))
-                Text("↓", modifier = Modifier.clickable { onMove(rule.id, false) }.padding(6.dp))
-                Text(
-                    "✕",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.clickable { onDelete(rule.id) }.padding(6.dp)
-                )
             }
         }
     }
+}
+
+/** 紧凑开关，避免默认 Switch 的 48dp 触摸区把行高撑大。 */
+@Composable
+private fun CompactSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val track = if (checked) MaterialTheme.colorScheme.primary
+    else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+    Box(
+        Modifier
+            .width(38.dp)
+            .height(22.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(track)
+            .toggleable(value = checked, onValueChange = onCheckedChange, role = Role.Switch)
+            .padding(2.dp),
+        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Box(
+            Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+        )
+    }
+}
+
+@Composable
+private fun RuleTag(text: String, color: Color, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun RuleAction(
+    label: String,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    onClick: () -> Unit
+) {
+    Box(
+        Modifier
+            .size(28.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = color)
+    }
+}
+
+@Composable
+private fun kindColor(kind: RuleKind): Color = when (kind) {
+    RuleKind.DOMAIN, RuleKind.DOMAIN_SUFFIX, RuleKind.DOMAIN_KEYWORD -> MaterialTheme.colorScheme.primary
+    RuleKind.IP_CIDR, RuleKind.IP_CIDR6 -> MaterialTheme.colorScheme.secondary
+    RuleKind.SRC_IP_CIDR -> MaterialTheme.colorScheme.tertiary
+}
+
+@Composable
+private fun ruleTypeColor(type: String): Color = when {
+    type.contains("SRC", true) -> MaterialTheme.colorScheme.tertiary
+    type.contains("IP-CIDR", true) -> MaterialTheme.colorScheme.secondary
+    else -> MaterialTheme.colorScheme.primary
 }
 
 @Composable
 private fun BuiltInRulesList(rules: List<RuleInfo>) {
     var query by remember { mutableStateOf("") }
     var typeFilter by remember { mutableStateOf<String?>(null) }
-    val types = remember(rules) { rules.map { it.type }.distinct().take(10) }
+    val types = remember(rules) { rules.map { it.type }.distinct() }
     val filtered = remember(rules, query, typeFilter) {
         rules.filter { rule ->
             (typeFilter == null || rule.type == typeFilter) &&
@@ -279,25 +422,37 @@ private fun BuiltInRulesList(rules: List<RuleInfo>) {
     OutlinedTextField(
         value = query,
         onValueChange = { query = it },
-        label = { Text("搜索订阅规则") },
+        placeholder = { Text("搜索域名或策略") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
 
     Spacer(Modifier.height(6.dp))
 
+    val chipColors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+        selectedLabelColor = MaterialTheme.colorScheme.primary
+    )
     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         item {
-            if (typeFilter == null) Button(onClick = { typeFilter = null }) { Text("全部") }
-            else OutlinedButton(onClick = { typeFilter = null }) { Text("全部") }
+            FilterChip(
+                selected = typeFilter == null,
+                onClick = { typeFilter = null },
+                label = { Text("全部") },
+                colors = chipColors
+            )
         }
         items(types) { type ->
-            if (typeFilter == type) Button(onClick = { typeFilter = type }) { Text(type) }
-            else OutlinedButton(onClick = { typeFilter = type }) { Text(type) }
+            FilterChip(
+                selected = typeFilter == type,
+                onClick = { typeFilter = if (typeFilter == type) null else type },
+                label = { Text(type) },
+                colors = chipColors
+            )
         }
     }
 
-    Spacer(Modifier.height(6.dp))
+    Spacer(Modifier.height(4.dp))
     Text(
         "${filtered.size} / ${rules.size} 条",
         style = MaterialTheme.typography.bodySmall,
@@ -305,24 +460,100 @@ private fun BuiltInRulesList(rules: List<RuleInfo>) {
     )
     Spacer(Modifier.height(6.dp))
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    if (rules.isEmpty()) {
+        EmptyState("订阅未提供分流规则")
+        return
+    }
+    if (filtered.isEmpty()) {
+        EmptyState("没有匹配的规则")
+        return
+    }
+
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        contentPadding = PaddingValues(bottom = 12.dp)
+    ) {
         items(filtered) { rule ->
-            Column(
+            Row(
                 Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface)
                     .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Tag(rule.type)
-                Text(rule.payload, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    "→ ${rule.proxy}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                RuleTag(rule.type, ruleTypeColor(rule.type))
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        rule.payload,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "→ ${rule.proxy}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun AddSheet(onManual: () -> Unit, onTemplate: (String) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 20.dp)
+    ) {
+        Text("添加到自定义规则", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(6.dp))
+        SheetRow(
+            title = "手动添加",
+            subtitle = "选择类型、填写域名或网段、指定目标策略",
+            onClick = onManual
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "模板",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        RulesViewModel.TEMPLATE_NAMES.forEach { name ->
+            SheetRow(
+                title = name,
+                subtitle = "${RulesViewModel.templateDescription(name)} · ${RulesViewModel.templateCount(name)} 条",
+                onClick = { onTemplate(name) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SheetRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
     }
 }
 
@@ -336,7 +567,8 @@ private fun AddRuleDialog(
     var value by remember { mutableStateOf("") }
     var target by remember { mutableStateOf(targets.firstOrNull() ?: "DIRECT") }
     var noResolve by remember { mutableStateOf(kind.needsNoResolve) }
-    var targetMenu by remember { mutableStateOf(false) }
+    var kindMenu by remember { mutableStateOf(false) }
+    var showTargetPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -348,45 +580,74 @@ private fun AddRuleDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(RuleKind.entries) { item ->
-                        FilterChip(
-                            selected = kind == item,
-                            onClick = {
-                                kind = item
-                                noResolve = item.needsNoResolve
-                            },
-                            label = { Text(item.label) }
-                        )
+                Box {
+                    OutlinedButton(
+                        onClick = { kindMenu = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(kind.wire, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                kind.label,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    DropdownMenu(expanded = kindMenu, onDismissRequest = { kindMenu = false }) {
+                        RuleKind.entries.forEach { item ->
+                            DropdownMenuItem(
+                                text = { Text("${item.wire} · ${item.label}") },
+                                onClick = {
+                                    kind = item
+                                    noResolve = item.needsNoResolve
+                                    kindMenu = false
+                                },
+                                trailingIcon = {
+                                    if (item == kind) {
+                                        Text("✓", color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
 
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
-                    label = { Text(if (kind.needsNoResolve) "网段，如 10.0.0.0/8" else "域名，如 example.com") },
+                    label = {
+                        Text(if (kind.needsNoResolve) "网段，如 10.0.0.0/8" else "域名，如 example.com")
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Box {
-                    OutlinedButton(onClick = { targetMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("目标：$target")
-                    }
-                    DropdownMenu(
-                        expanded = targetMenu,
-                        onDismissRequest = { targetMenu = false },
-                        modifier = Modifier.heightIn(max = 300.dp)
+                OutlinedButton(
+                    onClick = { showTargetPicker = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        targets.forEach { item ->
-                            DropdownMenuItem(
-                                text = { Text(item) },
-                                onClick = {
-                                    target = item
-                                    targetMenu = false
-                                }
-                            )
-                        }
+                        Text(
+                            "目标：$target",
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "更换",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
 
@@ -405,6 +666,90 @@ private fun AddRuleDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+
+    if (showTargetPicker) {
+        TargetPickerDialog(
+            targets = targets,
+            current = target,
+            onPick = {
+                target = it
+                showTargetPicker = false
+            },
+            onDismiss = { showTargetPicker = false }
+        )
+    }
+}
+
+@Composable
+private fun TargetPickerDialog(
+    targets: List<String>,
+    current: String,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(targets, query, current) {
+        val others = targets.filter { it != current }
+        if (query.isBlank()) {
+            listOf(current) + others
+        } else {
+            listOf(current).filter { it.contains(query, true) } +
+                others.filter { it.contains(query, true) }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择目标策略") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("搜索策略或节点名") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                LazyColumn(
+                    Modifier.heightIn(max = 320.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(filtered) { item ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (item == current) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                    else Color.Transparent
+                                )
+                                .clickable { onPick(item) }
+                                .padding(horizontal = 10.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                item,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (item == current) {
+                                Text(
+                                    "当前",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
         }
     )
 }
