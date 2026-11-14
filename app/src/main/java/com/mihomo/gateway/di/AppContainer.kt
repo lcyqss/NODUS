@@ -3,6 +3,7 @@ package com.mihomo.gateway.di
 import android.content.Context
 import com.mihomo.gateway.core.AssetInstaller
 import com.mihomo.gateway.core.CoreInstaller
+import com.mihomo.gateway.core.NeighborResolver
 import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.core.ShellExecutorImpl
 import com.mihomo.gateway.data.api.MihomoApi
@@ -34,6 +35,8 @@ object AppContainer {
         private set
     lateinit var core: CoreInstaller
         private set
+    lateinit var neighbors: NeighborResolver
+        private set
 
     private var initialized = false
 
@@ -47,6 +50,7 @@ object AppContainer {
         gateway = GatewayControllerImpl(shell, api, base = BASE)
         settings = SettingsStoreImpl(app)
         core = AssetInstaller(app, shell, base = BASE)
+        neighbors = NeighborResolver(shell)
         profiles = ProfileRepositoryImpl(
             context = app,
             shell = shell,

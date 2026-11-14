@@ -3,12 +3,14 @@ package com.mihomo.gateway.ui.connections
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,7 +45,8 @@ import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.ScreenHeader
 
 private data class TopoRow(
-    val client: String,
+    val clientIp: String,
+    val clientPort: String,
     val group: String,
     val proxy: String,
     val rule: String,
@@ -58,6 +62,12 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     var mode by rememberSaveable { mutableIntStateOf(0) }
     var paused by remember { mutableStateOf(false) }
     var frozen by remember { mutableStateOf<List<ConnectionInfo>>(emptyList()) }
+
+    val neighborMap by vm.neighborMap.collectAsState()
+    val deviceHistory by vm.deviceHistory.collectAsState()
+    val labelOf: (String) -> String = { ip ->
+        deviceHistory[ip]?.label ?: neighborMap[ip]?.hostname ?: neighborMap[ip]?.mac ?: ip
+    }
 
     DisposableEffect(Unit) {
         vm.startPolling()
@@ -120,6 +130,14 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
 
         Spacer(Modifier.height(8.dp))
 
+        if (mode > 0 && deviceHistory.isNotEmpty()) {
+            RecentDevices(
+                devices = deviceHistory.values.sortedByDescending { it.lastSeen },
+                online = data.map { it.sourceIP }.toSet()
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
         state.error?.let {
             Text("错误: $it", color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(6.dp))
@@ -140,10 +158,10 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
 
             1 -> {
                 val rows = remember(filtered) { aggregate(filtered) }
-                TopologyTable(rows, data)
+                TopologyTable(rows, data, labelOf)
             }
 
-            else -> TopologyTree(filtered)
+            else -> TopologyTree(filtered, labelOf)
         }
     }
 }
@@ -171,7 +189,11 @@ private fun ConnectionList(
 }
 
 @Composable
-private fun TopologyTable(rows: List<TopoRow>, all: List<ConnectionInfo>) {
+private fun TopologyTable(
+    rows: List<TopoRow>,
+    all: List<ConnectionInfo>,
+    labelOf: (String) -> String
+) {
     val devices = all.map { it.sourceIP }.distinct().size
     val totalTraffic = rows.sumOf { it.traffic }
 
@@ -199,7 +221,7 @@ private fun TopologyTable(rows: List<TopoRow>, all: List<ConnectionInfo>) {
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        items(rows, key = { "${it.client}|${it.group}|${it.proxy}|${it.rule}" }) { row ->
+        items(rows, key = { "${it.clientIp}|${it.clientPort}|${it.group}|${it.proxy}|${it.rule}" }) { row ->
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -212,10 +234,9 @@ private fun TopologyTable(rows: List<TopoRow>, all: List<ConnectionInfo>) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        row.client,
+                        labelOf(row.clientIp),
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace
+                        fontWeight = FontWeight.Medium
                     )
                     Text(
                         "${row.count} 条",
@@ -224,7 +245,7 @@ private fun TopologyTable(rows: List<TopoRow>, all: List<ConnectionInfo>) {
                     )
                 }
                 Text(
-                    "→ ${row.proxy}  (${groupLabel(row.group)})",
+                    "${row.clientIp}:${row.clientPort} → ${row.proxy}  (${groupLabel(row.group)})",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -333,9 +354,12 @@ private data class TreeRow(
 )
 
 @Composable
-private fun TopologyTree(connections: List<ConnectionInfo>) {
+private fun TopologyTree(
+    connections: List<ConnectionInfo>,
+    labelOf: (String) -> String
+) {
     var collapsed by remember { mutableStateOf<Set<String>>(emptySet()) }
-    val rows = remember(connections, collapsed) { buildTree(connections, collapsed) }
+    val rows = remember(connections, collapsed) { buildTree(connections, collapsed, labelOf) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -400,7 +424,8 @@ private fun TopologyTree(connections: List<ConnectionInfo>) {
 
 private fun buildTree(
     connections: List<ConnectionInfo>,
-    collapsed: Set<String>
+    collapsed: Set<String>,
+    labelOf: (String) -> String
 ): List<TreeRow> {
     val rows = mutableListOf<TreeRow>()
     val groups = connections.groupBy { it.chains.getOrNull(1) ?: "DIRECT" }
@@ -451,8 +476,12 @@ private fun buildTree(
                     rows += TreeRow(
                         key = "$groupKey|$proxy|$rule|${conn.id}",
                         depth = 3,
-                        title = "${conn.sourceIP}:${conn.sourcePort}".trimEnd(':'),
-                        subtitle = conn.host.ifBlank { null },
+                        title = labelOf(conn.sourceIP),
+                        subtitle = buildString {
+                            append(conn.sourceIP)
+                            if (conn.sourcePort.isNotBlank()) append(":").append(conn.sourcePort)
+                            if (conn.host.isNotBlank()) append(" · ").append(conn.host)
+                        },
                         count = 1,
                         traffic = conn.upload + conn.download,
                         expandable = false,
@@ -464,8 +493,41 @@ private fun buildTree(
     }
     return rows
 }
+@Composable
+private fun RecentDevices(devices: List<DeviceSeen>, online: Set<String>) {
+    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        items(devices, key = { it.ip }) { device ->
+            val isOnline = online.contains(device.ip)
+            Row(
+                Modifier
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .height(6.dp)
+                        .width(6.dp)
+                        .background(
+                            if (isOnline) Color(0xFF16A34A) else MaterialTheme.colorScheme.outline,
+                            androidx.compose.foundation.shape.CircleShape
+                        )
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(device.label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            }
+        }
+    }
+}
+
 private fun aggregate(connections: List<ConnectionInfo>): List<TopoRow> {
-    data class Key(val client: String, val group: String, val proxy: String, val rule: String)
+    data class Key(
+        val ip: String,
+        val port: String,
+        val group: String,
+        val proxy: String,
+        val rule: String
+    )
 
     val map = linkedMapOf<Key, Pair<Int, Long>>()
     connections.forEach { conn ->
@@ -475,15 +537,15 @@ private fun aggregate(connections: List<ConnectionInfo>): List<TopoRow> {
             append(conn.rule.ifBlank { "Match" })
             if (conn.rulePayload.isNotBlank()) append(": ${conn.rulePayload}")
         }
-        val client = "${conn.sourceIP}:${conn.sourcePort}".trimEnd(':')
-        val key = Key(client, group, proxy, rule)
+        val key = Key(conn.sourceIP, conn.sourcePort, group, proxy, rule)
         val (count, traffic) = map[key] ?: (0 to 0L)
         map[key] = (count + 1) to (traffic + conn.upload + conn.download)
     }
 
     return map.map { (key, value) ->
         TopoRow(
-            client = key.client,
+            clientIp = key.ip,
+            clientPort = key.port,
             group = key.group,
             proxy = key.proxy,
             rule = key.rule,
