@@ -33,6 +33,15 @@ interface MihomoApi {
 
     suspend fun rules(): Result<List<RuleInfo>>
 
+    /** Provider 列表（节点来源）。 */
+    suspend fun providers(): Result<List<com.mihomo.gateway.model.ProviderInfo>>
+
+    /** 触发 provider 健康检查。 */
+    suspend fun providerHealthCheck(name: String): Result<Unit>
+
+    /** DNS 查询（诊断用）。 */
+    suspend fun dnsQuery(name: String, type: String = "A"): Result<List<String>>
+
     /** 整组测速：一次请求返回该组所有节点延迟（ms）。 */    suspend fun groupDelay(group: String, timeoutMs: Int = 3000, url: String = DEFAULT_TEST_URL): Result<Map<String, Int>>
 
     /** 切换运行模式：rule / global / direct。 */

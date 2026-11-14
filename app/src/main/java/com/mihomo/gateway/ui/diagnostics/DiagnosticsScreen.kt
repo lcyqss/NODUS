@@ -13,10 +13,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,6 +36,9 @@ fun DiagnosticsScreen(
     val state by vm.state.collectAsState()
     val records by vm.records.collectAsState()
     val actionMessage by vm.actionMessage.collectAsState()
+    val dnsAnswers by vm.dnsAnswers.collectAsState()
+    val dnsBusy by vm.dnsBusy.collectAsState()
+    var dnsInput by remember { mutableStateOf("www.gstatic.com") }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) { vm.refresh() }
@@ -89,6 +96,30 @@ fun DiagnosticsScreen(
             }
         }
 
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("DNS 查询", style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(
+                    value = dnsInput,
+                    onValueChange = { dnsInput = it },
+                    label = { Text("域名") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { vm.queryDns(dnsInput, "A") }, enabled = !dnsBusy) { Text("A 记录") }
+                    OutlinedButton(onClick = { vm.queryDns(dnsInput, "AAAA") }, enabled = !dnsBusy) { Text("AAAA 记录") }
+                    OutlinedButton(onClick = { vm.queryDns(dnsInput, "CNAME") }, enabled = !dnsBusy) { Text("CNAME") }
+                }
+                if (dnsAnswers.isEmpty()) {
+                    Text("暂无结果", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    dnsAnswers.forEach {
+                        Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                    }
+                }
+            }
+        }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("规则快照", style = MaterialTheme.typography.titleMedium)

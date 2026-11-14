@@ -44,6 +44,15 @@ data class Traffic(val up: Long, val down: Long)
 
 data class NetIface(val name: String, val cidr: String)
 
+data class ProviderInfo(
+    val name: String,
+    val type: String,
+    val vehicleType: String,
+    val nodeCount: Int,
+    val updatedAt: String,
+    val testUrl: String
+)
+
 data class GatewayConf(val mode: IpMode = IpMode.AUTO, val blockIpv6: Boolean = true)
 
 data class GatewayState(

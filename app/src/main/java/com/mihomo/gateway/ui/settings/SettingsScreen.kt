@@ -33,8 +33,9 @@ import com.mihomo.gateway.ui.components.NavRow
 import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SectionCard
 import com.mihomo.gateway.ui.diagnostics.DiagnosticsScreen
+import com.mihomo.gateway.ui.providers.ProvidersScreen
 
-private enum class SettingsPage { MAIN, SUBSCRIPTION, DIAGNOSTICS }
+private enum class SettingsPage { MAIN, SUBSCRIPTION, PROVIDERS, DIAGNOSTICS }
 
 @Composable
 fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
@@ -43,10 +44,12 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
         SettingsPage.MAIN -> SettingsMain(
             vm = vm,
             onSubscription = { page = SettingsPage.SUBSCRIPTION },
+            onProviders = { page = SettingsPage.PROVIDERS },
             onDiagnostics = { page = SettingsPage.DIAGNOSTICS }
         )
 
         SettingsPage.SUBSCRIPTION -> SubscriptionPage(vm, onBack = { page = SettingsPage.MAIN })
+        SettingsPage.PROVIDERS -> ProvidersScreen(onBack = { page = SettingsPage.MAIN })
         SettingsPage.DIAGNOSTICS -> DiagnosticsScreen(onBack = { page = SettingsPage.MAIN })
     }
 }
@@ -55,6 +58,7 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
 private fun SettingsMain(
     vm: SettingsViewModel,
     onSubscription: () -> Unit,
+    onProviders: () -> Unit,
     onDiagnostics: () -> Unit
 ) {
     val settings by vm.settings.collectAsState()
@@ -130,6 +134,11 @@ private fun SettingsMain(
                 title = "订阅管理",
                 subtitle = settings.subscriptionUrl.ifBlank { "未设置订阅" },
                 onClick = onSubscription
+            )
+            NavRow(
+                title = "Provider",
+                subtitle = "节点来源 / 节点数 / 健康检查",
+                onClick = onProviders
             )
             NavRow(
                 title = "诊断",

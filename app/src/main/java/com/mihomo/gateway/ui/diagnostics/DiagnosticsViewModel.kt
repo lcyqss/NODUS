@@ -49,6 +49,33 @@ class DiagnosticsViewModel(
         }
     }
 
+    private val _dnsAnswers = MutableStateFlow<List<String>>(emptyList())
+    val dnsAnswers: StateFlow<List<String>> = _dnsAnswers.asStateFlow()
+
+    private val _dnsBusy = MutableStateFlow(false)
+    val dnsBusy: StateFlow<Boolean> = _dnsBusy.asStateFlow()
+
+    fun queryDns(name: String, type: String = "A") {
+        val target = name.trim()
+        if (target.isBlank()) {
+            _actionMessage.value = "请输入域名"
+            return
+        }
+        viewModelScope.launch {
+            _dnsBusy.value = true
+            api.dnsQuery(target, type)
+                .onSuccess {
+                    _dnsAnswers.value = it
+                    _actionMessage.value = "DNS 查询完成: ${it.size} 条"
+                }
+                .onFailure {
+                    _dnsAnswers.value = emptyList()
+                    _actionMessage.value = "DNS 查询失败: ${it.message}"
+                }
+            _dnsBusy.value = false
+        }
+    }
+
     private val _actionMessage = MutableStateFlow<String?>(null)
     val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
 

@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -40,6 +41,7 @@ import com.mihomo.gateway.ui.components.ScreenHeader
 fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     var expandedId by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
 
     DisposableEffect(Unit) {
         vm.startPolling()
@@ -56,12 +58,31 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
 
         Spacer(Modifier.height(10.dp))
 
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("搜索域名 / 客户端 IP / 规则") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        val filtered = remember(state.connections, query) {
+            if (query.isBlank()) state.connections
+            else state.connections.filter {
+                it.host.contains(query, true) ||
+                    it.rule.contains(query, true) ||
+                    it.sourceIP.contains(query, true)
+            }
+        }
+
         state.error?.let {
             Text("错误: $it", color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(8.dp))
         }
 
-        if (state.loaded && state.connections.isEmpty()) {
+        if (state.loaded && filtered.isEmpty()) {
             EmptyState("暂无活动连接")
         }
 
@@ -69,7 +90,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(state.connections, key = { it.id }) { conn ->
+            items(filtered, key = { it.id }) { conn ->
                 ConnectionRow(
                     conn = conn,
                     expanded = expandedId == conn.id,

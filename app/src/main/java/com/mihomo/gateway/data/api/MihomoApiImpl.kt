@@ -5,6 +5,7 @@ import com.mihomo.gateway.model.AppError
 import com.mihomo.gateway.model.ConfigInfo
 import com.mihomo.gateway.model.ConnectionInfo
 import com.mihomo.gateway.model.LogEntry
+import com.mihomo.gateway.model.ProviderInfo
 import com.mihomo.gateway.model.ProxyNode
 import com.mihomo.gateway.model.RuleInfo
 import com.mihomo.gateway.model.Traffic
@@ -207,6 +208,56 @@ class MihomoApiImpl(
     override suspend fun flushFakeIp(): Result<Unit> = requestUnit("POST", "/cache/fakeip/flush")
 
     override suspend fun flushDns(): Result<Unit> = requestUnit("POST", "/cache/dns/flush")
+    override suspend fun providers(): Result<List<ProviderInfo>> = getJson("/providers/proxies") { root ->
+        val providers = root.optJSONObject("providers") ?: JSONObject()
+        val list = mutableListOf<ProviderInfo>()
+        val keys = providers.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val p = providers.optJSONObject(key) ?: continue
+            list += ProviderInfo(
+                name = p.optString("name").ifBlank { key },
+                type = p.optString("type"),
+                vehicleType = p.optString("vehicleType"),
+                nodeCount = p.optJSONArray("proxies")?.length() ?: 0,
+                updatedAt = p.optString("updatedAt"),
+                testUrl = p.optString("testUrl")
+            )
+        }
+        list
+    }
+
+    override suspend fun providerHealthCheck(name: String): Result<Unit> =
+        requestUnit("GET", "/providers/proxies/" + name.encodePath() + "/healthcheck")
+
+    override suspend fun dnsQuery(name: String, type: String): Result<List<String>> =
+        withContext(Dispatchers.IO) {
+            val httpUrl = (baseUrl + "/dns/query").toHttpUrl()
+                .newBuilder()
+                .addQueryParameter("name", name)
+                .addQueryParameter("type", type)
+                .build()
+            try {
+                val request = Request.Builder()
+                    .url(httpUrl)
+                    .header("Authorization", "Bearer $secret")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.code == 401) return@withContext Result.failure(AppError.Unauthorized)
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(AppError.Protocol("HTTP " + response.code))
+                    }
+                    val obj = JSONObject(response.body?.string().orEmpty())
+                    val arr = obj.optJSONArray("Answer")
+                    val answers = if (arr == null) emptyList() else (0 until arr.length())
+                        .mapNotNull { index -> arr.optJSONObject(index)?.optString("data") }
+                    Result.success(answers)
+                }
+            } catch (e: IOException) {
+                Result.failure(AppError.Network(e))
+            }
+        }
+
 
     override suspend fun connections(): Result<List<ConnectionInfo>> = getJson("/connections") { root ->
         val arr = root.optJSONArray("connections") ?: return@getJson emptyList()
