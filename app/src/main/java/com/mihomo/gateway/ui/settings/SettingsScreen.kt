@@ -647,7 +647,7 @@ private fun ipModeHint(mode: IpMode): String = when (mode) {
 
 private fun ipModeDescription(mode: IpMode): String = when (mode) {
     IpMode.AUTO ->
-        "启动或网络变化时探测本机 IPv6：可用则全节点 IPv6 优先，否则 IPv4 优先；切换会重载内核"
+        "启动或网络变化时探测本机 IPv6：可用则全节点 IPv6 优先，否则 IPv4 优先；切换时热重载配置，不重启进程"
     IpMode.DUAL ->
         "不覆写节点的 ip-version，由内核同时解析 A / AAAA，连接时择优（mihomo 默认）"
     IpMode.V6 -> "节点域名优先解析 AAAA，失败时回落到 IPv4"

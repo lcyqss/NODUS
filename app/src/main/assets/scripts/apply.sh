@@ -55,7 +55,7 @@ if [ "$IP_MODE" = "auto" ]; then
   LAST=$(cat "$BASE/.v6check" 2>/dev/null || echo 0)
   if [ $((NOW - LAST)) -gt 300 ]; then
     echo "$NOW" > "$BASE/.v6check"
-    if ping6 -c 1 -W 2 2400:3200::1 >/dev/null 2>&1; then WANT=ipv6-prefer; else WANT=ipv4-prefer; fi
+    if has_v6; then WANT=ipv6-prefer; else WANT=ipv4-prefer; fi
     CUR=$(grep -m1 -o 'ip-version: [a-z0-9-]*' "$CFG" 2>/dev/null | head -1 | awk '{print $2}')
     if [ "$CUR" != "$WANT" ]; then
       sh "$BASE/set-ipver.sh" auto >> "$LOG" 2>&1

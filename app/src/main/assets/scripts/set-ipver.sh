@@ -1,12 +1,7 @@
 #!/system/bin/sh
 BASE=/data/adb/mihomo
+. "$BASE/common.sh"
 CFG=$BASE/config.yaml
-CONF=$BASE/gateway.conf
-[ -f "$BASE/ensure_config.sh" ] && sh "$BASE/ensure_config.sh"
-
-has_v6() {
-  ping6 -c 1 -W 2 2400:3200::1 >/dev/null 2>&1
-}
 
 case "$1" in
   auto)
@@ -21,6 +16,7 @@ case "$1" in
 esac
 
 [ -f "$CFG" ] || { echo "找不到配置"; exit 1; }
+
 cp -f "$CFG" "$CFG.bak.$(date +%s)"
 sed -i 's/ip-version: [a-z0-9-]*, //g' "$CFG"
 if [ -n "$VAL" ]; then
@@ -31,15 +27,18 @@ if [ -f "$CONF" ]; then
   if grep -q '^IP_MODE=' "$CONF"; then sed -i "s/^IP_MODE=.*/IP_MODE=$IP_MODE/" "$CONF"; else echo "IP_MODE=$IP_MODE" >> "$CONF"; fi
 fi
 
-if [ -n "$VAL" ]; then
-  echo "模式: $IP_MODE ($VAL)  节点数: $(grep -c "ip-version: $VAL" "$CFG")"
+LABEL="$IP_MODE${VAL:+ ($VAL)}"
+
+# 内核没运行就只落盘，等下次启动生效；运行中优先热重载，失败才重启
+if pidof mihomo >/dev/null 2>&1; then
+  if reload_core; then
+    echo "模式: $LABEL 已热重载"
+  else
+    echo "模式: $LABEL 热重载失败，重启内核"
+    restart_core
+  fi
 else
-  echo "模式: dual（mihomo 默认）"
+  echo "模式: $LABEL 已写入配置（内核未运行）"
 fi
 
 ls -t "$CFG".bak.* 2>/dev/null | tail -n +6 | xargs -r rm -f 2>/dev/null
-
-killall mihomo 2>/dev/null
-sleep 2
-(setsid "$BASE/mihomo" -d "$BASE" -f "$CFG" </dev/null >>"$BASE/mihomo.log" 2>&1 &)
-sleep 1

@@ -3,7 +3,7 @@ package com.mihomo.gateway.model
 /**
  * 节点出站地址族。
  *
- * - AUTO：启动/网络变化时探测本机 IPv6，自动在「IPv6 优先 / IPv4 优先」之间切换
+ * - AUTO：启动/网络变化时探测本机 IPv6，自动在「IPv6 优先 / IPv4 优先」之间切换（热重载）
  * - DUAL：不覆写节点 ip-version，由内核同时解析 A/AAAA 择优
  * - V6/V4：优先一种协议，另一种回落
  * - V6_ONLY/V4_ONLY：严格只解析一种协议（无该协议地址的节点不可用）
