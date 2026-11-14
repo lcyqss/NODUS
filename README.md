@@ -14,6 +14,7 @@
 |---|---|
 | [docs/DESIGN.md](docs/DESIGN.md) | 总体设计（架构、模块、API、性能约束、里程碑） |
 | [docs/adr/](docs/adr/) | 架构决策记录（ADR） |
+| [docs/BACKLOG.md](docs/BACKLOG.md) | 待办与暂缓事项 |
 
 ## 当前进度
 
