@@ -176,7 +176,7 @@ interface ProfileRepository {
     suspend fun reload(): Result<Unit>
 }
 
-// L1 - 设置
+// L1 - 设置（实现：SharedPreferences + MutableStateFlow，见 ADR 0006）
 interface SettingsStore {
     val settings: Flow<AppSettings>
     suspend fun update(block: (AppSettings) -> AppSettings)
@@ -207,7 +207,7 @@ object AppContainer {
 
 - 单例 `OkHttpClient`（连接池、keep-alive、3s/10s 超时）
 - 认证：`Authorization: Bearer <secret>`
-- DTO 与领域模型分离：`dto/` 放 `@Serializable`，`model/` 放 UI 用的不可变数据
+- 解析与领域模型分离：`MihomoApiImpl` 内手写 `org.json` 解析，`model/` 放 UI 用的不可变数据
 - 错误映射：HTTP 401 → `Unauthorized`；连接失败 → `CoreDown`；超时 → `Timeout`
 - WS：`/logs`、`/traffic`，指数退避重连，暴露 `StateFlow<WsState>`
 
