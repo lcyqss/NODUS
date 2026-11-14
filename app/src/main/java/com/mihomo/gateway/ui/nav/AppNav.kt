@@ -12,6 +12,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.mihomo.gateway.ui.connections.ConnectionsScreen
+import com.mihomo.gateway.ui.logs.LogsScreen
 import com.mihomo.gateway.ui.overview.OverviewScreen
 import com.mihomo.gateway.ui.proxies.ProxiesScreen
 import com.mihomo.gateway.ui.settings.SettingsScreen
@@ -21,6 +23,8 @@ private data class NavItem(val label: String, val icon: String)
 private val items = listOf(
     NavItem("概览", "◎"),
     NavItem("代理", "⇄"),
+    NavItem("连接", "⇅"),
+    NavItem("日志", "≡"),
     NavItem("设置", "⚙")
 )
 
@@ -46,6 +50,8 @@ fun AppNav() {
             when (tab) {
                 0 -> OverviewScreen()
                 1 -> ProxiesScreen()
+                2 -> ConnectionsScreen()
+                3 -> LogsScreen()
                 else -> SettingsScreen()
             }
         }
