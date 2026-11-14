@@ -63,19 +63,18 @@ fun TopologyGraph(
     modifier: Modifier = Modifier
 ) {
     if (connections.isEmpty()) {
-        EmptyState("暂无活动连接，无法生成图谱")
+        EmptyState("暂无活动连接，无法生成拓扑")
         return
     }
 
     var collapsed by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var scale by remember { mutableFloatStateOf(0.85f) }
+    var scale by remember { mutableFloatStateOf(0.9f) }
     var offset by remember { mutableStateOf(Offset(0f, 0f)) }
 
     val density = LocalDensity.current
     val tree = remember(connections, collapsed) { buildGraph(connections, collapsed, labelOf) }
     val nodes = remember(tree, density) { flatten(tree, density) }
 
-    val outline = MaterialTheme.colorScheme.outline
     val lineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
     val surface = MaterialTheme.colorScheme.surface
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -87,17 +86,28 @@ fun TopologyGraph(
             val hPx = with(density) { maxHeight.toPx() }
             val nodeW = with(density) { NodeWidth.toPx() }
             val nodeH = with(density) { NodeHeight.toPx() }
-            if (nodes.isEmpty()) return 0.85f to Offset(wPx / 2f, with(density) { 60.dp.toPx() })
-            val minX = nodes.minOf { it.x - nodeW / 2f }
-            val maxX = nodes.maxOf { it.x + nodeW / 2f }
-            val minY = nodes.minOf { it.y }
-            val maxY = nodes.maxOf { it.y + nodeH }
+            val margin = with(density) { 10.dp.toPx() }
+            if (nodes.isEmpty()) return 0.9f to Offset(margin, margin)
+
+            val minX = nodes.minOf { it.x }
+            val maxX = nodes.maxOf { it.x + nodeW }
+            val minY = nodes.minOf { it.y - nodeH / 2f }
+            val maxY = nodes.maxOf { it.y + nodeH / 2f }
             val contentW = (maxX - minX).coerceAtLeast(1f)
             val contentH = (maxY - minY).coerceAtLeast(1f)
-            val s = minOf(wPx / contentW, (hPx - with(density) { 56.dp.toPx() }) / contentH, 1.2f)
-                .coerceIn(0.3f, 1.2f) * 0.95f
-            val ox = (wPx - contentW * s) / 2f - minX * s
-            val oy = (hPx - contentH * s) / 2f - minY * s
+
+            // 只按宽度适配，纵向交给用户平移，避免设备多时被压成一条线
+            val s = ((wPx - margin * 2f) / contentW).coerceIn(0.32f, 1.15f) * 0.98f
+            val ox = if (contentW * s > wPx - margin * 2f) {
+                margin - minX * s
+            } else {
+                (wPx - contentW * s) / 2f - minX * s
+            }
+            val oy = if (contentH * s <= hPx - margin * 2f) {
+                (hPx - contentH * s) / 2f - minY * s
+            } else {
+                margin - minY * s
+            }
             return s to Offset(ox, oy)
         }
 
@@ -129,8 +139,8 @@ fun TopologyGraph(
                         val w = NodeWidth.toPx()
                         val h = NodeHeight.toPx()
                         val hit = nodes.firstOrNull { node ->
-                            world.x in (node.x - w / 2)..(node.x + w / 2) &&
-                                world.y in node.y..(node.y + h)
+                            world.x in node.x..(node.x + w) &&
+                                world.y in (node.y - h / 2)..(node.y + h / 2)
                         }
                         if (hit != null && hit.hasChildren) {
                             collapsed = if (collapsed.contains(hit.id)) collapsed - hit.id
@@ -149,19 +159,19 @@ fun TopologyGraph(
                 nodes.forEach { parent ->
                     if (collapsed.contains(parent.id)) return@forEach
                     parent.children.forEach { child ->
-                        val start = Offset(parent.x, parent.y + nodeH)
+                        val start = Offset(parent.x + nodeW, parent.y)
                         val end = Offset(child.x, child.y)
-                        val midY = (start.y + end.y) / 2f
+                        val midX = (start.x + end.x) / 2f
                         val path = Path().apply {
                             moveTo(start.x, start.y)
-                            cubicTo(start.x, midY, end.x, midY, end.x, end.y)
+                            cubicTo(midX, start.y, midX, end.y, end.x, end.y)
                         }
                         drawPath(path, lineColor, style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round))
                     }
                 }
 
                 nodes.forEach { node ->
-                    val topLeft = Offset(node.x - nodeW / 2f, node.y)
+                    val topLeft = Offset(node.x, node.y - nodeH / 2f)
                     val color = colorFor(node.kind)
                     drawRoundRect(
                         color = surface,
@@ -196,9 +206,8 @@ fun TopologyGraph(
                             this.color = labelColor.toArgb()
                         }
                         val textX = topLeft.x + 12.dp.toPx()
-                        val centerY = node.y + nodeH / 2f
-                        val title = ellipsize(node.label, titlePaint, nodeW - 24.dp.toPx())
-                        canvas.nativeCanvas.drawText(title, textX, centerY - 3.dp.toPx(), titlePaint)
+                        val title = ellipsize(node.label, titlePaint, nodeW - 26.dp.toPx())
+                        canvas.nativeCanvas.drawText(title, textX, node.y - 3.dp.toPx(), titlePaint)
 
                         val sub = buildString {
                             append("${node.count} 条")
@@ -206,9 +215,9 @@ fun TopologyGraph(
                         }
                         val subText = node.subtitle?.let { "$it · $sub" } ?: sub
                         canvas.nativeCanvas.drawText(
-                            ellipsize(subText, subPaint, nodeW - 24.dp.toPx()),
+                            ellipsize(subText, subPaint, nodeW - 26.dp.toPx()),
                             textX,
-                            centerY + 12.dp.toPx(),
+                            node.y + 12.dp.toPx(),
                             subPaint
                         )
 
@@ -217,7 +226,7 @@ fun TopologyGraph(
                             canvas.nativeCanvas.drawText(
                                 mark,
                                 topLeft.x + nodeW - 16.dp.toPx(),
-                                centerY + 4.dp.toPx(),
+                                node.y + 4.dp.toPx(),
                                 titlePaint
                             )
                         }
@@ -306,15 +315,16 @@ private fun buildGraph(
                 proxyNode.children += ruleNode
                 if (collapsed.contains(ruleNode.id)) return@forEach
 
-                ruleConns.forEach { conn ->
+                // 同一设备（sourceIP）合并为一个节点，避免每个连接都展开
+                ruleConns.groupBy { it.sourceIP }.forEach { (ip, clientConns) ->
                     val clientNode = GNode(
-                        "c:${conn.id}",
-                        labelOf(conn.sourceIP),
-                        "${conn.sourceIP}:${conn.sourcePort}".trimEnd(':'),
+                        "c:$group/$proxy/$rule/$ip",
+                        labelOf(ip),
+                        ip,
                         NodeKind.CLIENT
                     )
-                    clientNode.count = 1
-                    clientNode.traffic = conn.upload + conn.download
+                    clientNode.count = clientConns.size
+                    clientNode.traffic = clientConns.sumOf { it.upload + it.download }
                     ruleNode.children += clientNode
                 }
             }
@@ -324,28 +334,27 @@ private fun buildGraph(
 }
 
 private fun flatten(root: GNode, density: Density): List<GNode> {
-    var nextLeafX = 0f
-    val rowStep = with(density) { (NodeHeight + 30.dp).toPx() }
-    val colStep = with(density) { (NodeWidth + 26.dp).toPx() }
+    var nextLeafY = 0f
+    val colStep = with(density) { (NodeWidth + 56.dp).toPx() }
+    val rowStep = with(density) { (NodeHeight + 16.dp).toPx() }
 
     fun layout(node: GNode, depth: Int): Float {
-        node.y = depth * rowStep
+        node.x = depth * colStep
         if (node.children.isEmpty()) {
-            node.x = nextLeafX
-            nextLeafX += colStep
-            return node.x
+            node.y = nextLeafY
+            nextLeafY += rowStep
+            return node.y
         }
-        val childXs = node.children.map { layout(it, depth + 1) }
-        node.x = childXs.average().toFloat()
-        return node.x
+        val childYs = node.children.map { layout(it, depth + 1) }
+        node.y = childYs.average().toFloat()
+        return node.y
     }
     layout(root, 0)
 
-    // 让根节点位于 x=0，方便初始居中
-    val shift = root.x
+    val shift = root.y
     val result = mutableListOf<GNode>()
     fun shiftAndCollect(node: GNode) {
-        node.x -= shift
+        node.y -= shift
         result += node
         node.children.forEach { shiftAndCollect(it) }
     }
