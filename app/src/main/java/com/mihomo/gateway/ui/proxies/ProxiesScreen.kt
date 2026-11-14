@@ -97,6 +97,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     var query by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
+    var pageMenuOpen by remember { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf(SortMode.Default) }
     var hideUnavailable by remember { mutableStateOf(false) }
     var favoritesFirst by remember { mutableStateOf(true) }
@@ -168,80 +169,29 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
         listState.scrollToItem(0)
     }
 
-    val subtitle = currentGroup?.let { group ->
-        buildString {
-            val filtering = query.isNotBlank() || hideUnavailable
-            append("${if (filtering) members.size else group.members.size} 个节点 · ${group.type}")
-            if (hideUnavailable) append(" · 已隐藏不可用")
-            if (query.isNotBlank()) append(" · 搜索“$query”")
-        }
-    }
-
     val activeSub = subs.firstOrNull { it.id == subSettings.activeSubId }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        ScreenHeader(title = "节点", subtitle = subtitle) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = {
-                    searchOpen = !searchOpen
-                    if (!searchOpen) query = ""
-                }) {
-                    GwIcon(
-                        GwIcon.Search,
-                        tint = if (searchOpen) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+        ScreenHeader(title = "代理") {
+            Box {
+                IconButton(onClick = { pageMenuOpen = true }) {
+                    GwIcon(GwIcon.More, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(
-                    onClick = { currentGroup?.let(vm::testGroup) },
-                    enabled = currentGroup != null && testing.isEmpty()
-                ) {
-                    if (testing.isNotEmpty()) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        GwIcon(
-                            GwIcon.Speed,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        GwIcon(GwIcon.Sort, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        SortMode.entries.forEach { mode ->
-                            DropdownMenuItem(
-                                text = { Text(mode.label) },
-                                onClick = {
-                                    sortMode = mode
-                                    menuOpen = false
-                                },
-                                trailingIcon = { CheckMark(visible = sortMode == mode) }
-                            )
+                DropdownMenu(expanded = pageMenuOpen, onDismissRequest = { pageMenuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("管理订阅") },
+                        onClick = {
+                            pageMenuOpen = false
+                            showSubPage = true
                         }
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text("收藏置顶") },
-                            onClick = {
-                                favoritesFirst = !favoritesFirst
-                                menuOpen = false
-                            },
-                            trailingIcon = { CheckMark(visible = favoritesFirst) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("隐藏不可用") },
-                            onClick = {
-                                hideUnavailable = !hideUnavailable
-                                menuOpen = false
-                            },
-                            trailingIcon = { CheckMark(visible = hideUnavailable) }
-                        )
-                    }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("重新加载节点") },
+                        onClick = {
+                            pageMenuOpen = false
+                            vm.load()
+                        }
+                    )
                 }
             }
         }
@@ -271,7 +221,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
             }
 
             state.groups.isEmpty() -> {
-                CenteredMessage("没有可用的代理组，请先在设置里导入订阅") {
+                CenteredMessage("没有可用的代理组，点右上角菜单管理订阅") {
                     OutlinedButton(onClick = { vm.load() }) { Text("重新加载") }
                 }
             }
@@ -288,26 +238,84 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                 }
 
                 if (currentGroup != null) {
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(8.dp))
+
+                    val shownCount = if (query.isNotBlank() || hideUnavailable) {
+                        members.size
+                    } else {
+                        currentGroup.members.size
+                    }
 
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "当前",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            currentGroup.now?.takeUnless { ProxyNames.isInfoNode(it) } ?: "未选择",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "${currentGroup.name} · $shownCount 个节点",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "当前 " + (currentGroup.now
+                                    ?.takeUnless { ProxyNames.isInfoNode(it) } ?: "未选择"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        ToolIcon(GwIcon.Search, active = searchOpen) {
+                            searchOpen = !searchOpen
+                            if (!searchOpen) query = ""
+                        }
+                        Box {
+                            if (testing.isNotEmpty()) {
+                                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            } else {
+                                ToolIcon(GwIcon.Speed) { currentGroup?.let(vm::testGroup) }
+                            }
+                        }
+                        Box {
+                            ToolIcon(GwIcon.Sort) { menuOpen = true }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                SortMode.entries.forEach { mode ->
+                                    DropdownMenuItem(
+                                        text = { Text(mode.label) },
+                                        onClick = {
+                                            sortMode = mode
+                                            menuOpen = false
+                                        },
+                                        trailingIcon = { CheckMark(visible = sortMode == mode) }
+                                    )
+                                }
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("收藏置顶") },
+                                    onClick = {
+                                        favoritesFirst = !favoritesFirst
+                                        menuOpen = false
+                                    },
+                                    trailingIcon = { CheckMark(visible = favoritesFirst) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("隐藏不可用") },
+                                    onClick = {
+                                        hideUnavailable = !hideUnavailable
+                                        menuOpen = false
+                                    },
+                                    trailingIcon = { CheckMark(visible = hideUnavailable) }
+                                )
+                            }
+                        }
                     }
 
                     if (failed.isNotEmpty()) {
@@ -382,10 +390,6 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
             message = subMessage,
             onSelect = { subVm.activate(it) },
             onUpdate = { subVm.updateActive() },
-            onManage = {
-                showSubSheet = false
-                showSubPage = true
-            },
             onDismiss = { showSubSheet = false }
         )
     }
@@ -691,5 +695,31 @@ private fun DelayMeter(delay: Int?, testing: Boolean, failed: Boolean) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ToolIcon(
+    icon: GwIcon,
+    active: Boolean = false,
+    onClick: () -> Unit
+) {
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else Color.Transparent
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        GwIcon(
+            icon,
+            Modifier.size(20.dp),
+            tint = if (active) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

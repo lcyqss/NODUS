@@ -29,7 +29,7 @@ private data class NavItem(val label: String, val icon: GwIcon)
 
 private val items = listOf(
     NavItem("首页", GwIcon.Overview),
-    NavItem("节点", GwIcon.Proxy),
+    NavItem("代理", GwIcon.Proxy),
     NavItem("分流", GwIcon.Logs),
     NavItem("连接", GwIcon.Connections),
     NavItem("设置", GwIcon.Settings)

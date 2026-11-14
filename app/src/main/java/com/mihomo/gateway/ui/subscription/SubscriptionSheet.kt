@@ -30,8 +30,8 @@ import androidx.compose.ui.unit.dp
 import com.mihomo.gateway.model.SubscriptionProfile
 
 /**
- * 节点页的订阅切换弹层：只做「切换 / 更新当前 / 进入管理」，
- * 添加与删除放在订阅管理页，避免同一个动作有两个入口。
+ * 节点页的订阅切换弹层：只做「切换 / 更新当前」；
+ * 添加、删除等管理动作放在页面右上角菜单进入的管理页，避免入口重复。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,7 +43,6 @@ fun SubscriptionSheet(
     message: String?,
     onSelect: (SubscriptionProfile) -> Unit,
     onUpdate: () -> Unit,
-    onManage: () -> Unit,
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -73,7 +72,7 @@ fun SubscriptionSheet(
 
             if (subs.isEmpty()) {
                 Text(
-                    "还没有保存的订阅，先到「管理订阅」添加",
+                    "还没有保存的订阅，用页面右上角菜单管理订阅",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -139,7 +138,6 @@ fun SubscriptionSheet(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onUpdate, enabled = !busy) { Text("更新当前") }
-                OutlinedButton(onClick = onManage, enabled = !busy) { Text("管理订阅") }
             }
         }
     }

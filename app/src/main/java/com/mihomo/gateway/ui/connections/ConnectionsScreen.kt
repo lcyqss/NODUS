@@ -18,10 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.ConnectionInfo
 import com.mihomo.gateway.ui.components.EmptyState
+import com.mihomo.gateway.ui.icons.GwIcon
 import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SegmentedControl
 
@@ -100,27 +99,29 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
         ScreenHeader(
             title = "连接",
             subtitle = if (mode == 0) {
-                "${data.size} 条活动连接 · ↑${formatBytes(data.sumOf { it.upload })} ↓${formatBytes(data.sumOf { it.download })}"
+                "${data.size} 条 · ↑${formatBytes(data.sumOf { it.upload })} ↓${formatBytes(data.sumOf { it.download })}"
             } else {
                 "设备 → 节点 → 规则"
             }
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = {
+                HeaderIcon(GwIcon.Logs, selected = mode == 0) { mode = 0 }
+                HeaderIcon(GwIcon.Tree, selected = mode == 1) { mode = 1 }
+                HeaderIcon(GwIcon.Chart, selected = mode == 2) { mode = 2 }
+                Spacer(Modifier.width(6.dp))
+                HeaderIcon(
+                    if (paused) GwIcon.Play else GwIcon.Pause,
+                    selected = paused
+                ) {
                     paused = !paused
                     if (!paused) frozen = emptyList()
-                }) { Text(if (paused) "继续" else "暂停") }
-                OutlinedButton(onClick = { vm.closeAll() }) { Text("全部断开") }
+                }
+                HeaderIcon(
+                    GwIcon.Close,
+                    tint = MaterialTheme.colorScheme.error
+                ) { vm.closeAll() }
             }
         }
-
-        Spacer(Modifier.height(8.dp))
-
-        SegmentedControl(
-            options = listOf("列表", "拓扑", "图形"),
-            selectedIndex = mode,
-            onSelect = { mode = it }
-        )
 
         Spacer(Modifier.height(8.dp))
 
@@ -471,5 +472,31 @@ private fun formatDuration(ms: Long): String {
         seconds < 60 -> "${seconds}s"
         minutes < 60 -> "${minutes}m ${seconds % 60}s"
         else -> "${hours}h ${minutes % 60}m"
+    }
+}
+
+@Composable
+private fun HeaderIcon(
+    icon: GwIcon,
+    selected: Boolean = false,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    onClick: () -> Unit
+) {
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else Color.Transparent
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        GwIcon(
+            icon,
+            Modifier.size(20.dp),
+            tint = if (selected) MaterialTheme.colorScheme.primary else tint
+        )
     }
 }

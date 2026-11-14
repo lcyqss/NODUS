@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -28,16 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.ui.components.KeyValueRow
 import com.mihomo.gateway.ui.components.Metric
-import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SectionCard
 import com.mihomo.gateway.ui.components.SegmentedControl
-import com.mihomo.gateway.ui.components.StatusPill
 import com.mihomo.gateway.ui.components.TrafficChart
 import com.mihomo.gateway.ui.icons.GwIcon
 
@@ -64,40 +63,43 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        ScreenHeader(
-            title = "Mihomo Gateway",
-            subtitle = "root 透明代理网关 · 热点 / 旁路由"
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusPill(running = state.running)
-                Spacer(Modifier.size(4.dp))
-                IconButton(onClick = { vm.refresh() }, enabled = !busy) {
-                    GwIcon(GwIcon.Refresh, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-
         SectionCard {
-            Column(
+            Row(
                 Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 PowerButton(running = state.running, busy = busy) { vm.toggle() }
-                Text(
-                    when {
-                        busy -> "处理中…"
-                        state.running -> "点击停止"
-                        else -> "点击启动"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    "内核 ${state.version.ifBlank { "-" }}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        when {
+                            busy -> "处理中…"
+                            state.running -> "运行中"
+                            else -> "已停止"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (state.running) Color(0xFF16A34A)
+                        else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        when {
+                            busy -> "请稍候"
+                            state.running -> "内核 ${state.version.ifBlank { "-" }} · 点击左侧停止"
+                            else -> "内核 ${state.version.ifBlank { "-" }} · 点击左侧启动"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(onClick = { vm.refresh() }, enabled = !busy) {
+                    GwIcon(
+                        GwIcon.Refresh,
+                        Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Spacer(Modifier.height(4.dp))
@@ -213,7 +215,7 @@ private fun PowerButton(running: Boolean, busy: Boolean, onClick: () -> Unit) {
     }
     Box(
         modifier = Modifier
-            .size(104.dp)
+            .size(56.dp)
             .clip(CircleShape)
             .background(background)
             .clickable(enabled = !busy, onClick = onClick),
@@ -221,12 +223,12 @@ private fun PowerButton(running: Boolean, busy: Boolean, onClick: () -> Unit) {
     ) {
         if (busy) {
             CircularProgressIndicator(
-                modifier = Modifier.size(34.dp),
-                strokeWidth = 3.dp,
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
                 color = MaterialTheme.colorScheme.primary
             )
         } else {
-            GwIcon(GwIcon.Power, Modifier.size(44.dp), Color.White)
+            GwIcon(GwIcon.Power, Modifier.size(24.dp), Color.White)
         }
     }
 }

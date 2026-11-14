@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 enum class GwIcon {
     Overview, Proxy, Connections, Logs, Settings,
     Power, Refresh, Search, Close, Speed, Download, Chevron,
-    Sort, Star, StarFilled, Plus, Back
+    Sort, Star, StarFilled, Plus, Back, More, Tree, Chart, Pause, Play
 }
 
 @Composable
@@ -49,6 +49,11 @@ fun GwIcon(
             GwIcon.StarFilled -> drawStar(s, tint, stroke, filled = true)
             GwIcon.Plus -> drawPlus(s, tint, stroke)
             GwIcon.Back -> drawBack(s, tint, stroke)
+            GwIcon.More -> drawMore(s, tint)
+            GwIcon.Tree -> drawTree(s, tint, stroke)
+            GwIcon.Chart -> drawChart(s, tint, stroke)
+            GwIcon.Pause -> drawPause(s, tint)
+            GwIcon.Play -> drawPlay(s, tint)
         }
     }
 }
@@ -236,4 +241,56 @@ private fun DrawScope.drawPlus(s: Float, c: Color, w: Float) {
 private fun DrawScope.drawBack(s: Float, c: Color, w: Float) {
     drawLine(c, Offset(s * 0.62f, s * 0.24f), Offset(s * 0.36f, s * 0.5f), w, StrokeCap.Round)
     drawLine(c, Offset(s * 0.36f, s * 0.5f), Offset(s * 0.62f, s * 0.76f), w, StrokeCap.Round)
+}
+
+/** 更多（竖排三点）。 */
+private fun DrawScope.drawMore(s: Float, c: Color) {
+    val r = s * 0.07f
+    drawCircle(c, r, Offset(s / 2, s * 0.24f))
+    drawCircle(c, r, Offset(s / 2, s * 0.5f))
+    drawCircle(c, r, Offset(s / 2, s * 0.76f))
+}
+
+/** 拓扑：根节点 + 两个子节点。 */
+private fun DrawScope.drawTree(s: Float, c: Color, w: Float) {
+    val r = s * 0.09f
+    drawCircle(c, r, Offset(s * 0.5f, s * 0.18f), style = Stroke(w))
+    drawLine(c, Offset(s * 0.5f, s * 0.27f), Offset(s * 0.5f, s * 0.48f), w, StrokeCap.Round)
+    drawLine(c, Offset(s * 0.22f, s * 0.48f), Offset(s * 0.78f, s * 0.48f), w, StrokeCap.Round)
+    drawLine(c, Offset(s * 0.22f, s * 0.48f), Offset(s * 0.22f, s * 0.66f), w, StrokeCap.Round)
+    drawLine(c, Offset(s * 0.78f, s * 0.48f), Offset(s * 0.78f, s * 0.66f), w, StrokeCap.Round)
+    drawCircle(c, r, Offset(s * 0.22f, s * 0.75f), style = Stroke(w))
+    drawCircle(c, r, Offset(s * 0.78f, s * 0.75f), style = Stroke(w))
+}
+
+/** 图形：坐标轴 + 折线。 */
+private fun DrawScope.drawChart(s: Float, c: Color, w: Float) {
+    drawLine(c, Offset(s * 0.16f, s * 0.14f), Offset(s * 0.16f, s * 0.84f), w, StrokeCap.Round)
+    drawLine(c, Offset(s * 0.16f, s * 0.84f), Offset(s * 0.88f, s * 0.84f), w, StrokeCap.Round)
+    val path = Path().apply {
+        moveTo(s * 0.28f, s * 0.68f)
+        lineTo(s * 0.44f, s * 0.5f)
+        lineTo(s * 0.6f, s * 0.6f)
+        lineTo(s * 0.82f, s * 0.28f)
+    }
+    drawPath(path, c, style = Stroke(w, cap = StrokeCap.Round, join = StrokeJoin.Round))
+}
+
+/** 暂停：两条竖线。 */
+private fun DrawScope.drawPause(s: Float, c: Color) {
+    val barW = s * 0.14f
+    val h = s * 0.5f
+    drawRoundRect(c, Offset(s * 0.28f, s * 0.25f), Size(barW, h), CornerRadius(barW / 2))
+    drawRoundRect(c, Offset(s * 0.58f, s * 0.25f), Size(barW, h), CornerRadius(barW / 2))
+}
+
+/** 继续：三角形。 */
+private fun DrawScope.drawPlay(s: Float, c: Color) {
+    val path = Path().apply {
+        moveTo(s * 0.32f, s * 0.22f)
+        lineTo(s * 0.78f, s * 0.5f)
+        lineTo(s * 0.32f, s * 0.78f)
+        close()
+    }
+    drawPath(path, c)
 }
