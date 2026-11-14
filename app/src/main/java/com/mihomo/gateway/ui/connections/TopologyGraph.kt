@@ -5,6 +5,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -18,12 +20,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -37,7 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.mihomo.gateway.model.ConnectionInfo
 import com.mihomo.gateway.ui.components.EmptyState
 
-private enum class NodeKind { ROOT, GROUP, PROXY, RULE, CLIENT }
+private enum class NodeKind { ROOT, GROUP, PROXY, RULE, CLIENT, PORT }
 
 private class GNode(
     val id: String,
@@ -50,10 +54,11 @@ private class GNode(
     var y = 0f
     var count = 0
     var traffic = 0L
-    val hasChildren: Boolean get() = children.isNotEmpty()
+    var portCount = 0
+    val hasChildren: Boolean get() = children.isNotEmpty() || portCount > 0
 }
 
-private val NodeWidth = 168.dp
+private val NodeWidth = 172.dp
 private val NodeHeight = 50.dp
 
 @Composable
@@ -68,11 +73,16 @@ fun TopologyGraph(
     }
 
     var collapsed by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var expandedClients by remember { mutableStateOf<Set<String>>(emptySet()) }
     var scale by remember { mutableFloatStateOf(0.9f) }
     var offset by remember { mutableStateOf(Offset(0f, 0f)) }
+    var portsOpen by remember { mutableStateOf(false) }
+    var requestFit by remember { mutableStateOf(false) }
 
     val density = LocalDensity.current
-    val tree = remember(connections, collapsed) { buildGraph(connections, collapsed, labelOf) }
+    val tree = remember(connections, collapsed, expandedClients) {
+        buildGraph(connections, collapsed, expandedClients, labelOf)
+    }
     val nodes = remember(tree, density) { flatten(tree, density) }
 
     val lineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
@@ -96,8 +106,7 @@ fun TopologyGraph(
             val contentW = (maxX - minX).coerceAtLeast(1f)
             val contentH = (maxY - minY).coerceAtLeast(1f)
 
-            // 只按宽度适配，纵向交给用户平移，避免设备多时被压成一条线
-            val s = ((wPx - margin * 2f) / contentW).coerceIn(0.32f, 1.15f) * 0.98f
+            val s = ((wPx - margin * 2f) / contentW).coerceIn(0.25f, 1.15f) * 0.98f
             val ox = if (contentW * s > wPx - margin * 2f) {
                 margin - minX * s
             } else {
@@ -112,21 +121,23 @@ fun TopologyGraph(
         }
 
         var fitted by remember { mutableStateOf(false) }
-        LaunchedEffect(nodes, maxWidth, maxHeight) {
-            if (!fitted) {
+        LaunchedEffect(nodes, maxWidth, maxHeight, requestFit) {
+            if (!fitted || requestFit) {
                 val (s, o) = fit()
                 scale = s
                 offset = o
                 fitted = true
+                requestFit = false
             }
         }
 
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .clipToBounds()
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(0.35f, 2.5f)
+                        scale = (scale * zoom).coerceIn(0.3f, 2.5f)
                         offset += pan
                     }
                 }
@@ -143,8 +154,19 @@ fun TopologyGraph(
                                 world.y in (node.y - h / 2)..(node.y + h / 2)
                         }
                         if (hit != null && hit.hasChildren) {
-                            collapsed = if (collapsed.contains(hit.id)) collapsed - hit.id
-                            else collapsed + hit.id
+                            if (hit.kind == NodeKind.CLIENT) {
+                                expandedClients = if (expandedClients.contains(hit.id)) {
+                                    expandedClients - hit.id
+                                } else {
+                                    expandedClients + hit.id
+                                }
+                            } else {
+                                collapsed = if (collapsed.contains(hit.id)) {
+                                    collapsed - hit.id
+                                } else {
+                                    collapsed + hit.id
+                                }
+                            }
                         }
                     }
                 }
@@ -155,6 +177,7 @@ fun TopologyGraph(
             }) {
                 val nodeW = NodeWidth.toPx()
                 val nodeH = NodeHeight.toPx()
+                val iconSize = 15.dp.toPx()
 
                 nodes.forEach { parent ->
                     if (collapsed.contains(parent.id)) return@forEach
@@ -192,11 +215,17 @@ fun TopologyGraph(
                         size = Size(5.dp.toPx(), nodeH),
                         cornerRadius = CornerRadius(3.dp.toPx())
                     )
+                    drawNodeIcon(
+                        node.kind,
+                        Offset(topLeft.x + 12.dp.toPx(), node.y - iconSize / 2f),
+                        iconSize,
+                        color
+                    )
 
                     drawIntoCanvas { canvas ->
                         val titlePaint = android.graphics.Paint().apply {
                             isAntiAlias = true
-                            textSize = 12.sp.toPx()
+                            textSize = 11.5.sp.toPx()
                             this.color = onSurface.toArgb()
                             isFakeBoldText = node.kind == NodeKind.ROOT
                         }
@@ -205,9 +234,9 @@ fun TopologyGraph(
                             textSize = 9.sp.toPx()
                             this.color = labelColor.toArgb()
                         }
-                        val textX = topLeft.x + 12.dp.toPx()
-                        val title = ellipsize(node.label, titlePaint, nodeW - 26.dp.toPx())
-                        canvas.nativeCanvas.drawText(title, textX, node.y - 3.dp.toPx(), titlePaint)
+                        val textX = topLeft.x + 34.dp.toPx()
+                        val title = ellipsize(node.label, titlePaint, nodeW - 50.dp.toPx())
+                        canvas.nativeCanvas.drawText(title, textX, node.y - 2.dp.toPx(), titlePaint)
 
                         val sub = buildString {
                             append("${node.count} 条")
@@ -215,16 +244,20 @@ fun TopologyGraph(
                         }
                         val subText = node.subtitle?.let { "$it · $sub" } ?: sub
                         canvas.nativeCanvas.drawText(
-                            ellipsize(subText, subPaint, nodeW - 26.dp.toPx()),
+                            ellipsize(subText, subPaint, nodeW - 50.dp.toPx()),
                             textX,
-                            node.y + 12.dp.toPx(),
+                            node.y + 13.dp.toPx(),
                             subPaint
                         )
 
                         if (node.hasChildren) {
-                            val mark = if (collapsed.contains(node.id)) "+" else "−"
+                            val expanded = if (node.kind == NodeKind.CLIENT) {
+                                expandedClients.contains(node.id)
+                            } else {
+                                !collapsed.contains(node.id)
+                            }
                             canvas.nativeCanvas.drawText(
-                                mark,
+                                if (expanded) "−" else "+",
                                 topLeft.x + nodeW - 16.dp.toPx(),
                                 node.y + 4.dp.toPx(),
                                 titlePaint
@@ -235,19 +268,33 @@ fun TopologyGraph(
             }
         }
 
-        OutlinedButton(
-            onClick = {
-                val (s, o) = fit()
-                scale = s
-                offset = o
-            },
+        Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(8.dp)
-        ) { Text("重置") }
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val clientIds = remember(nodes) {
+                nodes.filter { it.kind == NodeKind.CLIENT && it.portCount > 0 }.map { it.id }
+            }
+            OutlinedButton(
+                onClick = {
+                    portsOpen = !portsOpen
+                    expandedClients = if (portsOpen) clientIds.toSet() else emptySet()
+                    requestFit = true
+                }
+            ) { Text(if (portsOpen) "收起端口" else "展开端口") }
+            OutlinedButton(
+                onClick = {
+                    val (s, o) = fit()
+                    scale = s
+                    offset = o
+                }
+            ) { Text("重置") }
+        }
 
         Text(
-            "拖动平移 · 双指缩放 · 点节点折叠",
+            "拖动平移 · 双指缩放 · 点节点展开/折叠",
             style = MaterialTheme.typography.labelSmall,
             color = labelColor,
             modifier = Modifier
@@ -263,6 +310,99 @@ private fun colorFor(kind: NodeKind): Color = when (kind) {
     NodeKind.PROXY -> Color(0xFF2563EB)
     NodeKind.RULE -> Color(0xFFEA580C)
     NodeKind.CLIENT -> Color(0xFF64748B)
+    NodeKind.PORT -> Color(0xFF94A3B8)
+}
+
+private fun DrawScope.drawNodeIcon(kind: NodeKind, topLeft: Offset, s: Float, color: Color) {
+    val stroke = 1.4.dp.toPx()
+    when (kind) {
+        NodeKind.ROOT -> {
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(topLeft.x, topLeft.y + s * 0.2f),
+                size = Size(s, s * 0.65f),
+                cornerRadius = CornerRadius(2.dp.toPx()),
+                style = Stroke(stroke)
+            )
+            drawLine(
+                color,
+                Offset(topLeft.x + s / 2, topLeft.y),
+                Offset(topLeft.x + s / 2, topLeft.y + s * 0.45f),
+                stroke
+            )
+        }
+
+        NodeKind.GROUP -> {
+            val a = Offset(topLeft.x + s / 2, topLeft.y + s * 0.15f)
+            val b = Offset(topLeft.x + s * 0.15f, topLeft.y + s * 0.85f)
+            val c = Offset(topLeft.x + s * 0.85f, topLeft.y + s * 0.85f)
+            drawLine(color, a, b, stroke)
+            drawLine(color, a, c, stroke)
+            drawLine(color, b, c, stroke)
+            drawCircle(color, s * 0.12f, a)
+            drawCircle(color, s * 0.12f, b)
+            drawCircle(color, s * 0.12f, c)
+        }
+
+        NodeKind.PROXY -> {
+            drawRoundRect(
+                color,
+                topLeft,
+                Size(s, s * 0.4f),
+                CornerRadius(2.dp.toPx()),
+                style = Stroke(stroke)
+            )
+            drawRoundRect(
+                color,
+                Offset(topLeft.x, topLeft.y + s * 0.55f),
+                Size(s, s * 0.4f),
+                CornerRadius(2.dp.toPx()),
+                style = Stroke(stroke)
+            )
+        }
+
+        NodeKind.RULE -> {
+            val path = Path().apply {
+                moveTo(topLeft.x, topLeft.y + s * 0.1f)
+                lineTo(topLeft.x + s, topLeft.y + s * 0.1f)
+                lineTo(topLeft.x + s * 0.62f, topLeft.y + s * 0.55f)
+                lineTo(topLeft.x + s * 0.62f, topLeft.y + s)
+                lineTo(topLeft.x + s * 0.38f, topLeft.y + s)
+                lineTo(topLeft.x + s * 0.38f, topLeft.y + s * 0.55f)
+                close()
+            }
+            drawPath(path, color)
+        }
+
+        NodeKind.CLIENT -> {
+            drawRoundRect(
+                color,
+                topLeft,
+                Size(s, s * 0.62f),
+                CornerRadius(2.dp.toPx()),
+                style = Stroke(stroke)
+            )
+            drawLine(
+                color,
+                Offset(topLeft.x + s * 0.35f, topLeft.y + s),
+                Offset(topLeft.x + s * 0.65f, topLeft.y + s),
+                stroke
+            )
+            drawLine(
+                color,
+                Offset(topLeft.x + s / 2, topLeft.y + s * 0.62f),
+                Offset(topLeft.x + s / 2, topLeft.y + s),
+                stroke
+            )
+        }
+
+        NodeKind.PORT -> {
+            drawLine(color, Offset(topLeft.x + s * 0.3f, topLeft.y), Offset(topLeft.x + s * 0.3f, topLeft.y + s), stroke)
+            drawLine(color, Offset(topLeft.x + s * 0.7f, topLeft.y), Offset(topLeft.x + s * 0.7f, topLeft.y + s), stroke)
+            drawLine(color, Offset(topLeft.x, topLeft.y + s * 0.35f), Offset(topLeft.x + s, topLeft.y + s * 0.35f), stroke)
+            drawLine(color, Offset(topLeft.x, topLeft.y + s * 0.7f), Offset(topLeft.x + s, topLeft.y + s * 0.7f), stroke)
+        }
+    }
 }
 
 private fun formatTraffic(bytes: Long): String = when {
@@ -283,6 +423,7 @@ private fun ellipsize(text: String, paint: android.graphics.Paint, maxWidth: Flo
 private fun buildGraph(
     connections: List<ConnectionInfo>,
     collapsed: Set<String>,
+    expandedClients: Set<String>,
     labelOf: (String) -> String
 ): GNode {
     val root = GNode("root", "网关", null, NodeKind.ROOT)
@@ -315,17 +456,28 @@ private fun buildGraph(
                 proxyNode.children += ruleNode
                 if (collapsed.contains(ruleNode.id)) return@forEach
 
-                // 同一设备（sourceIP）合并为一个节点，避免每个连接都展开
+                // 同一设备合并；端口作为子节点，默认折叠
                 ruleConns.groupBy { it.sourceIP }.forEach { (ip, clientConns) ->
-                    val clientNode = GNode(
-                        "c:$group/$proxy/$rule/$ip",
-                        labelOf(ip),
-                        ip,
-                        NodeKind.CLIENT
-                    )
+                    val clientId = "c:$group/$proxy/$rule/$ip"
+                    val clientNode = GNode(clientId, labelOf(ip), ip, NodeKind.CLIENT)
                     clientNode.count = clientConns.size
                     clientNode.traffic = clientConns.sumOf { it.upload + it.download }
+                    clientNode.portCount = clientConns.map { it.sourcePort }.distinct().size
                     ruleNode.children += clientNode
+
+                    if (expandedClients.contains(clientId)) {
+                        clientConns.groupBy { it.sourcePort }.forEach { (port, portConns) ->
+                            val portNode = GNode(
+                                "t:$group/$proxy/$rule/$ip/$port",
+                                if (port.isBlank()) "未知端口" else "端口 $port",
+                                null,
+                                NodeKind.PORT
+                            )
+                            portNode.count = portConns.size
+                            portNode.traffic = portConns.sumOf { it.upload + it.download }
+                            clientNode.children += portNode
+                        }
+                    }
                 }
             }
         }
