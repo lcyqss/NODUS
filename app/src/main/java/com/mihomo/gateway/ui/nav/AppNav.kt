@@ -50,7 +50,7 @@ fun AppNav() {
     ) { padding ->
         Box(Modifier.padding(padding)) {
             when (tab) {
-                0 -> OverviewScreen()
+                0 -> OverviewScreen(onOpenNodes = { tab = 1 })
                 1 -> ProxiesScreen()
                 2 -> RulesScreen()
                 3 -> ConnectionsScreen()

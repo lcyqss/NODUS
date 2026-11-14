@@ -2,6 +2,7 @@ package com.mihomo.gateway.ui.overview
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.ui.components.KeyValueRow
@@ -43,7 +45,7 @@ private val UpColor = Color(0xFF0F766E)
 private val DownColor = Color(0xFF4F46E5)
 
 @Composable
-fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
+fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit = {}) {
     val state by vm.state.collectAsState()
     val traffic by vm.traffic.collectAsState()
     val upHistory by vm.upHistory.collectAsState()
@@ -99,16 +101,60 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
             }
 
             Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 listOf("rule" to "规则", "global" to "全局", "direct" to "直连").forEach { (mode, label) ->
-                    if (runtimeMode == mode) {
-                        Button(onClick = { vm.setRuntimeMode(mode) }, enabled = !busy) { Text(label) }
-                    } else {
-                        OutlinedButton(onClick = { vm.setRuntimeMode(mode) }, enabled = !busy) { Text(label) }
+                    val selected = runtimeMode == mode
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primary
+                                else Color.Transparent
+                            )
+                            .clickable(enabled = !busy) { vm.setRuntimeMode(mode) }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            label,
+                            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                        )
                     }
                 }
             }
-            KeyValueRow("当前节点", currentNode ?: "-")
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenNodes)
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "当前节点",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    currentNode ?: "-",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    modifier = Modifier.weight(2f),
+                    textAlign = TextAlign.End
+                )
+                Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
+            }
             KeyValueRow("节点地址族", state.mode.name)
             KeyValueRow("IPv6 拦截", if (state.blockIpv6) "开" else "关")
             state.error?.let {
@@ -154,10 +200,7 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel()) {
                 Metric("累计上传", formatBytes(stats.uploadTotal), UpColor)
                 Metric("累计下载", formatBytes(stats.downloadTotal), DownColor)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                Metric("今日上传", formatBytes(today.up), UpColor)
-                Metric("今日下载", formatBytes(today.down), DownColor)
-            }
+
         }
 
         Text(
