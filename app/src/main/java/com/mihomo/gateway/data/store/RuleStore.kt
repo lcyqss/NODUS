@@ -80,7 +80,8 @@ class RuleStore(context: Context) {
                     .put("createdAt", rule.createdAt)
             )
         }
-        file.writeText(array.toString())
+        runCatching { file.writeText(array.toString()) }
+            .onFailure { android.util.Log.e("GW-Rule", "save failed: ${it.message}") }
         _rules.value = list
     }
 
