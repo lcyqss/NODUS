@@ -23,11 +23,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /** 页面顶部标题区，统一各页视觉。 */
 @Composable
@@ -167,56 +173,108 @@ fun EmptyState(text: String) {
     }
 }
 
-/** 双线流量面积图（上传 / 下载）。 */
+/** 双线流量面积图（仿 MetaCubeXD）：平滑曲线、渐变填充、坐标轴。 */
 @Composable
-fun TrafficChart(upValues: List<Long>, downValues: List<Long>, modifier: Modifier = Modifier) {
+fun TrafficChart(
+    upValues: List<Long>,
+    downValues: List<Long>,
+    modifier: Modifier = Modifier
+) {
     val upColor = Color(0xFF0F766E)
     val downColor = Color(0xFF4F46E5)
-    Canvas(modifier.fillMaxWidth().height(110.dp)) {
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+
+    Canvas(modifier.fillMaxWidth().height(150.dp)) {
         val n = maxOf(upValues.size, downValues.size, 2)
-        val max = maxOf(
+        val maxValue = maxOf(
             upValues.maxOrNull() ?: 0L,
             downValues.maxOrNull() ?: 0L,
             1L
         )
+        val topPad = 14.dp.toPx()
+        val bottomPad = 20.dp.toPx()
+        val chartHeight = size.height - topPad - bottomPad
+        val chartWidth = size.width
 
-        fun xAt(index: Int): Float = size.width * index / (n - 1)
-        fun yAt(value: Long): Float = size.height - (value.toFloat() / max) * size.height
+        fun xAt(index: Int): Float = chartWidth * index / (n - 1)
+        fun yAt(value: Long): Float = topPad + chartHeight - (value.toFloat() / maxValue) * chartHeight
 
-        fun buildFill(values: List<Long>): Path {
+        repeat(4) { i ->
+            val y = topPad + chartHeight * i / 3f
+            drawLine(gridColor, Offset(0f, y), Offset(size.width, y), 1f)
+        }
+
+        fun pointsOf(values: List<Long>): List<Offset> =
+            values.mapIndexed { index, value -> Offset(xAt(index), yAt(value)) }
+
+        fun smooth(points: List<Offset>): Path {
             val path = Path()
-            values.forEachIndexed { index, value ->
-                val x = xAt(index)
-                val y = yAt(value)
-                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            if (points.isEmpty()) return path
+            path.moveTo(points[0].x, points[0].y)
+            for (i in 0 until points.size - 1) {
+                val p0 = points[maxOf(i - 1, 0)]
+                val p1 = points[i]
+                val p2 = points[i + 1]
+                val p3 = points[minOf(i + 2, points.size - 1)]
+                val c1x = p1.x + (p2.x - p0.x) / 6f
+                val c1y = p1.y + (p2.y - p0.y) / 6f
+                val c2x = p2.x - (p3.x - p1.x) / 6f
+                val c2y = p2.y - (p3.y - p1.y) / 6f
+                path.cubicTo(c1x, c1y, c2x, c2y, p2.x, p2.y)
             }
-            path.lineTo(size.width, size.height)
-            path.lineTo(0f, size.height)
-            path.close()
             return path
         }
 
-        fun buildLine(values: List<Long>): Path {
-            val path = Path()
-            values.forEachIndexed { index, value ->
-                val x = xAt(index)
-                val y = yAt(value)
-                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        fun drawSeries(values: List<Long>, color: Color) {
+            val points = pointsOf(values)
+            if (points.size < 2) return
+            val line = smooth(points)
+            val fill = Path().apply {
+                addPath(line)
+                lineTo(points.last().x, topPad + chartHeight)
+                lineTo(points.first().x, topPad + chartHeight)
+                close()
             }
-            return path
+            drawPath(
+                fill,
+                brush = Brush.verticalGradient(
+                    colors = listOf(color.copy(alpha = 0.35f), color.copy(alpha = 0.02f)),
+                    startY = topPad,
+                    endY = topPad + chartHeight
+                )
+            )
+            drawPath(line, color, style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round))
+            drawCircle(color, radius = 2.5.dp.toPx(), center = points.last())
         }
 
-        if (upValues.isNotEmpty()) {
-            drawPath(buildFill(upValues), upColor.copy(alpha = 0.14f))
-            drawPath(buildLine(upValues), upColor, style = Stroke(width = 2.dp.toPx()))
-        }
-        if (downValues.isNotEmpty()) {
-            drawPath(buildFill(downValues), downColor.copy(alpha = 0.14f))
-            drawPath(buildLine(downValues), downColor, style = Stroke(width = 2.dp.toPx()))
+        drawSeries(downValues, downColor)
+        drawSeries(upValues, upColor)
+
+        drawIntoCanvas { canvas ->
+            val paint = android.graphics.Paint().apply {
+                isAntiAlias = true
+                textSize = 9.sp.toPx()
+                color = labelColor.toArgb()
+            }
+            canvas.nativeCanvas.drawText(formatScale(maxValue), 2f, topPad - 4.dp.toPx(), paint)
+            canvas.nativeCanvas.drawText("0", 2f, topPad + chartHeight - 2.dp.toPx(), paint)
+            canvas.nativeCanvas.drawText("-${n - 1}s", 2f, size.height - 4.dp.toPx(), paint)
+            val nowText = "now"
+            val nowWidth = paint.measureText(nowText)
+            canvas.nativeCanvas.drawText(nowText, size.width - nowWidth - 2f, size.height - 4.dp.toPx(), paint)
         }
     }
 }
 
+private fun formatScale(value: Long): String {
+    val kb = value / 1024.0
+    return when {
+        kb < 1 -> "${value}B/s"
+        kb < 1024 -> String.format("%.0fKB/s", kb)
+        else -> String.format("%.1fMB/s", kb / 1024.0)
+    }
+}
 /** 简单流量折线图。 */
 @Composable
 fun TrafficSparkline(values: List<Long>, modifier: Modifier = Modifier) {
