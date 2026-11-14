@@ -15,6 +15,9 @@ build.log
 # Bundled kernel binary (download with scripts/fetch-core.ps1)
 app/src/main/assets/mihomo
 
+# Signing (never commit)
+keystore/
+
 # OS
 .DS_Store
 Thumbs.db

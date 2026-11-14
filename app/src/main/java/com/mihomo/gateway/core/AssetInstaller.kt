@@ -34,6 +34,8 @@ class AssetInstaller(
             copyAssetDir("scripts", File(cache, "scripts"))
             copyAsset("config.template.yaml", File(cache, "config.template.yaml"))
             copyAsset("gateway.conf", File(cache, "gateway.conf"))
+            copyAsset("GeoSite.dat", File(cache, "GeoSite.dat"))
+            copyAsset("GeoIP.dat", File(cache, "GeoIP.dat"))
         }.onFailure {
             cache.deleteRecursively()
             return Result.failure(it)
@@ -47,6 +49,8 @@ class AssetInstaller(
             chmod 755 $base/mihomo $base/*.sh
             [ -f $base/config.yaml ] || cp -f $c/config.template.yaml $base/config.yaml
             [ -f $base/gateway.conf ] || cp -f $c/gateway.conf $base/gateway.conf
+            [ -f $base/GeoSite.dat ] || cp -f $c/GeoSite.dat $base/GeoSite.dat
+            [ -f $base/GeoIP.dat ] || cp -f $c/GeoIP.dat $base/GeoIP.dat
             echo "$version" > $base/.app_version
             echo installed
         """.trimIndent()

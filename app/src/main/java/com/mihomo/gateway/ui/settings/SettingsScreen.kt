@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,6 +67,7 @@ private fun SettingsMain(
     val message by vm.message.collectAsState()
     val busy by vm.busy.collectAsState()
     val context = LocalContext.current
+    var showCleanup by remember { mutableStateOf(false) }
     val versionName = remember {
         runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
@@ -146,9 +149,31 @@ private fun SettingsMain(
                 onClick = onDiagnostics
             )
             NavRow(
+                title = "清理运行数据（卸载前）",
+                subtitle = "停止网关、清除规则、删除 /data/adb/mihomo",
+                onClick = { showCleanup = true }
+            )
+            NavRow(
                 title = "安装 / 更新核心",
                 subtitle = "从 APK 资源重新解压内核与脚本",
                 onClick = { vm.installCore() }
+            )
+        }
+
+        if (showCleanup) {
+            AlertDialog(
+                onDismissRequest = { showCleanup = false },
+                title = { Text("确认清理？") },
+                text = { Text("将停止网关、清除 iptables 规则并删除 /data/adb/mihomo。清理后需要重新“安装/更新核心”才能使用。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showCleanup = false
+                        vm.cleanup()
+                    }) { Text("清理") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCleanup = false }) { Text("取消") }
+                }
             )
         }
 

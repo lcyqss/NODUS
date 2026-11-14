@@ -79,5 +79,30 @@ gradle :app:assembleDebug --offline
 ```
 
 ## 变更纪律
+## Release 构建
+
+签名配置在 `keystore/keystore.properties`（已 gitignore，内含 keystore 路径与口令）。
+
+```powershell
+$env:JAVA_HOME="C:\Program Files\Java\jdk-17"
+gradle :app:assembleRelease --offline
+# 产物: app/build/outputs/apk/release/app-release.apk
+```
+
+- release 版内核与 GeoSite/GeoIP 均随 APK 打包（首次运行解压到 `/data/adb/mihomo`），无需联网下载
+- debug 与 release 签名不同，切换安装需先卸载旧包
+
+## 卸载清理
+
+App 内：**设置 → 管理 → 清理运行数据（卸载前）**
+
+或手动：
+
+```sh
+sh /data/adb/mihomo/cleanup.sh   # 停网关 + 清 iptables
+rm -rf /data/adb/mihomo
+```
+
+清理后重新打开 App 会自动从 APK assets 恢复内核与配置模板。
 
 改动设计前先读 [docs/DESIGN.md](docs/DESIGN.md)；任何偏离都需要新增 ADR 并在 PR 中说明。

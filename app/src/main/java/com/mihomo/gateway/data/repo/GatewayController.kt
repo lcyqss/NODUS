@@ -24,6 +24,9 @@ interface GatewayController {
     suspend fun applyRules(): Result<Unit>
     suspend fun refresh()
 
+    /** 卸载前清理：停网关、清规则、删运行目录。 */
+    suspend fun cleanup(): Result<Unit>
+
     /** 从 /data/adb/mihomo/gateway.conf 读取真实生效的配置（模式 / IPv6 拦截）。 */
     suspend fun readConf(): GatewayConf
 }
@@ -118,6 +121,13 @@ class GatewayControllerImpl(
         return GatewayConf(mode, block)
     }
 
+    override suspend fun cleanup(): Result<Unit> {
+        val result = shell.run("sh $base/cleanup.sh", 30_000)
+        _state.update { it.copy(running = false, version = "", error = null) }
+        return if (result.code == 0) Result.success(Unit)
+        else Result.failure(IllegalStateException(result.stdout.take(200)))
+    }
+
     override suspend fun refresh() {
         val version = api.version()
         val conf = runCatching { readConf() }.getOrNull()
@@ -132,7 +142,7 @@ class GatewayControllerImpl(
         }
     }
 
-    private suspend fun waitReady(): String? = withTimeoutOrNull(4_000) {
+    private suspend fun waitReady(): String? = withTimeoutOrNull(8_000) {
         while (true) {
             val v = api.version()
             if (v.isSuccess) return@withTimeoutOrNull v.getOrNull()?.version

@@ -96,6 +96,18 @@ class SettingsViewModel(
         }
     }
 
+    fun cleanup() {
+        viewModelScope.launch {
+            _busy.value = true
+            val result = gateway.cleanup()
+            _message.value = result.fold(
+                onSuccess = { "已停止网关并清理 /data/adb/mihomo，可以卸载 App 了" },
+                onFailure = { "清理失败: ${it.message}" }
+            )
+            _busy.value = false
+        }
+    }
+
     fun installCore() {
         viewModelScope.launch {
             _busy.value = true

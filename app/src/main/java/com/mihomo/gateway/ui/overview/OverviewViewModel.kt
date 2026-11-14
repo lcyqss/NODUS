@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -68,6 +69,16 @@ class OverviewViewModel(
         }
         viewModelScope.launch {
             api.memoryFlow().catch { }.collect { _memory.value = it }
+        }
+        // 启动/重装核心后，内核可能晚于界面就绪：在前 30 秒内自动重试刷新
+        viewModelScope.launch {
+            repeat(10) {
+                delay(3000)
+                if (!gateway.state.value.running) {
+                    val desired = runCatching { settings.settings.first().desiredRunning }.getOrDefault(true)
+                    if (desired) gateway.refresh()
+                }
+            }
         }
         viewModelScope.launch {
             while (isActive) {
