@@ -24,9 +24,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.ConnectionInfo
+import com.mihomo.gateway.ui.components.EmptyState
+import com.mihomo.gateway.ui.components.ScreenHeader
 
 @Composable
 fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
@@ -38,22 +41,14 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        ScreenHeader(
+            title = "连接",
+            subtitle = "${state.connections.size} 条活动连接"
         ) {
-            Column {
-                Text("连接", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "${state.connections.size} 条活动连接",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
             OutlinedButton(onClick = { vm.closeAll() }) { Text("全部断开") }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
 
         state.error?.let {
             Text("错误: $it", color = MaterialTheme.colorScheme.error)
@@ -61,13 +56,12 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
         }
 
         if (state.loaded && state.connections.isEmpty()) {
-            Text("暂无活动连接", style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(8.dp))
+            EmptyState("暂无活动连接")
         }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(state.connections, key = { it.id }) { conn ->
                 ConnectionRow(conn) { vm.close(conn.id) }
@@ -81,20 +75,28 @@ private fun ConnectionRow(conn: ConnectionInfo, onClose: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(conn.host.ifBlank { "-" }, style = MaterialTheme.typography.bodyMedium)
             Text(
-                "${conn.network} · ${conn.rule.ifBlank { "-" }} · ${conn.chains.joinToString("→")}",
-                style = MaterialTheme.typography.bodySmall
+                conn.host.ifBlank { "-" },
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
             )
             Text(
-                "↑ ${formatBytes(conn.upload)}  ↓ ${formatBytes(conn.download)}",
+                "${conn.network} · ${conn.rule.ifBlank { "-" }} · ${conn.chains.joinToString(" → ")}",
                 style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+            Text(
+                "↑ ${formatBytes(conn.upload)}   ↓ ${formatBytes(conn.download)}",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Spacer(Modifier.width(8.dp))

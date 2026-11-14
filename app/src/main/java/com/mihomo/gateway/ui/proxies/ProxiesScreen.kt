@@ -20,10 +20,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,6 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.ProxyNode
+import com.mihomo.gateway.ui.components.EmptyState
+import com.mihomo.gateway.ui.components.ScreenHeader
+import com.mihomo.gateway.ui.components.Tag
 
 @Composable
 fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
@@ -39,10 +46,20 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     val testing by vm.testing.collectAsState()
 
     val currentGroup = state.groups.firstOrNull { it.name == state.selectedGroup }
+    var query by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("代理", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(8.dp))
+        ScreenHeader(
+            title = "代理",
+            subtitle = currentGroup?.let { "${it.members.size} 个节点 · ${it.type}" }
+        ) {
+            OutlinedButton(
+                onClick = { currentGroup?.let(vm::testGroup) },
+                enabled = currentGroup != null
+            ) { Text("测速") }
+        }
+
+        Spacer(Modifier.height(10.dp))
 
         when {
             state.loading -> {
@@ -52,9 +69,12 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
             }
 
             state.error != null -> {
-                Text("加载失败: ${state.error}", color = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.height(8.dp))
+                EmptyState("加载失败：${state.error}")
                 OutlinedButton(onClick = { vm.load() }) { Text("重试") }
+            }
+
+            state.groups.isEmpty() -> {
+                EmptyState("没有可用的代理组，请先在设置里导入订阅")
             }
 
             else -> {
@@ -63,43 +83,66 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                         val selected = group.name == state.selectedGroup
                         if (selected) {
                             Button(onClick = { vm.selectGroup(group.name) }) {
-                                Text(group.name)
+                                Text(group.name, maxLines = 1)
                             }
                         } else {
                             OutlinedButton(onClick = { vm.selectGroup(group.name) }) {
-                                Text(group.name)
+                                Text(group.name, maxLines = 1)
                             }
                         }
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
 
                 if (currentGroup != null) {
                     Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text("当前: ${currentGroup.now ?: "-"}", style = MaterialTheme.typography.titleMedium)
+                        Column(Modifier.weight(1f)) {
                             Text(
-                                "类型: ${currentGroup.type} · ${currentGroup.members.size} 个节点",
-                                style = MaterialTheme.typography.bodySmall
+                                "当前节点",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                currentGroup.now ?: "-",
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1
                             )
                         }
-                        OutlinedButton(onClick = { vm.testGroup(currentGroup) }) {
-                            Text("测速")
-                        }
+                        Tag(currentGroup.type)
                     }
 
+                    Spacer(Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text("搜索节点") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
                     Spacer(Modifier.height(8.dp))
+
+                    val members = remember(currentGroup, query) {
+                        if (query.isBlank()) currentGroup.members
+                        else currentGroup.members.filter { it.name.contains(query, true) }
+                    }
 
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(currentGroup.members, key = { it.name }) { node ->
+                        items(members, key = { it.name }) { node ->
                             NodeRow(
                                 node = node,
                                 selected = node.name == currentGroup.now,
@@ -129,52 +172,64 @@ private fun NodeRow(
     canSelect: Boolean,
     onClick: () -> Unit
 ) {
+    val background = if (selected) MaterialTheme.colorScheme.primaryContainer
+    else MaterialTheme.colorScheme.surface
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = canSelect, onClick = onClick)
-            .background(
-                if (selected) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant,
-                RoundedCornerShape(8.dp)
-            )
+            .background(background, RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            if (selected) "●" else "○",
-            color = if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outline
+        Box(
+            Modifier
+                .width(4.dp)
+                .height(28.dp)
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    RoundedCornerShape(2.dp)
+                )
         )
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(node.name, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-            Text(node.type, style = MaterialTheme.typography.bodySmall)
+            Text(
+                node.name,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Tag(node.type)
+                if (node.isGroup) Tag("组", MaterialTheme.colorScheme.secondary)
+            }
         }
-        if (node.isGroup) {
-            Text("组", style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.width(8.dp))
-        }
-        Text(
-            text = when {
-                testing -> "测速中…"
-                delay != null -> "${delay}ms"
-                node.delay != null -> "${node.delay}ms"
-                else -> "-"
-            },
-            color = when {
-                testing -> MaterialTheme.colorScheme.outline
-                delay != null -> delayColor(delay)
-                node.delay != null -> delayColor(node.delay)
-                else -> MaterialTheme.colorScheme.outline
-            },
-            style = MaterialTheme.typography.bodyMedium
+        DelayBadge(
+            delay = delay ?: node.delay,
+            testing = testing
         )
     }
 }
 
-private fun delayColor(delay: Int): Color = when {
-    delay < 200 -> Color(0xFF2E7D32)
-    delay < 500 -> Color(0xFFEF6C00)
-    else -> Color(0xFFC62828)
+@Composable
+private fun DelayBadge(delay: Int?, testing: Boolean) {
+    val text = when {
+        testing -> "…"
+        delay != null -> "${delay}ms"
+        else -> "—"
+    }
+    val color = when {
+        testing -> MaterialTheme.colorScheme.outline
+        delay == null -> MaterialTheme.colorScheme.outline
+        delay < 200 -> Color(0xFF16A34A)
+        delay < 500 -> Color(0xFFEA580C)
+        else -> Color(0xFFDC2626)
+    }
+    Box(
+        Modifier
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(text, style = MaterialTheme.typography.labelSmall, color = color)
+    }
 }

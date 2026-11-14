@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -35,6 +36,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.LogEntry
 import com.mihomo.gateway.model.RuleInfo
+import com.mihomo.gateway.ui.components.EmptyState
+import com.mihomo.gateway.ui.components.ScreenHeader
+import com.mihomo.gateway.ui.components.Tag
 import com.mihomo.gateway.ui.rules.RulesViewModel
 
 @Composable
@@ -57,14 +61,19 @@ fun LogsScreen(
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (tab == 0) Button(onClick = { tab = 0 }) { Text("日志") }
-            else OutlinedButton(onClick = { tab = 0 }) { Text("日志") }
-            if (tab == 1) Button(onClick = { tab = 1 }) { Text("规则") }
-            else OutlinedButton(onClick = { tab = 1 }) { Text("规则") }
+        ScreenHeader(
+            title = if (tab == 0) "日志" else "规则",
+            subtitle = if (tab == 0) "实时输出 · 最多保留 500 行" else null
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (tab == 0) Button(onClick = { tab = 0 }) { Text("日志") }
+                else OutlinedButton(onClick = { tab = 0 }) { Text("日志") }
+                if (tab == 1) Button(onClick = { tab = 1 }) { Text("规则") }
+                else OutlinedButton(onClick = { tab = 1 }) { Text("规则") }
+            }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
 
         if (tab == 0) {
             LogsTab(logs, level, onLevel = { logsVm.start(it) }, onClear = { logsVm.clear() })
@@ -93,6 +102,11 @@ private fun LogsTab(
 
     Spacer(Modifier.height(8.dp))
 
+    if (logs.isEmpty()) {
+        EmptyState("等待日志…（产生代理流量后会出现）")
+        return
+    }
+
     val listState = rememberLazyListState()
     LaunchedEffect(logs.size) {
         if (logs.isNotEmpty()) listState.scrollToItem(logs.size - 1)
@@ -101,19 +115,32 @@ private fun LogsTab(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         items(logs) { entry ->
-            Text(
-                text = "${entry.level.uppercase().take(4)}  ${entry.payload}",
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                color = when (entry.level) {
-                    "error" -> Color(0xFFC62828)
-                    "warning" -> Color(0xFFEF6C00)
-                    else -> MaterialTheme.colorScheme.onSurface
-                }
-            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .padding(8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.Top
+            ) {
+                Tag(
+                    text = entry.level.take(4),
+                    color = when (entry.level) {
+                        "error" -> Color(0xFFDC2626)
+                        "warning" -> Color(0xFFEA580C)
+                        else -> MaterialTheme.colorScheme.primary
+                    }
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = entry.payload,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -140,26 +167,35 @@ private fun RulesTab(rules: List<RuleInfo>, error: String?, onReload: () -> Unit
 
     Spacer(Modifier.height(8.dp))
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("${filtered.size} / ${rules.size} 条", style = MaterialTheme.typography.bodySmall)
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        Text(
+            "${filtered.size} / ${rules.size} 条",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         OutlinedButton(onClick = onReload) { Text("刷新") }
     }
 
-    error?.let {
-        Text("错误: $it", color = MaterialTheme.colorScheme.error)
-    }
+    error?.let { Text("错误: $it", color = MaterialTheme.colorScheme.error) }
 
     Spacer(Modifier.height(6.dp))
 
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items(filtered) { rule ->
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp))
-                    .padding(10.dp)
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Text(rule.type, style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Tag(rule.type)
+                }
                 Text(rule.payload, style = MaterialTheme.typography.bodySmall)
                 Text(
                     "→ ${rule.proxy}",

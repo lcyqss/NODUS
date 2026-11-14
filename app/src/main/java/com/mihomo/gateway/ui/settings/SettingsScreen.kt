@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -29,8 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.mihomo.gateway.model.AppSettings
 import com.mihomo.gateway.model.IpMode
+import com.mihomo.gateway.ui.components.NavRow
+import com.mihomo.gateway.ui.components.ScreenHeader
+import com.mihomo.gateway.ui.components.SectionCard
 import com.mihomo.gateway.ui.diagnostics.DiagnosticsScreen
 
 private enum class SettingsPage { MAIN, SUBSCRIPTION, DIAGNOSTICS }
@@ -71,62 +72,66 @@ private fun SettingsMain(
             .fillMaxSize()
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text("设置", style = MaterialTheme.typography.headlineSmall)
+        ScreenHeader(title = "设置", subtitle = "网关参数与订阅")
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("节点地址族", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ModeButton("自动", IpMode.AUTO, settings.ipMode, busy, vm::setMode)
-                    ModeButton("IPv6", IpMode.V6, settings.ipMode, busy, vm::setMode)
-                    ModeButton("IPv4", IpMode.V4, settings.ipMode, busy, vm::setMode)
-                    ModeButton("双栈", IpMode.DUAL, settings.ipMode, busy, vm::setMode)
-                }
+        SectionCard(title = "节点地址族") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ModeButton("自动", IpMode.AUTO, settings.ipMode, busy, vm::setMode)
+                ModeButton("IPv6", IpMode.V6, settings.ipMode, busy, vm::setMode)
+                ModeButton("IPv4", IpMode.V4, settings.ipMode, busy, vm::setMode)
+                ModeButton("双栈", IpMode.DUAL, settings.ipMode, busy, vm::setMode)
             }
+            Text(
+                "自动：探测本机 IPv6 可用性后选择节点出站地址族",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                SwitchRow(
-                    title = "IPv6 拦截",
-                    subtitle = "关闭后客户端可用 IPv6 直连",
-                    checked = settings.blockIpv6,
-                    enabled = !busy,
-                    onChange = vm::setBlockIpv6
-                )
-                SwitchRow(
-                    title = "开机自启",
-                    subtitle = "重启后自动启动网关",
-                    checked = settings.autoStart,
-                    enabled = !busy,
-                    onChange = vm::setAutoStart
-                )
-            }
+        SectionCard(title = "开关") {
+            SwitchRow(
+                title = "IPv6 拦截",
+                subtitle = "关闭后客户端可用 IPv6 直连",
+                checked = settings.blockIpv6,
+                enabled = !busy,
+                onChange = vm::setBlockIpv6
+            )
+            SwitchRow(
+                title = "开机自启",
+                subtitle = "重启后自动启动网关",
+                checked = settings.autoStart,
+                enabled = !busy,
+                onChange = vm::setAutoStart
+            )
         }
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("管理", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onSubscription, enabled = !busy) { Text("订阅管理") }
-                    OutlinedButton(onClick = onDiagnostics, enabled = !busy) { Text("诊断") }
-                }
-                OutlinedButton(
-                    onClick = { vm.installCore() },
-                    enabled = !busy,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("安装/更新核心") }
-            }
+        SectionCard(title = "管理") {
+            NavRow(
+                title = "订阅管理",
+                subtitle = settings.subscriptionUrl.ifBlank { "未设置订阅" },
+                onClick = onSubscription
+            )
+            NavRow(
+                title = "诊断",
+                subtitle = "内核状态 / root 命令 / 规则快照",
+                onClick = onDiagnostics
+            )
+            NavRow(
+                title = "安装 / 更新核心",
+                subtitle = "从 APK 资源重新解压内核与脚本",
+                onClick = { vm.installCore() }
+            )
         }
 
         message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text(
             "Mihomo Gateway v$versionName · 内核 mihomo",
-            style = MaterialTheme.typography.bodySmall
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -143,32 +148,43 @@ private fun SubscriptionPage(vm: SettingsViewModel, onBack: () -> Unit) {
             .fillMaxSize()
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        ScreenHeader(title = "订阅管理", subtitle = "导入 Clash 订阅并自动补全网关字段") {
             OutlinedButton(onClick = onBack) { Text("返回") }
-            Text("订阅管理", style = MaterialTheme.typography.headlineSmall)
         }
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = subUrl,
-                    onValueChange = { subUrl = it },
-                    label = { Text("订阅链接") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Button(onClick = { vm.importSubscription(subUrl) }, enabled = !busy) {
-                    Text("导入订阅")
-                }
+        SectionCard(title = "订阅链接") {
+            OutlinedTextField(
+                value = subUrl,
+                onValueChange = { subUrl = it },
+                label = { Text("https://…") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Button(
+                onClick = { vm.importSubscription(subUrl) },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("导入订阅") }
+            Text(
+                "当前订阅：${settings.subscriptionUrl.ifBlank { "未设置" }}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        SectionCard(title = "导入流程") {
+            listOf(
+                "下载并校验是否为 Clash 配置",
+                "写入 /data/adb/mihomo/config.yaml",
+                "自动补齐 external-ui / secret / redir-port 等字段",
+                "重启内核并等待 API 就绪"
+            ).forEachIndexed { index, step ->
                 Text(
-                    "当前订阅: ${settings.subscriptionUrl.ifBlank { "未设置" }}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    "导入后会：校验 Clash 配置 → 写入 config.yaml → 自动补全网关字段 → 重启内核",
-                    style = MaterialTheme.typography.bodySmall
+                    "${index + 1}. $step",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -190,9 +206,13 @@ private fun SwitchRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }

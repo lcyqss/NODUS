@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class OverviewViewModel(
@@ -23,13 +24,19 @@ class OverviewViewModel(
     private val _traffic = MutableStateFlow(Traffic(0, 0))
     val traffic: StateFlow<Traffic> = _traffic.asStateFlow()
 
+    private val _history = MutableStateFlow<List<Long>>(emptyList())
+    val history: StateFlow<List<Long>> = _history.asStateFlow()
+
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
     init {
         viewModelScope.launch { gateway.refresh() }
         viewModelScope.launch {
-            api.trafficFlow().catch { }.collect { _traffic.value = it }
+            api.trafficFlow().catch { }.collect { traffic ->
+                _traffic.value = traffic
+                _history.update { list -> (list + traffic.down).takeLast(60) }
+            }
         }
     }
 
