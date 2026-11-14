@@ -12,10 +12,12 @@ case "$1" in
   auto)
     IP_MODE=auto
     if has_v6; then VAL=ipv6-prefer; else VAL=ipv4-prefer; fi ;;
+  dual) IP_MODE=dual; VAL="" ;;
   v6)   IP_MODE=v6;   VAL=ipv6-prefer ;;
   v4)   IP_MODE=v4;   VAL=ipv4-prefer ;;
-  dual) IP_MODE=dual; VAL="" ;;
-  *) echo "用法: $0 auto|v6|v4|dual"; exit 1 ;;
+  v6-only) IP_MODE=v6-only; VAL=ipv6 ;;
+  v4-only) IP_MODE=v4-only; VAL=ipv4 ;;
+  *) echo "用法: $0 auto|dual|v6|v4|v6-only|v4-only"; exit 1 ;;
 esac
 
 [ -f "$CFG" ] || { echo "找不到配置"; exit 1; }

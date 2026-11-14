@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -126,7 +127,7 @@ private fun SettingsMain(
             SettingsRow(
                 title = "节点地址族",
                 subtitle = ipModeHint(settings.ipMode),
-                value = ipModeLabel(settings.ipMode),
+                value = settings.ipMode.label,
                 enabled = !busy,
                 onClick = { showIpMode = true }
             )
@@ -246,19 +247,9 @@ private fun SettingsMain(
     if (showIpMode) {
         OptionDialog(
             title = "节点地址族",
-            options = listOf(
-                IpMode.AUTO.name to "自动",
-                IpMode.V6.name to "IPv6",
-                IpMode.V4.name to "IPv4",
-                IpMode.DUAL.name to "双栈"
-            ),
+            options = IpMode.entries.map { it.name to it.label },
             selectedKey = settings.ipMode.name,
-            descriptions = mapOf(
-                IpMode.AUTO.name to "探测本机 IPv6 可用性后选择节点出站地址族",
-                IpMode.V6.name to "仅使用 IPv6 出站",
-                IpMode.V4.name to "仅使用 IPv4 出站",
-                IpMode.DUAL.name to "IPv4 / IPv6 同时可用"
-            ),
+            descriptions = IpMode.entries.associate { it.name to ipModeDescription(it) },
             onSelect = {
                 showIpMode = false
                 vm.setMode(IpMode.valueOf(it))
@@ -368,7 +359,11 @@ private fun OptionDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column {
+            Column(
+                Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 options.forEach { (key, label) ->
                     val selected = key == selectedKey
                     Row(
@@ -641,18 +636,24 @@ private fun formatTime(millis: Long): String =
     java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
         .format(java.util.Date(millis))
 
-private fun ipModeLabel(mode: IpMode): String = when (mode) {
-    IpMode.AUTO -> "自动"
-    IpMode.V6 -> "IPv6"
-    IpMode.V4 -> "IPv4"
-    IpMode.DUAL -> "双栈"
+private fun ipModeHint(mode: IpMode): String = when (mode) {
+    IpMode.AUTO -> "探测本机 IPv6，自动二选一"
+    IpMode.DUAL -> "由内核双栈择优"
+    IpMode.V6 -> "优先 AAAA，回落 IPv4"
+    IpMode.V4 -> "优先 A，回落 AAAA"
+    IpMode.V6_ONLY -> "只解析 AAAA（严格）"
+    IpMode.V4_ONLY -> "只解析 A（严格）"
 }
 
-private fun ipModeHint(mode: IpMode): String = when (mode) {
-    IpMode.AUTO -> "自动探测本机 IPv6 可用性"
-    IpMode.V6 -> "仅 IPv6 出站"
-    IpMode.V4 -> "仅 IPv4 出站"
-    IpMode.DUAL -> "IPv4 / IPv6 双栈"
+private fun ipModeDescription(mode: IpMode): String = when (mode) {
+    IpMode.AUTO ->
+        "启动或网络变化时探测本机 IPv6：可用则全节点 IPv6 优先，否则 IPv4 优先；切换会重载内核"
+    IpMode.DUAL ->
+        "不覆写节点的 ip-version，由内核同时解析 A / AAAA，连接时择优（mihomo 默认）"
+    IpMode.V6 -> "节点域名优先解析 AAAA，失败时回落到 IPv4"
+    IpMode.V4 -> "节点域名优先解析 A，失败时回落到 AAAA"
+    IpMode.V6_ONLY -> "只解析 AAAA，节点没有 IPv6 时无法连接（严格模式）"
+    IpMode.V4_ONLY -> "只解析 A，节点没有 IPv4 时无法连接（严格模式）"
 }
 
 private fun runtimeLabel(mode: String): String = when (mode) {

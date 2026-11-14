@@ -73,13 +73,7 @@ class GatewayControllerImpl(
     }
 
     override suspend fun setIpMode(mode: IpMode): Result<Unit> = mutex.withLock {
-        val arg = when (mode) {
-            IpMode.AUTO -> "auto"
-            IpMode.V6 -> "v6"
-            IpMode.V4 -> "v4"
-            IpMode.DUAL -> "dual"
-        }
-        val result = shell.run("sh $base/set-ipver.sh $arg")
+        val result = shell.run("sh $base/set-ipver.sh ${mode.wireArg}")
         if (result.code == 0) {
             _state.update { it.copy(mode = mode) }
             Result.success(Unit)
@@ -115,6 +109,8 @@ class GatewayControllerImpl(
             "v6" -> IpMode.V6
             "v4" -> IpMode.V4
             "dual" -> IpMode.DUAL
+            "v6-only", "ipv6" -> IpMode.V6_ONLY
+            "v4-only", "ipv4" -> IpMode.V4_ONLY
             else -> IpMode.AUTO
         }
         val block = map["BLOCK_IPV6"]?.trim() != "0"

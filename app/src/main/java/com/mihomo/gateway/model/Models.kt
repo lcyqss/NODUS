@@ -1,6 +1,21 @@
 package com.mihomo.gateway.model
 
-enum class IpMode { AUTO, V6, V4, DUAL }
+/**
+ * 节点出站地址族。
+ *
+ * - AUTO：启动/网络变化时探测本机 IPv6，自动在「IPv6 优先 / IPv4 优先」之间切换
+ * - DUAL：不覆写节点 ip-version，由内核同时解析 A/AAAA 择优
+ * - V6/V4：优先一种协议，另一种回落
+ * - V6_ONLY/V4_ONLY：严格只解析一种协议（无该协议地址的节点不可用）
+ */
+enum class IpMode(val label: String, val wireArg: String) {
+    AUTO("自动", "auto"),
+    DUAL("双栈", "dual"),
+    V6("IPv6 优先", "v6"),
+    V4("IPv4 优先", "v4"),
+    V6_ONLY("仅 IPv6", "v6-only"),
+    V4_ONLY("仅 IPv4", "v4-only")
+}
 
 data class VersionInfo(val version: String, val meta: Boolean)
 

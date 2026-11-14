@@ -68,7 +68,7 @@ class SettingsViewModel(
             _busy.value = true
             store.update { it.copy(ipMode = mode) }
             val result = gateway.setIpMode(mode)
-            _message.value = if (result.isSuccess) "已切换: ${mode.name}"
+            _message.value = if (result.isSuccess) "已切换: ${mode.label}"
             else "切换失败: ${result.exceptionOrNull()?.message}"
             _busy.value = false
         }

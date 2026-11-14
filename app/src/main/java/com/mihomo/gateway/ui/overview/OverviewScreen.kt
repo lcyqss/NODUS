@@ -130,7 +130,7 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
                 )
                 Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
             }
-            KeyValueRow("节点地址族", state.mode.name)
+            KeyValueRow("节点地址族", state.mode.label)
             KeyValueRow("IPv6 拦截", if (state.blockIpv6) "开" else "关")
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
