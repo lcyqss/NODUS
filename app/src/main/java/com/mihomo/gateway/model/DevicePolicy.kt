@@ -24,6 +24,7 @@ data class DevicePolicy(
     val primary: DeviceSelector = DeviceSelector(),
     val fallback: DeviceSelector = DeviceSelector(),
     val maxDelayMs: Int = 0,
+    val scheduleIntervalSec: Int = 0,
     val enabled: Boolean = true
 )
 
@@ -138,6 +139,7 @@ object DevicePolicyCodec {
                     primary = decodeSelector(obj.optJSONObject("primary")),
                     fallback = decodeSelector(obj.optJSONObject("fallback")),
                     maxDelayMs = obj.optInt("maxDelayMs", 0),
+                    scheduleIntervalSec = obj.optInt("scheduleIntervalSec", 0),
                     enabled = obj.optBoolean("enabled", true)
                 )
             }
@@ -155,6 +157,7 @@ object DevicePolicyCodec {
                     .put("primary", encodeSelector(item.primary))
                     .put("fallback", encodeSelector(item.fallback))
                     .put("maxDelayMs", item.maxDelayMs)
+                    .put("scheduleIntervalSec", item.scheduleIntervalSec)
                     .put("enabled", item.enabled)
             )
         }

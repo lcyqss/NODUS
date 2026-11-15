@@ -103,15 +103,12 @@ class GatewayService : Service() {
             }
         }
 
-        // 设备策略：延迟阈值调度，间隔可在设备策略页设置
+        // 设备策略：延迟阈值调度。每 15 秒 tick 一次，按设备各自的间隔决定是否评估
         scope.launch {
             while (isActive) {
                 runCatching { AppContainer.devicePolicies.evaluateRouting() }
                     .onFailure { Log.w(TAG, "device policy routing: ${it.message}") }
-                val seconds = runCatching {
-                    AppContainer.settings.settings.first().policyIntervalSec
-                }.getOrDefault(60).coerceIn(30, 300)
-                delay(seconds * 1000L)
+                delay(15_000L)
             }
         }
 

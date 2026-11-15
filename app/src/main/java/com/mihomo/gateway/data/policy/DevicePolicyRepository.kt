@@ -76,6 +76,9 @@ class DevicePolicyRepositoryImpl(
     /** 上次写入配置的 MAC→IP 映射；null 表示尚未从现有配置读取。 */
     private var appliedIps: Map<String, String>? = null
 
+    /** 每台设备上次执行延迟评估的时间（毫秒），用于按设备间隔调度。 */
+    private val lastEvaluatedAt = mutableMapOf<String, Long>()
+
     override val policies: Flow<List<DevicePolicy>> =
         settings.settings.map { DevicePolicyCodec.decode(it.devicePolicies) }
 
@@ -171,14 +174,20 @@ class DevicePolicyRepositoryImpl(
      */
     override suspend fun evaluateRouting(): Result<Int> = withContext(Dispatchers.IO) {
         if (!coreRunning()) return@withContext Result.success(0)
+        val now = System.currentTimeMillis()
+        val defaultSec = settings.settings.first().policyIntervalSec.coerceIn(30, 300)
         val plans = runtime().filter {
             it.policy.enabled &&
                 it.policy.maxDelayMs > 0 &&
                 it.primaryNodes.isNotEmpty() &&
                 it.fallbackNodes.isNotEmpty()
+        }.filter { plan ->
+            val interval = plan.policy.scheduleIntervalSec.takeIf { it > 0 } ?: defaultSec
+            now - (lastEvaluatedAt[plan.policy.id] ?: 0L) >= interval * 1000L
         }
         var changed = 0
         plans.forEach { plan ->
+            lastEvaluatedAt[plan.policy.id] = now
             val baseName = groupName(plan.policy)
             val delays = api.groupDelay("${baseName}_p").getOrNull().orEmpty()
             val best = delays.values.filter { it > 0 }.minOrNull() ?: -1

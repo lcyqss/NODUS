@@ -409,6 +409,7 @@ private fun PolicyCard(
                     append(" · 主 ").append(rt.primaryNodes.size).append(" / 回落 ").append(rt.fallbackNodes.size).append(" 节点")
                 }
                 if (policy.maxDelayMs > 0) append(" · ≤").append(policy.maxDelayMs).append("ms")
+                if (policy.scheduleIntervalSec > 0) append(" · 间隔 ").append(policy.scheduleIntervalSec).append("s")
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -442,6 +443,7 @@ private fun PolicyEditorDialog(
     var fallbackInvalid by remember { mutableStateOf(false) }
     var enabled by remember { mutableStateOf(draft.enabled) }
     var maxDelay by remember { mutableStateOf(if (draft.maxDelayMs > 0) draft.maxDelayMs.toString() else "") }
+    var scheduleInterval by remember { mutableStateOf(if (draft.scheduleIntervalSec > 0) draft.scheduleIntervalSec.toString() else "") }
     var confirmDelete by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -502,6 +504,13 @@ private fun PolicyEditorDialog(
                     singleLine = true
                 )
 
+                OutlinedTextField(
+                    value = scheduleInterval,
+                    onValueChange = { scheduleInterval = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("调度间隔（秒，0=跟随全局）") },
+                    singleLine = true
+                )
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("启用", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.weight(1f))
@@ -520,6 +529,7 @@ private fun PolicyEditorDialog(
                             primary = DeviceSelector(primaryExpr),
                             fallback = DeviceSelector(fallbackExpr),
                             maxDelayMs = maxDelay.toIntOrNull() ?: 0,
+                            scheduleIntervalSec = scheduleInterval.toIntOrNull() ?: 0,
                             enabled = enabled
                         )
                     )
