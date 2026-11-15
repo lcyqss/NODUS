@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,6 +41,7 @@ import com.mihomo.gateway.model.ConnectionInfo
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.icons.GwIcon
 import com.mihomo.gateway.ui.components.ScreenHeader
+import com.mihomo.gateway.ui.components.SearchBar
 import com.mihomo.gateway.ui.components.SegmentedControl
 
 private data class TopoRow(
@@ -96,14 +96,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        ScreenHeader(
-            title = "连接",
-            subtitle = if (mode == 0) {
-                "${data.size} 条 · ↑${formatBytes(data.sumOf { it.upload })} ↓${formatBytes(data.sumOf { it.download })}"
-            } else {
-                "设备 → 节点 → 规则"
-            }
-        ) {
+        ScreenHeader(title = "连接") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HeaderIcon(GwIcon.Logs, selected = mode == 0) { mode = 0 }
                 HeaderIcon(GwIcon.Tree, selected = mode == 1) { mode = 1 }
@@ -123,17 +116,23 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
 
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text(if (mode == 0) "搜索域名 / 客户端 IP / 规则" else "过滤客户端 / 节点 / 规则") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+        Text(
+            "${data.size} 条 · ↑${formatBytes(data.sumOf { it.upload })} ↓${formatBytes(data.sumOf { it.download })}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
+
+        SearchBar(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = if (mode == 0) "搜索域名 / 客户端 IP / 规则" else "过滤客户端 / 节点 / 规则"
+        )
+
+        Spacer(Modifier.height(6.dp))
 
         if (deviceHistory.isNotEmpty()) {
             RecentDevices(
@@ -142,7 +141,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
                 selected = deviceFilter,
                 onSelect = { ip -> deviceFilter = if (ip == null || deviceFilter == ip) null else ip }
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
         }
 
         state.error?.let {

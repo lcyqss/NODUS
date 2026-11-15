@@ -165,7 +165,7 @@ fun SubPageHeader(
             GwIcon(GwIcon.Back, tint = MaterialTheme.colorScheme.onSurface)
         }
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.headlineSmall)
+            Text(title, style = MaterialTheme.typography.headlineMedium)
             if (subtitle != null) {
                 Text(
                     subtitle,

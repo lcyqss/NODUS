@@ -111,7 +111,7 @@ private fun SettingsMain(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        ScreenHeader(title = "设置", subtitle = "网关参数与订阅")
+        ScreenHeader(title = "设置")
 
         message?.let {
             Spacer(Modifier.height(8.dp))

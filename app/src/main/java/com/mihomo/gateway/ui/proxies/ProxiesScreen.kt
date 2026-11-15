@@ -134,7 +134,15 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
         }
     }
 
-    BackHandler(enabled = showSubPage) { showSubPage = false }
+    BackHandler(enabled = showSubPage || searchOpen) {
+        when {
+            showSubPage -> showSubPage = false
+            searchOpen -> {
+                searchOpen = false
+                query = ""
+            }
+        }
+    }
 
     if (showSubPage) {
         SubscriptionManagementPage(vm = subVm, onBack = { showSubPage = false })

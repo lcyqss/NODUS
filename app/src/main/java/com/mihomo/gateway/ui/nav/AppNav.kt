@@ -1,9 +1,13 @@
 package com.mihomo.gateway.ui.nav
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -39,16 +43,29 @@ private val items = listOf(
 fun AppNav() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
+    // 次级 Tab 按返回先回首页；页面内部的 BackHandler（如设置二级页、订阅管理）在组合顺序上更靠后，优先处理
+    BackHandler(enabled = tab != 0) { tab = 0 }
+
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar {
-                items.forEachIndexed { index, item ->
-                    NavigationBarItem(
-                        selected = tab == index,
-                        onClick = { tab = index },
-                        icon = { GwIcon(item.icon, modifier = Modifier.padding(2.dp)) },
-                        label = { Text(item.label) }
-                    )
+            Column {
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                )
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp
+                ) {
+                    items.forEachIndexed { index, item ->
+                        NavigationBarItem(
+                            selected = tab == index,
+                            onClick = { tab = index },
+                            icon = { GwIcon(item.icon, modifier = Modifier.padding(2.dp)) },
+                            label = { Text(item.label) }
+                        )
+                    }
                 }
             }
         }

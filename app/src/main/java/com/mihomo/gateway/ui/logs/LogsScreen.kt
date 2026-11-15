@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -39,6 +38,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.LogEntry
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.ScreenHeader
+import com.mihomo.gateway.ui.components.SearchBar
 import com.mihomo.gateway.ui.components.SegmentedControl
 import com.mihomo.gateway.ui.components.SubPageHeader
 import com.mihomo.gateway.ui.components.Tag
@@ -93,12 +93,10 @@ fun LogsScreen(
         Spacer(Modifier.height(10.dp))
 
         if (tab == 0) {
-            OutlinedTextField(
+            SearchBar(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text("搜索日志") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                placeholder = "搜索日志"
             )
             Spacer(Modifier.height(6.dp))
             val filtered = remember(logs, query) {

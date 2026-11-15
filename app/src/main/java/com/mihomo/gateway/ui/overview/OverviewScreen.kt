@@ -1,5 +1,6 @@
 package com.mihomo.gateway.ui.overview
 
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,14 +25,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.ui.components.KeyValueRow
@@ -39,6 +54,8 @@ import com.mihomo.gateway.ui.components.SectionCard
 import com.mihomo.gateway.ui.components.SegmentedControl
 import com.mihomo.gateway.ui.components.TrafficChart
 import com.mihomo.gateway.ui.icons.GwIcon
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 private val UpColor = Color(0xFF0F766E)
 private val DownColor = Color(0xFF4F46E5)
@@ -56,6 +73,7 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
     val runtimeMode by vm.runtimeMode.collectAsState()
     val today by vm.today.collectAsState()
 
+    PullRefreshBox(onRefresh = { vm.refresh() }) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -82,22 +100,11 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
                         else MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        when {
-                            busy -> "请稍候"
-                            state.running -> "内核 ${state.version.ifBlank { "-" }} · 点击左侧停止"
-                            else -> "内核 ${state.version.ifBlank { "-" }} · 点击左侧启动"
-                        },
+                        if (busy) "请稍候" else "内核 ${state.version.ifBlank { "-" }}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
-                    )
-                }
-                IconButton(onClick = { vm.refresh() }, enabled = !busy) {
-                    GwIcon(
-                        GwIcon.Refresh,
-                        Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -179,15 +186,76 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
             }
 
         }
-
-        Text(
-            "数据来自 mihomo 本地 API（/traffic、/memory、/connections）",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    }
     }
 }
 
+
+@Composable
+private fun PullRefreshBox(onRefresh: () -> Unit, content: @Composable () -> Unit) {
+    val density = LocalDensity.current
+    val threshold = with(density) { 56.dp.toPx() }
+    val maxPull = with(density) { 96.dp.toPx() }
+    var pull by remember { mutableFloatStateOf(0f) }
+    var refreshing by remember { mutableStateOf(false) }
+
+    val nested = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.Drag && available.y < 0f && pull > 0f) {
+                    val consumed = available.y.coerceAtLeast(-pull)
+                    pull = (pull + consumed).coerceAtLeast(0f)
+                    return Offset(0f, consumed)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.Drag && available.y > 0f && !refreshing) {
+                    pull = (pull + available.y * 0.55f).coerceAtMost(maxPull)
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (pull <= 0f) return Velocity.Zero
+                if (pull >= threshold && !refreshing) {
+                    refreshing = true
+                    onRefresh()
+                    pull = threshold
+                    delay(700)
+                    refreshing = false
+                }
+                animate(pull, 0f) { value, _ -> pull = value }
+                return Velocity(0f, available.y)
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxSize().nestedScroll(nested)) {
+        Box(Modifier.offset { IntOffset(0, pull.roundToInt()) }) { content() }
+        when {
+            refreshing -> CircularProgressIndicator(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 8.dp)
+                    .size(20.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+            pull > 0f -> CircularProgressIndicator(
+                progress = (pull / threshold).coerceIn(0f, 1f),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 8.dp)
+                    .size(20.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
 @Composable
 private fun LegendDot(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -65,6 +65,7 @@ import com.mihomo.gateway.model.RuleKind
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SegmentedControl
+import com.mihomo.gateway.ui.components.SearchBar
 import com.mihomo.gateway.ui.icons.GwIcon
 import kotlinx.coroutines.delay
 
@@ -89,8 +90,7 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader(
-            title = "分流",
-            subtitle = "自定义规则优先于订阅规则 · 长按拖动排序"
+            title = "分流"
         )
 
         Spacer(Modifier.height(10.dp))
@@ -419,12 +419,10 @@ private fun BuiltInRulesList(rules: List<RuleInfo>) {
         }
     }
 
-    OutlinedTextField(
+    SearchBar(
         value = query,
         onValueChange = { query = it },
-        placeholder = { Text("搜索域名或策略") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
+        placeholder = "搜索域名或策略"
     )
 
     Spacer(Modifier.height(6.dp))
@@ -705,12 +703,10 @@ private fun TargetPickerDialog(
         title = { Text("选择目标策略") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                SearchBar(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("搜索策略或节点名") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = "搜索策略或节点名"
                 )
                 LazyColumn(
                     Modifier.heightIn(max = 320.dp),
