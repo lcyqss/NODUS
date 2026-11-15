@@ -102,18 +102,20 @@ class DevicePolicyRepositoryImpl(
     }
 
     override suspend fun runtime(): List<PolicyRuntime> = withContext(Dispatchers.IO) {
+        val current = settings.settings.first()
+        val policies = DevicePolicyCodec.decode(current.devicePolicies)
+        if (policies.isEmpty()) return@withContext emptyList()
         val allNodes = catalog.nodes()
         val allTags = tagRepository.allTags(allNodes)
-        val missingTag = DevicePolicyCodec.decode(settings.settings.first().devicePolicies)
-            .any { policy ->
-                (exprIds(policy.primary.expr) + exprIds(policy.fallback.expr)).any { tagId ->
-                    allTags.none { it.id == tagId }
-                }
+        val missingTag = policies.any { policy ->
+            (exprIds(policy.primary.expr) + exprIds(policy.fallback.expr)).any { tagId ->
+                allTags.none { it.id == tagId }
             }
+        }
         val neighborsByMac = neighbors.resolve().values
             .filter { it.mac.isNotBlank() && it.ip.isNotBlank() }
             .groupBy { it.mac.lowercase() }
-        DevicePolicyCodec.decode(settings.settings.first().devicePolicies).map { policy ->
+        policies.map { policy ->
             val primary = allNodes.filter { node ->
                 tagRepository.matches(allTags, policy.primary.expr, node)
             }
@@ -157,12 +159,17 @@ class DevicePolicyRepositoryImpl(
 
     override suspend fun apply(): Result<String> = withContext(Dispatchers.IO) {
         val applied = applyToConfig()
-        if (applied.isFailure) return@withContext Result.failure(applied.exceptionOrNull()!!)
+        if (applied.isFailure) {
+            // 写入/设备离线失败后不能相信旧的已应用映射，否则后续 sync 会误判为无变化
+            appliedIps = null
+            return@withContext Result.failure(applied.exceptionOrNull()!!)
+        }
         if (!coreRunning()) return@withContext Result.success("已写入配置（内核未运行）")
         val reload = api.reloadConfigs()
         if (reload.isFailure) {
             shell.run("cp -f $base/config.yaml.bak.policy $base/config.yaml", 20_000)
             api.reloadConfigs()
+            appliedIps = null
             return@withContext Result.failure(
                 IllegalStateException("重载失败，已回滚: ${reload.exceptionOrNull()?.message}")
             )
@@ -177,6 +184,10 @@ class DevicePolicyRepositoryImpl(
      */
     override suspend fun evaluateRouting(): Result<Int> = withContext(Dispatchers.IO) {
         if (!coreRunning()) return@withContext Result.success(0)
+        val current = DevicePolicyCodec.decode(settings.settings.first().devicePolicies)
+        if (current.none { it.enabled && it.maxDelayMs > 0 }) {
+            return@withContext Result.success(0)
+        }
         val now = System.currentTimeMillis()
         val defaultSec = settings.settings.first().policyIntervalSec.coerceIn(30, 300)
         val plans = runtime().filter {
@@ -201,6 +212,8 @@ class DevicePolicyRepositoryImpl(
     }
 
     override suspend fun applyToConfig(): Result<Unit> = withContext(Dispatchers.IO) {
+        // 任何一次写入失败/中途退出都让已应用映射失效，下次 sync 会重试
+        appliedIps = null
         val original = shell.run("cat $base/config.yaml 2>/dev/null").stdout
         if (original.isBlank()) return@withContext Result.failure(IllegalStateException("读取配置失败"))
 
@@ -225,6 +238,14 @@ class DevicePolicyRepositoryImpl(
         text = DevicePolicyConfig.injectGroups(text, groups)
         text = DevicePolicyConfig.injectRules(text, rules)
 
+        // 内容没有变化就不要重写配置/备份，避免无意义的 IO 与 flash 写入
+        if (text.trimEnd('\n') == original.trimEnd('\n')) {
+            appliedIps = validPlans.mapNotNull { plan ->
+                plan.ip?.let { plan.policy.id to it }
+            }.toMap()
+            return@withContext Result.success(Unit)
+        }
+
         val cache = File(context.cacheDir, "config.device-policy.yaml")
         runCatching { cache.writeText(text) }
             .getOrElse { return@withContext Result.failure(it) }
@@ -243,6 +264,9 @@ class DevicePolicyRepositoryImpl(
     }
 
     override suspend fun syncIfNeeded(): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (DevicePolicyCodec.decode(settings.settings.first().devicePolicies).none { it.enabled }) {
+            return@withContext Result.success(false)
+        }
         val plans = runtime().filter {
             it.policy.enabled && it.targetGroup != null && it.ip != null
         }
@@ -252,12 +276,16 @@ class DevicePolicyRepositoryImpl(
         if (!changed) return@withContext Result.success(false)
 
         val applied = applyToConfig()
-        if (applied.isFailure) return@withContext Result.failure(applied.exceptionOrNull()!!)
+        if (applied.isFailure) {
+            appliedIps = null
+            return@withContext Result.failure(applied.exceptionOrNull()!!)
+        }
         if (coreRunning()) {
             val reload = api.reloadConfigs()
             if (reload.isFailure) {
                 shell.run("cp -f $base/config.yaml.bak.policy $base/config.yaml", 20_000)
                 api.reloadConfigs()
+                appliedIps = null
                 return@withContext Result.failure(
                     IllegalStateException("设备 IP 变化后重载失败: ${reload.exceptionOrNull()?.message}")
                 )
@@ -336,9 +364,9 @@ class DevicePolicyRepositoryImpl(
 
     private fun pickIp(ips: List<String>): String? {
         if (ips.isEmpty()) return null
-        return ips.firstOrNull { it.matches(IPV4) }
-            ?: ips.firstOrNull { it.contains(":") && !it.startsWith("fe80", true) }
-            ?: ips.firstOrNull { it.contains(":") }
+        // 当前产品拦截客户端 IPv6；只有 link-local 时视为设备离线，
+        // 避免生成无法加载的 SRC-IP-CIDR6 规则。
+        return ips.firstOrNull { IPV4.matches(it) }
     }
 
     private fun ruleLine(ip: String, target: String?): String {

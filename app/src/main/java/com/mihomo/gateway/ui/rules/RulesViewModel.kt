@@ -88,11 +88,10 @@ class RulesViewModel(
         }
     }
 
-    fun add(kind: RuleKind, value: String, target: String, noResolve: Boolean) {
+    fun add(kind: RuleKind, value: String, target: String, noResolve: Boolean): Result<Unit> =
         ruleRepository.add(kind, value, target, noResolve)
             .onSuccess { _state.value = _state.value.copy(message = "已添加，记得点右上角「应用」") }
             .onFailure { _state.value = _state.value.copy(message = "添加失败: ${it.message}") }
-    }
 
     fun addTemplate(name: String) {
         val items = TEMPLATES[name] ?: return
@@ -150,11 +149,10 @@ class RulesViewModel(
         ruleRepository.update(rule.copy(enabled = enabled))
     }
 
-    fun update(rule: CustomRule) {
+    fun update(rule: CustomRule): Result<Unit> =
         ruleRepository.update(rule)
             .onSuccess { _state.value = _state.value.copy(message = "已修改，记得点右上角「应用」") }
             .onFailure { _state.value = _state.value.copy(message = "修改失败: ${it.message}") }
-    }
 
     fun delete(id: String) {
         ruleRepository.delete(id)

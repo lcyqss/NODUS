@@ -70,12 +70,23 @@ class NodeCatalogRepositoryImpl(
     private val settings: SettingsStore
 ) : NodeCatalogRepository {
 
+    private val lock = Any()
+    private var cacheKey: String? = null
+    private var cached: List<NodeInfo> = emptyList()
+
     override suspend fun nodes(): List<NodeInfo> = withContext(Dispatchers.IO) {
         val activeId = settings.settings.first().activeSubId
         if (activeId.isBlank()) return@withContext emptyList()
         val file = File(File(context.filesDir, "profiles"), "$activeId.yaml")
         if (!file.exists()) return@withContext emptyList()
-        parse(file.readText())
+        val key = "${file.absolutePath}:${file.lastModified()}:${file.length()}"
+        synchronized(lock) {
+            if (key == cacheKey) return@synchronized cached
+            val parsed = parse(file.readText())
+            cacheKey = key
+            cached = parsed
+            parsed
+        }
     }
 
     private fun parse(text: String): List<NodeInfo> {

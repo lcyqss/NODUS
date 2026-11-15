@@ -2,8 +2,11 @@ package com.mihomo.gateway.data.policy
 
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.model.ConditionTemplateCodec
+import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.DevicePolicyCodec
+import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.NodeTagCodec
+import com.mihomo.gateway.data.tags.TagExprParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -44,7 +47,9 @@ class PolicyBackupService(
             if (root.optInt("schema", 1) != 1) {
                 return@withContext Result.failure(IllegalArgumentException("不支持的备份版本"))
             }
-            val importedPolicies = DevicePolicyCodec.decode(root.optJSONArray("policies")?.toString().orEmpty())
+            val importedPolicies = dedupeByMac(
+                DevicePolicyCodec.decode(root.optJSONArray("policies")?.toString().orEmpty())
+            )
             val importedTags = NodeTagCodec.decode(root.optJSONArray("tags")?.toString().orEmpty())
                 .filterNot { it.builtin }
             val importedTemplates = ConditionTemplateCodec.decode(
@@ -52,19 +57,24 @@ class PolicyBackupService(
             )
 
             val current = settings.settings.first()
-            val policies = if (merge) {
-                mergeById(
-                    DevicePolicyCodec.decode(current.devicePolicies),
-                    importedPolicies,
-                    { it.id }
-                )
-            } else {
-                importedPolicies
-            }
+            val policies = dedupeByMac(
+                if (merge) {
+                    mergeById(
+                        DevicePolicyCodec.decode(current.devicePolicies),
+                        importedPolicies,
+                        { it.id }
+                    )
+                } else {
+                    importedPolicies
+                }
+            )
             val tags = if (merge) {
                 mergeById(NodeTagCodec.decode(current.nodeTags), importedTags, { it.id })
             } else {
                 importedTags
+            }
+            if (hasTagCycle(tags)) {
+                return@withContext Result.failure(IllegalArgumentException("备份中的标签存在循环引用"))
             }
             val templates = if (merge) {
                 mergeById(
@@ -91,6 +101,26 @@ class PolicyBackupService(
                 )
             )
         }
+
+    /** 同一 MAC 只保留一条，后出现者覆盖前者。 */
+    private fun dedupeByMac(list: List<DevicePolicy>): List<DevicePolicy> {
+        val map = LinkedHashMap<String, DevicePolicy>()
+        list.forEach { map[it.mac.lowercase()] = it }
+        return map.values.toList()
+    }
+
+    /** 导入的标签不能形成循环引用，否则求值会一直为空。 */
+    private fun hasTagCycle(tags: List<NodeTag>): Boolean {
+        val byId = tags.associateBy { it.id }
+        fun visit(tag: NodeTag, stack: Set<String>): Boolean {
+            if (tag.id in stack) return true
+            val expr = tag.expr ?: return false
+            return TagExprParser.ids(expr).any { refId ->
+                byId[refId]?.let { visit(it, stack + tag.id) } ?: false
+            }
+        }
+        return tags.any { visit(it, emptySet()) }
+    }
 
     private fun <T> mergeById(existing: List<T>, imported: List<T>, id: (T) -> String): List<T> {
         val map = LinkedHashMap<String, T>()

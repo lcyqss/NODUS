@@ -197,7 +197,6 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
             onDismiss = { showAdd = false },
             onSave = { kind, value, target, noResolve ->
                 vm.add(kind, value, target, noResolve)
-                showAdd = false
             }
         )
     }
@@ -216,7 +215,6 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
                         noResolve = noResolve
                     )
                 )
-                editingRule = null
             }
         )
     }
@@ -630,7 +628,7 @@ private fun AddRuleDialog(
     targets: List<String>,
     initial: CustomRule?,
     onDismiss: () -> Unit,
-    onSave: (RuleKind, String, String, Boolean) -> Unit
+    onSave: (RuleKind, String, String, Boolean) -> Result<Unit>
 ) {
     var kind by remember { mutableStateOf(initial?.kind ?: RuleKind.DOMAIN) }
     var value by remember { mutableStateOf(initial?.value.orEmpty()) }
@@ -640,6 +638,7 @@ private fun AddRuleDialog(
     var noResolve by remember { mutableStateOf(initial?.noResolve ?: kind.needsNoResolve) }
     var kindMenu by remember { mutableStateOf(false) }
     var showTargetPicker by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -730,10 +729,26 @@ private fun AddRuleDialog(
                     Text("no-resolve（IP 规则建议开启）", style = MaterialTheme.typography.bodySmall)
                     Switch(checked = noResolve, onCheckedChange = { noResolve = it })
                 }
+                error?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(kind, value, target, noResolve) }) { Text("保存") }
+            TextButton(
+                onClick = {
+                    if (value.isBlank()) {
+                        error = "值不能为空"
+                        return@TextButton
+                    }
+                    val result = onSave(kind, value.trim(), target, noResolve)
+                    if (result.isSuccess) {
+                        onDismiss()
+                    } else {
+                        error = result.exceptionOrNull()?.message ?: "保存失败"
+                    }
+                }
+            ) { Text("保存") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("取消") }

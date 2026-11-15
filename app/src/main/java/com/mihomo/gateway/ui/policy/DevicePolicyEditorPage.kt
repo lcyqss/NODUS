@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -85,7 +86,7 @@ fun DevicePolicyEditorPage(
 
     BackHandler(onBack = onBack)
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().imePadding()) {
         SubPageHeader(
             title = if (draft.mac.isBlank()) "添加设备策略" else "编辑设备策略",
             subtitle = "按设备 MAC 生效，条件不满足时回落",
