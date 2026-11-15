@@ -468,3 +468,8 @@
 - TPROXY6 增加 UDP，排除 DNS 与 DHCPv6
 - watchdog 看护 v6ra/v6dns/v6dhcp
 - 设备策略支持多 IPv6 源地址
+## 47. v2.43.1 UDP/QUIC 验证
+
+- QUIC UDP IPv6 已进入 mihomo
+- TPROXY 端口级看护
+- 记录临时 IPv6 地址导致策略 best-effort 的限制

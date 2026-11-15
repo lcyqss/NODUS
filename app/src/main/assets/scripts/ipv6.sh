@@ -229,10 +229,16 @@ ensure() {
   pidof v6ra >/dev/null 2>&1 || NEED=1
   pidof v6dns >/dev/null 2>&1 || NEED=1
   [ -x "$DHCP" ] && ! pidof v6dhcp >/dev/null 2>&1 && NEED=1
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn 2>/dev/null | grep -q "\[$ULA_ADDR\]:53" || NEED=1
+    ss -lun 2>/dev/null | grep -q ":547" || NEED=1
+    ss -ltn 2>/dev/null | grep -q ":7895" || NEED=1
+  fi
   if [ "$NEED" = "1" ]; then
     log "ensure: entry incomplete, restarting"
     enable
   fi
+  return 0
 }
 
 status() {
