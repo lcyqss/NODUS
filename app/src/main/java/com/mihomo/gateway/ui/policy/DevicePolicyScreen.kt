@@ -93,6 +93,30 @@ fun DevicePolicyScreen(
         return
     }
 
+    editing?.let { draft ->
+        DevicePolicyEditorPage(
+            draft = draft,
+            devices = devices,
+            tags = tags,
+            templates = templates,
+            busy = busy,
+            matchCount = { expr -> vm.matchCount(expr) },
+            matchNodes = { expr -> vm.matchNodes(expr) },
+            onSaveTemplate = { name, expr -> vm.saveTemplate(name, expr) },
+            onDeleteTemplate = { vm.deleteTemplate(it) },
+            onBack = { editing = null },
+            onSave = {
+                editing = null
+                vm.save(it)
+            },
+            onDelete = {
+                editing = null
+                vm.delete(draft.id)
+            }
+        )
+        return
+    }
+
     val runtimeById = runtime.associateBy { it.policy.id }
 
     Column(
@@ -220,29 +244,6 @@ fun DevicePolicyScreen(
         }
 
         Spacer(Modifier.height(12.dp))
-    }
-
-    editing?.let { draft ->
-        PolicyEditorDialog(
-            draft = draft,
-            devices = devices,
-            tags = tags,
-            busy = busy,
-            matchCount = { expr -> vm.matchCount(expr) },
-            matchNodes = { expr -> vm.matchNodes(expr) },
-            templates = templates,
-            onSaveTemplate = { name, expr -> vm.saveTemplate(name, expr) },
-            onDeleteTemplate = { vm.deleteTemplate(it) },
-            onDismiss = { editing = null },
-            onSave = {
-                editing = null
-                vm.save(it)
-            },
-            onDelete = {
-                editing = null
-                vm.delete(draft.id)
-            }
-        )
     }
 
     if (showBackup) {
@@ -416,193 +417,6 @@ private fun PolicyCard(
         )
         runtime?.error?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        }
-    }
-}
-
-@Composable
-private fun PolicyEditorDialog(
-    draft: DevicePolicy,
-    devices: List<DeviceTarget>,
-    tags: List<NodeTag>,
-    busy: Boolean,
-    matchCount: (TagExpr?) -> Int,
-    matchNodes: (TagExpr?) -> List<NodeInfo>,
-    templates: List<ConditionTemplate>,
-    onSaveTemplate: (String, TagExpr) -> Unit,
-    onDeleteTemplate: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onSave: (DevicePolicy) -> Unit,
-    onDelete: () -> Unit
-) {
-    var mac by remember { mutableStateOf(draft.mac) }
-    var label by remember { mutableStateOf(draft.label) }
-    var primaryExpr by remember { mutableStateOf(draft.primary.expr) }
-    var fallbackExpr by remember { mutableStateOf(draft.fallback.expr) }
-    var primaryInvalid by remember { mutableStateOf(false) }
-    var fallbackInvalid by remember { mutableStateOf(false) }
-    var enabled by remember { mutableStateOf(draft.enabled) }
-    var maxDelay by remember { mutableStateOf(if (draft.maxDelayMs > 0) draft.maxDelayMs.toString() else "") }
-    var scheduleInterval by remember { mutableStateOf(if (draft.scheduleIntervalSec > 0) draft.scheduleIntervalSec.toString() else "") }
-    var confirmDelete by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (draft.mac.isBlank()) "添加设备策略" else "编辑设备策略") },
-        text = {
-            Column(
-                Modifier
-                    .height(460.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                DevicePicker(
-                    devices = devices,
-                    selectedMac = mac,
-                    onPick = { target ->
-                        mac = target.mac
-                        if (label.isBlank()) label = target.hostname ?: target.mac
-                    }
-                )
-                OutlinedTextField(
-                    value = label,
-                    onValueChange = { label = it },
-                    label = { Text("备注名称（可留空）") },
-                    singleLine = true
-                )
-
-                ConditionSection(
-                    title = "优先条件",
-                    initial = draft.primary.expr,
-                    tags = tags,
-                    matchCount = matchCount,
-                    matchNodes = matchNodes,
-                    templates = templates,
-                    onSaveTemplate = onSaveTemplate,
-                    onDeleteTemplate = onDeleteTemplate,
-                    onExprChange = { primaryExpr = it },
-                    onInvalidChange = { primaryInvalid = it }
-                )
-
-                ConditionSection(
-                    title = "回落条件",
-                    initial = draft.fallback.expr,
-                    tags = tags,
-                    matchCount = matchCount,
-                    matchNodes = matchNodes,
-                    templates = templates,
-                    onSaveTemplate = onSaveTemplate,
-                    onDeleteTemplate = onDeleteTemplate,
-                    onExprChange = { fallbackExpr = it },
-                    onInvalidChange = { fallbackInvalid = it }
-                )
-
-                OutlinedTextField(
-                    value = maxDelay,
-                    onValueChange = { maxDelay = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("延迟阈值（毫秒，0=只按存活回落）") },
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = scheduleInterval,
-                    onValueChange = { scheduleInterval = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("调度间隔（秒，0=跟随全局）") },
-                    singleLine = true
-                )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("启用", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.weight(1f))
-                    Switch(checked = enabled, onCheckedChange = { enabled = it })
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = !busy && mac.isNotBlank() && !primaryInvalid && !fallbackInvalid,
-                onClick = {
-                    onSave(
-                        draft.copy(
-                            mac = mac.lowercase(),
-                            label = label.trim(),
-                            primary = DeviceSelector(primaryExpr),
-                            fallback = DeviceSelector(fallbackExpr),
-                            maxDelayMs = maxDelay.toIntOrNull() ?: 0,
-                            scheduleIntervalSec = scheduleInterval.toIntOrNull() ?: 0,
-                            enabled = enabled
-                        )
-                    )
-                }
-            ) { Text("保存并应用") }
-        },
-        dismissButton = {
-            Row {
-                if (draft.mac.isNotBlank()) {
-                    TextButton(onClick = { confirmDelete = true }, enabled = !busy) {
-                        Text("删除", color = MaterialTheme.colorScheme.error)
-                    }
-                    Spacer(Modifier.width(4.dp))
-                }
-                TextButton(onClick = onDismiss) { Text("取消") }
-            }
-        }
-    )
-
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("删除策略？") },
-            text = { Text("将移除该设备的出口策略，之后它按普通规则走。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    onDelete()
-                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("取消") }
-            }
-        )
-    }
-}
-
-@Composable
-private fun DevicePicker(
-    devices: List<DeviceTarget>,
-    selectedMac: String,
-    onPick: (DeviceTarget) -> Unit
-) {
-    var menu by remember { mutableStateOf(false) }
-    val selected = devices.firstOrNull { it.mac == selectedMac }
-    Box {
-        OutlinedTextField(
-            value = selected?.display ?: selectedMac.ifBlank { "选择设备" },
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("设备") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Box(
-            Modifier
-                .matchParentSize()
-                .clickable { menu = true }
-        )
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            if (devices.isEmpty()) {
-                DropdownMenuItem(text = { Text("未发现设备（先连接热点/局域网）") }, onClick = { menu = false })
-            } else {
-                devices.forEach { target ->
-                    DropdownMenuItem(
-                        text = { Text(target.display) },
-                        onClick = {
-                            menu = false
-                            onPick(target)
-                        }
-                    )
-                }
-            }
         }
     }
 }

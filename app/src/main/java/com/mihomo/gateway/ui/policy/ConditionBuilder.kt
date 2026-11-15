@@ -1,6 +1,7 @@
 package com.mihomo.gateway.ui.policy
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -136,43 +137,63 @@ fun ConditionSection(
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { showTemplates = true }) {
-                Text("模板", style = MaterialTheme.typography.labelSmall)
-            }
+            Text(
+                "模板",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { showTemplates = true }
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            )
+            Spacer(Modifier.width(4.dp))
             Text(
                 if (parsed.isFailure) "表达式有误" else "命中 $count 个节点 ▾",
                 style = MaterialTheme.typography.labelSmall,
                 color = if (parsed.isFailure) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.primary,
-                modifier = if (parsed.isFailure) {
-                    Modifier
-                } else {
-                    Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { expanded = !expanded }
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                }
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(
+                        if (parsed.isFailure) MaterialTheme.colorScheme.error.copy(alpha = 0.08f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    )
+                    .then(
+                        if (parsed.isFailure) Modifier
+                        else Modifier.clickable { expanded = !expanded }
+                    )
+                    .padding(horizontal = 7.dp, vertical = 4.dp)
             )
             Spacer(Modifier.width(4.dp))
-            TextButton(onClick = {
-                if (advanced) {
-                    val result = TagExprParser.parse(text, tags)
-                    if (result.isSuccess) {
-                        root = CondCodec.toRoot(result.getOrNull())
-                        advanced = false
-                        error = null
-                    } else {
-                        error = result.exceptionOrNull()?.message
+            Text(
+                if (advanced) "可视化" else "高级",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable {
+                        if (advanced) {
+                            val result = TagExprParser.parse(text, tags)
+                            if (result.isSuccess) {
+                                root = CondCodec.toRoot(result.getOrNull())
+                                advanced = false
+                                error = null
+                            } else {
+                                error = result.exceptionOrNull()?.message
+                            }
+                        } else {
+                            text = TagExprParser.toText(CondCodec.toExpr(root), tags)
+                            advanced = true
+                        }
                     }
-                } else {
-                    text = TagExprParser.toText(CondCodec.toExpr(root), tags)
-                    advanced = true
-                }
-            }) {
-                Text(if (advanced) "可视化" else "高级", style = MaterialTheme.typography.labelSmall)
-            }
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            )
         }
 
         if (advanced) {
@@ -334,97 +355,137 @@ private fun GroupBlock(
         list.add(to, item)
         onChange(group.copy(children = list))
     }
+    val shape = RoundedCornerShape(if (depth == 0) 12.dp else 10.dp)
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .clip(shape)
+            .background(
+                if (depth == 0) MaterialTheme.colorScheme.surface
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            )
+            .then(
+                if (depth == 0) {
+                    Modifier.border(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
+                        shape
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (depth == 0) "条件组" else "子组",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = if (depth == 0) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.primary
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(8.dp))
             OpChip("且", group.op == CondOp.AND) { onChange(group.copy(op = CondOp.AND)) }
+            Spacer(Modifier.width(3.dp))
             OpChip("或", group.op == CondOp.OR) { onChange(group.copy(op = CondOp.OR)) }
-            Spacer(Modifier.width(4.dp))
-            OpChip("¬ 取反", group.negated) { onChange(group.copy(negated = !group.negated)) }
+            Spacer(Modifier.width(6.dp))
+            OpChip("¬取反", group.negated) { onChange(group.copy(negated = !group.negated)) }
             Spacer(Modifier.weight(1f))
             ArrowButton("↑", onMoveUp)
             ArrowButton("↓", onMoveDown)
             if (onDelete != null) {
                 Text(
                     "×",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .clickable(onClick = onDelete)
-                        .padding(horizontal = 6.dp)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }
         }
 
         if (group.children.isEmpty()) {
             Text(
-                "空组（不会生效），添加标签或子组",
+                "空组，添加标签或子组",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
             )
         }
 
         group.children.forEachIndexed { index, child ->
-            when (child) {
-                is CondNode.Tag -> TagRow(
-                    tagId = child.tagId,
-                    negated = child.negated,
-                    tags = tags,
-                    onMoveUp = if (index > 0) ({ move(index, index - 1) }) else null,
-                    onMoveDown = if (index < group.children.lastIndex) ({ move(index, index + 1) }) else null,
-                    onToggleNegated = {
-                        onChange(group.copy(
-                            children = group.children.toMutableList().also {
-                                it[index] = child.copy(negated = !child.negated)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Text(
+                    if (index == group.children.lastIndex) "└" else "├",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .width(16.dp)
+                        .padding(top = 6.dp)
+                )
+                Box(Modifier.weight(1f)) {
+                    when (child) {
+                        is CondNode.Tag -> TagRow(
+                            tagId = child.tagId,
+                            negated = child.negated,
+                            tags = tags,
+                            onMoveUp = if (index > 0) ({ move(index, index - 1) }) else null,
+                            onMoveDown = if (index < group.children.lastIndex) ({ move(index, index + 1) }) else null,
+                            onToggleNegated = {
+                                onChange(group.copy(
+                                    children = group.children.toMutableList().also {
+                                        it[index] = child.copy(negated = !child.negated)
+                                    }
+                                ))
+                            },
+                            onDelete = {
+                                onChange(group.copy(children = group.children.filterIndexed { i, _ -> i != index }))
                             }
-                        ))
-                    },
-                    onDelete = {
-                        onChange(group.copy(children = group.children.filterIndexed { i, _ -> i != index }))
-                    }
-                )
+                        )
 
-                is CondNode.Group -> GroupBlock(
-                    group = child,
-                    tags = tags,
-                    depth = depth + 1,
-                    onChange = { updated ->
-                        val list = group.children.toMutableList()
-                        list[index] = updated
-                        onChange(group.copy(children = list))
-                    },
-                    onMoveUp = if (index > 0) ({ move(index, index - 1) }) else null,
-                    onMoveDown = if (index < group.children.lastIndex) ({ move(index, index + 1) }) else null,
-                    onDelete = {
-                        onChange(group.copy(children = group.children.filterIndexed { i, _ -> i != index }))
+                        is CondNode.Group -> GroupBlock(
+                            group = child,
+                            tags = tags,
+                            depth = depth + 1,
+                            onChange = { updated ->
+                                val list = group.children.toMutableList()
+                                list[index] = updated
+                                onChange(group.copy(children = list))
+                            },
+                            onMoveUp = if (index > 0) ({ move(index, index - 1) }) else null,
+                            onMoveDown = if (index < group.children.lastIndex) ({ move(index, index + 1) }) else null,
+                            onDelete = {
+                                onChange(group.copy(children = group.children.filterIndexed { i, _ -> i != index }))
+                            }
+                        )
                     }
-                )
+                }
             }
         }
 
-        Row {
+        Row(
+            Modifier.padding(start = 16.dp, top = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             AddTagButton(tags = tags) { tag ->
                 onChange(group.copy(children = group.children + CondNode.Tag(tag.id)))
             }
             if (depth < 3) {
-                TextButton(onClick = {
-                    onChange(group.copy(children = group.children + CondNode.Group()))
-                }) {
-                    Text("＋ 子组", style = MaterialTheme.typography.labelSmall)
-                }
+                Text(
+                    "＋ 子组",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable {
+                            onChange(group.copy(children = group.children + CondNode.Group()))
+                        }
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                )
             }
         }
     }
@@ -444,14 +505,15 @@ private fun TagRow(
     Row(
         Modifier
             .fillMaxWidth()
+            .heightIn(min = 34.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f))
+            .padding(start = 8.dp, end = 3.dp, top = 2.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (negated) {
-            Text("¬", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-            Spacer(Modifier.width(4.dp))
+            Text("¬", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+            Spacer(Modifier.width(3.dp))
         }
         Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
         Spacer(Modifier.weight(1f))
@@ -464,16 +526,16 @@ private fun TagRow(
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
                 .clickable(onClick = onToggleNegated)
-                .padding(horizontal = 6.dp, vertical = 2.dp)
+                .padding(horizontal = 5.dp, vertical = 2.dp)
         )
         Text(
             "×",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
                 .clickable(onClick = onDelete)
-                .padding(horizontal = 6.dp)
+                .padding(horizontal = 5.dp)
         )
     }
 }
@@ -511,9 +573,15 @@ private fun OpChip(text: String, selected: Boolean, onClick: () -> Unit) {
 private fun AddTagButton(tags: List<NodeTag>, onPick: (NodeTag) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Box {
-        TextButton(onClick = { menu = true }) {
-            Text("＋ 标签", style = MaterialTheme.typography.labelSmall)
-        }
+        Text(
+            "＋ 标签",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { menu = true }
+                .padding(horizontal = 6.dp, vertical = 4.dp)
+        )
         DropdownMenu(
             expanded = menu,
             onDismissRequest = { menu = false },
