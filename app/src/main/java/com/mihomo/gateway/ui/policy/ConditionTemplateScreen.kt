@@ -54,6 +54,7 @@ fun ConditionTemplateScreen(
     var renaming by remember { mutableStateOf<ConditionTemplate?>(null) }
     var deleting by remember { mutableStateOf<ConditionTemplate?>(null) }
     var applying by remember { mutableStateOf<ConditionTemplate?>(null) }
+    var applyToFallback by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -152,7 +153,7 @@ fun ConditionTemplateScreen(
     applying?.let { template ->
         AlertDialog(
             onDismissRequest = { applying = null },
-            title = { Text("从模板新建设备策略") },
+            title = { Text("套用模板") },
             text = {
                 Column(
                     Modifier
@@ -161,6 +162,16 @@ fun ConditionTemplateScreen(
                 ) {
                     Text(
                         "模板：${template.name}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ApplyChip("优先条件", !applyToFallback) { applyToFallback = false }
+                        ApplyChip("回落条件", applyToFallback) { applyToFallback = true }
+                    }
+                    Text(
+                        if (applyToFallback) "将写入所选设备的回落条件" else "将写入所选设备的优先条件",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -181,14 +192,20 @@ fun ConditionTemplateScreen(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable {
-                                    val policy = existing?.copy(
-                                        primary = DeviceSelector(template.expr)
-                                    ) ?: DevicePolicy(
+                                    val policy = existing?.let {
+                                        if (applyToFallback) {
+                                            it.copy(fallback = DeviceSelector(template.expr))
+                                        } else {
+                                            it.copy(primary = DeviceSelector(template.expr))
+                                        }
+                                    } ?: DevicePolicy(
                                         id = UUID.randomUUID().toString(),
                                         mac = target.mac,
                                         label = target.hostname ?: target.mac,
-                                        primary = DeviceSelector(template.expr),
-                                        fallback = DeviceSelector()
+                                        primary = if (applyToFallback) DeviceSelector()
+                                        else DeviceSelector(template.expr),
+                                        fallback = if (applyToFallback) DeviceSelector(template.expr)
+                                        else DeviceSelector()
                                     )
                                     vm.save(policy)
                                     applying = null
@@ -250,7 +267,7 @@ private fun TemplateRow(
             )
             SmallAction("↑", canUp, onUp)
             SmallAction("↓", canDown, onDown)
-            SmallAction("新建", true, onApply, MaterialTheme.colorScheme.primary)
+            SmallAction("套用", true, onApply, MaterialTheme.colorScheme.primary)
             SmallAction("重命名", true, onRename)
             SmallAction("删除", true, onDelete, MaterialTheme.colorScheme.error)
         }
@@ -262,6 +279,24 @@ private fun TemplateRow(
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+@Composable
+private fun ApplyChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (selected) MaterialTheme.colorScheme.onPrimary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    )
 }
 
 @Composable
