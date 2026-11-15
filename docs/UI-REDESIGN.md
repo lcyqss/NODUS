@@ -463,3 +463,8 @@
 - 关闭 IPv6 代理始终清理残留
 - 脚本自身检测上游 RA
 - 开启后校验 mihomo 存活
+## 46. v2.43.0 IPv6 UDP/看护/多地址
+
+- TPROXY6 增加 UDP，排除 DNS 与 DHCPv6
+- watchdog 看护 v6ra/v6dns/v6dhcp
+- 设备策略支持多 IPv6 源地址

@@ -6,5 +6,11 @@ while true; do
     echo "$SIG" > "$BASE/.netsig"
     sh "$BASE/apply.sh"
   fi
+  NOW=$(date +%s)
+  LAST=$(cat "$BASE/.v6ensure" 2>/dev/null || echo 0)
+  if [ $((NOW - LAST)) -ge 30 ] && [ -f "$BASE/ipv6.sh" ]; then
+    echo "$NOW" > "$BASE/.v6ensure"
+    sh "$BASE/ipv6.sh" ensure >> "$BASE/ipv6.log" 2>&1
+  fi
   sleep 10
 done

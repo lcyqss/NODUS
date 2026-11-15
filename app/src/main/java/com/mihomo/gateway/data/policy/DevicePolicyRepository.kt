@@ -27,6 +27,7 @@ data class PolicyRuntime(
     val policy: DevicePolicy,
     val ip: String?,
     val ipv6: String? = null,
+    val ipv6s: List<String> = emptyList(),
     val primaryNodes: List<NodeInfo>,
     val fallbackNodes: List<NodeInfo>,
     val targetGroup: String?,
@@ -128,7 +129,8 @@ class DevicePolicyRepositoryImpl(
             }
             val neighborIps = neighborsByMac[policy.mac.lowercase()].orEmpty().map { it.ip }
             val ip = pickIp(neighborIps)
-            val ipv6 = pickIpv6(neighborIps)
+            val ipv6s = pickIpv6All(neighborIps)
+            val ipv6 = ipv6s.firstOrNull()
             val error = when {
                 !policy.enabled -> null
                 missingTag -> "引用的标签已被删除"
@@ -140,6 +142,7 @@ class DevicePolicyRepositoryImpl(
                 policy = policy,
                 ip = ip,
                 ipv6 = ipv6,
+                ipv6s = ipv6s,
                 primaryNodes = primary,
                 fallbackNodes = fallback,
                 targetGroup = if (error == null) groupTarget(policy, primary, fallback) else null,
@@ -244,6 +247,7 @@ class DevicePolicyRepositoryImpl(
             groups += buildGroups(plan)
             rules += ruleLine(plan.ip ?: "", plan.targetGroup)
             rules += ruleLine(plan.ipv6 ?: "", plan.targetGroup)
+            plan.ipv6s.drop(1).forEach { rules += ruleLine(it, plan.targetGroup) }
         }
 
         var text = DevicePolicyConfig.strip(original)
@@ -252,7 +256,7 @@ class DevicePolicyRepositoryImpl(
 
         // 内容没有变化就不要重写配置/备份，避免无意义的 IO 与 flash 写入
         if (text.trimEnd('\n') == original.trimEnd('\n')) {
-            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6) }
+            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s) }
             return@withContext Result.success(Unit)
         }
 
@@ -266,7 +270,7 @@ class DevicePolicyRepositoryImpl(
             20_000
         )
         if (replace.code == 0) {
-            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6) }
+            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s) }
             Result.success(Unit)
         } else Result.failure(IllegalStateException("写入配置失败"))
     }
@@ -280,7 +284,7 @@ class DevicePolicyRepositoryImpl(
         }
         if (plans.isEmpty()) return@withContext Result.success(false)
         if (appliedIps == null) appliedIps = readAppliedIps()
-        val changed = plans.any { appliedIps?.get(it.policy.id) != appliedKey(it.ip, it.ipv6) }
+        val changed = plans.any { appliedIps?.get(it.policy.id) != appliedKey(it.ip, it.ipv6s) }
         if (!changed) return@withContext Result.success(false)
 
         val applied = applyToConfig()
@@ -311,14 +315,18 @@ class DevicePolicyRepositoryImpl(
             val base = groupName(policy)
             val regex = Regex("""^-\s*SRC-IP-CIDR6?,([^/]+)/\d+,($base(?:_[pf])?)$""")
             var ip: String? = null
-            var ipv6: String? = null
+            val ipv6s = mutableListOf<String>()
             text.lineSequence().forEach { line ->
                 val match = regex.find(line.trim()) ?: return@forEach
                 val addr = match.groupValues[1]
-                if (addr.contains(":")) ipv6 = addr else ip = addr
+                if (addr.contains(":")) {
+                    if (!ipv6s.contains(addr)) ipv6s += addr
+                } else {
+                    ip = addr
+                }
             }
-            if (ip != null || ipv6 != null) {
-                result[policy.id] = appliedKey(ip, ipv6)
+            if (ip != null || ipv6s.isNotEmpty()) {
+                result[policy.id] = appliedKey(ip, ipv6s)
             }
         }
         return result
@@ -378,8 +386,11 @@ class DevicePolicyRepositoryImpl(
     private fun pickIp(ips: List<String>): String? =
         ips.firstOrNull { IPV4.matches(it) }
 
+    private fun pickIpv6All(ips: List<String>): List<String> =
+        ips.filter { it.contains(":") && !it.startsWith("fe80", true) }.distinct()
+
     private fun pickIpv6(ips: List<String>): String? =
-        ips.firstOrNull { it.contains(":") && !it.startsWith("fe80", true) }
+        pickIpv6All(ips).firstOrNull()
 
     private fun ruleLine(ip: String, target: String?): String {
         if (target.isNullOrBlank() || ip.isBlank()) return ""
@@ -388,8 +399,8 @@ class DevicePolicyRepositoryImpl(
         else "SRC-IP-CIDR,$ip/32,$target"
     }
 
-    private fun appliedKey(ip: String?, ipv6: String?): String =
-        "${ip.orEmpty()}|${ipv6.orEmpty()}"
+    private fun appliedKey(ip: String?, ipv6s: List<String>): String =
+        "${ip.orEmpty()}|${ipv6s.sorted().joinToString(",")}"
     private suspend fun coreRunning(): Boolean =
         shell.run("pidof mihomo >/dev/null 2>&1 && echo yes || echo no").stdout.trim() == "yes"
 }

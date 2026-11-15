@@ -77,8 +77,13 @@ setup_iface() {
 setup_tproxy() {
   $IP6 -w -t mangle -N MIHOMO6_TPROXY 2>/dev/null
   $IP6 -w -t mangle -F MIHOMO6_TPROXY
+  # Keep DNS (v6dns) and DHCPv6 (v6dhcp) on their local services.
+  $IP6 -w -t mangle -A MIHOMO6_TPROXY -p udp --dport 53 -j RETURN
+  $IP6 -w -t mangle -A MIHOMO6_TPROXY -p udp --dport 547 -j RETURN
   for IF in $(list_gateways); do
     $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -p tcp \
+      -j TPROXY --on-port "$TPROXY_PORT" --tproxy-mark "$MARK/$MARK"
+    $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -p udp \
       -j TPROXY --on-port "$TPROXY_PORT" --tproxy-mark "$MARK/$MARK"
   done
   $IP6 -w -t mangle -C PREROUTING -j MIHOMO6_TPROXY 2>/dev/null ||
@@ -207,6 +212,29 @@ disable() {
   log "disabled"
 }
 
+ensure() {
+  read_conf
+  [ "$IPV6_GATEWAY" = "1" ] || return 0
+  if detect | grep -q "UPSTREAM_RA=1"; then
+    log "ensure: upstream RA detected, disabling"
+    disable
+    return 1
+  fi
+  NEED=0
+  for IF in $(list_gateways); do
+    ip -6 addr show dev "$IF" 2>/dev/null | grep -q "$ULA_ADDR/64" || NEED=1
+    ip -6 route show table local 2>/dev/null | grep -q "local $ULA_ADDR " || NEED=1
+  done
+  $IP6 -w -t mangle -C PREROUTING -j MIHOMO6_TPROXY 2>/dev/null || NEED=1
+  pidof v6ra >/dev/null 2>&1 || NEED=1
+  pidof v6dns >/dev/null 2>&1 || NEED=1
+  [ -x "$DHCP" ] && ! pidof v6dhcp >/dev/null 2>&1 && NEED=1
+  if [ "$NEED" = "1" ]; then
+    log "ensure: entry incomplete, restarting"
+    enable
+  fi
+}
+
 status() {
   echo "prefix=$ULA_PREFIX"
   for IF in $(list_gateways); do
@@ -235,6 +263,7 @@ detect() {
 case "$1" in
   enable) with_lock enable ;;
   disable) with_lock disable ;;
+  ensure) with_lock ensure ;;
   status) status ;;
   detect) detect ;;
   *) echo "usage: $0 enable|disable|status|detect"; exit 1 ;;
