@@ -1,6 +1,8 @@
 package com.mihomo.gateway.ui.policy
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
@@ -39,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -291,9 +294,45 @@ private fun BackupDialog(vm: DevicePolicyViewModel, onDismiss: () -> Unit) {
     val backupJson by vm.backupJson.collectAsState()
     val message by vm.backupMessage.collectAsState()
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = LocalContext.current
     var importText by remember { mutableStateOf("") }
     var confirmReplace by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(0) }
+    var fileMessage by remember { mutableStateOf<String?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use {
+                    it.write(backupJson.toByteArray())
+                }
+            }.onSuccess {
+                fileMessage = "已导出到文件"
+            }.onFailure {
+                fileMessage = "导出文件失败: ${it.message}"
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }.onSuccess { text ->
+                if (text != null) {
+                    importText = text
+                    tab = 1
+                    fileMessage = "已读取文件，请确认合并或覆盖"
+                }
+            }.onFailure {
+                fileMessage = "读取文件失败: ${it.message}"
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -326,6 +365,10 @@ private fun BackupDialog(vm: DevicePolicyViewModel, onDismiss: () -> Unit) {
                             importText = backupJson
                             tab = 1
                         }) { Text("粘贴到导入", style = MaterialTheme.typography.labelSmall) }
+                        TextButton(
+                            enabled = backupJson.isNotBlank(),
+                            onClick = { exportLauncher.launch("mihomo-gateway-backup.json") }
+                        ) { Text("导出文件", style = MaterialTheme.typography.labelSmall) }
                     }
                 } else {
                     OutlinedTextField(
@@ -354,10 +397,16 @@ private fun BackupDialog(vm: DevicePolicyViewModel, onDismiss: () -> Unit) {
                         TextButton(onClick = {
                             importText = clipboard.getText()?.text.orEmpty()
                         }) { Text("从剪贴板", style = MaterialTheme.typography.labelSmall) }
+                        TextButton(onClick = {
+                            importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                        }) { Text("从文件导入", style = MaterialTheme.typography.labelSmall) }
                     }
                 }
                 message?.let {
                     Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                }
+                fileMessage?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },
