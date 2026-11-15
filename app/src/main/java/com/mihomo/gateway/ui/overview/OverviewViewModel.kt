@@ -80,7 +80,9 @@ class OverviewViewModel(
         }
         loadCurrentNode()
         viewModelScope.launch {
-            api.trafficFlow().catch { }.collect { traffic ->
+            while (isActive) {
+            runCatching {
+            api.trafficFlow().collect { traffic ->
                 _traffic.value = traffic
                 _upHistory.update { list -> (list + traffic.up).takeLast(60) }
                 _downHistory.update { list -> (list + traffic.down).takeLast(60) }
@@ -97,9 +99,15 @@ class OverviewViewModel(
                     }
                 }
             }
+            }
+            delay(2000)
+            }
         }
         viewModelScope.launch {
-            api.memoryFlow().catch { }.collect { _memory.value = it }
+            while (isActive) {
+                runCatching { api.memoryFlow().collect { _memory.value = it } }
+                delay(2000)
+            }
         }
         // 启动/重装核心后，内核可能晚于界面就绪：在前 30 秒内自动重试刷新
         viewModelScope.launch {

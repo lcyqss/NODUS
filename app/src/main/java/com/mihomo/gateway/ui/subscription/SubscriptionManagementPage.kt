@@ -111,7 +111,8 @@ fun SubscriptionManagementPage(
                 GwIcon(
                     GwIcon.Refresh,
                     Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (busy) MaterialTheme.colorScheme.outline
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(onClick = {
@@ -122,7 +123,8 @@ fun SubscriptionManagementPage(
                 GwIcon(
                     GwIcon.Plus,
                     Modifier.size(22.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = if (busy) MaterialTheme.colorScheme.outline
+                    else MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -253,13 +255,13 @@ private fun SubscriptionCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .clickable(enabled = !busy) { onSelect() }
+            .clickable { onEdit() }
             .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         RadioButton(
             selected = active,
-            onClick = { onSelect() },
+            onClick = onSelect,
             enabled = !busy
         )
         Column(Modifier.weight(1f)) {

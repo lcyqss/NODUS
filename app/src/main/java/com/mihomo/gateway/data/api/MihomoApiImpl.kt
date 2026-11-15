@@ -314,6 +314,14 @@ class MihomoApiImpl(
                 val obj = runCatching { JSONObject(text) }.getOrNull() ?: return
                 trySend(Traffic(obj.optLong("up"), obj.optLong("down")))
             }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                close(t)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                close()
+            }
         })
         awaitClose { socket.cancel() }
     }
@@ -327,6 +335,14 @@ class MihomoApiImpl(
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val obj = runCatching { JSONObject(text) }.getOrNull() ?: return
                 trySend(obj.optLong("inuse"))
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                close(t)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                close()
             }
         })
         awaitClose { socket.cancel() }

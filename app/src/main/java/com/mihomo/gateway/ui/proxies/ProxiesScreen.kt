@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -182,7 +183,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         SubscriptionRow(
             subsCount = subs.size,
-            active = activeSub != null,
+            activeName = activeSub?.name,
             busy = subBusy,
             onClick = { showSubPage = true }
         )
@@ -373,7 +374,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
 @Composable
 private fun SubscriptionRow(
     subsCount: Int,
-    active: Boolean,
+    activeName: String?,
     busy: Boolean,
     onClick: () -> Unit
 ) {
@@ -382,7 +383,7 @@ private fun SubscriptionRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .clickable(enabled = !busy, onClick = onClick)
+            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -405,17 +406,20 @@ private fun SubscriptionRow(
                 strokeWidth = 2.dp,
                 color = MaterialTheme.colorScheme.primary
             )
-        } else {
-            Text(
-                when {
-                    subsCount == 0 -> "添加 ›"
-                    active -> "1 个已启用 ›"
-                    else -> "未启用 ›"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Spacer(Modifier.width(6.dp))
         }
+        Text(
+            when {
+                subsCount == 0 -> "添加 ›"
+                activeName != null -> "$activeName 已启用 ›"
+                else -> "未启用 ›"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 200.dp)
+        )
         Text(
             "›",
             style = MaterialTheme.typography.titleLarge,

@@ -92,6 +92,7 @@ fun SubscriptionDetailPage(
             onValueChange = { name = it },
             label = { Text("名称") },
             singleLine = true,
+            readOnly = busy,
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -102,6 +103,7 @@ fun SubscriptionDetailPage(
             onValueChange = { url = it },
             label = { Text("订阅链接") },
             singleLine = true,
+            readOnly = busy,
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -125,6 +127,7 @@ fun SubscriptionDetailPage(
                 title = "自动更新",
                 subtitle = "仅对这个订阅生效",
                 value = intervalLabel(profile.autoUpdateHours),
+                enabled = !busy,
                 onClick = { intervalMenu = true }
             )
             Box {
