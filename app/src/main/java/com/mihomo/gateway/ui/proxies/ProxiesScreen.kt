@@ -3,6 +3,7 @@ package com.mihomo.gateway.ui.proxies
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,11 +16,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Button
@@ -56,6 +59,7 @@ import com.mihomo.gateway.model.ProxyNames
 import com.mihomo.gateway.model.ProxyNode
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.Tag
+import com.mihomo.gateway.ui.components.PullRefreshBox
 import com.mihomo.gateway.ui.icons.GwIcon
 import com.mihomo.gateway.ui.subscription.SubscriptionManagementPage
 import com.mihomo.gateway.ui.subscription.SubscriptionViewModel
@@ -94,7 +98,6 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     var query by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    var pageMenuOpen by remember { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf(SortMode.Default) }
     var hideUnavailable by remember { mutableStateOf(false) }
     var favoritesFirst by remember { mutableStateOf(true) }
@@ -175,30 +178,8 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
 
     val activeSub = subs.firstOrNull { it.id == subSettings.activeSubId }
 
+    PullRefreshBox(onRefresh = { vm.load() }) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box {
-                IconButton(onClick = { pageMenuOpen = true }) {
-                    GwIcon(GwIcon.More, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                DropdownMenu(expanded = pageMenuOpen, onDismissRequest = { pageMenuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("重新加载节点") },
-                        onClick = {
-                            pageMenuOpen = false
-                            vm.load()
-                        }
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(2.dp))
-
         SubscriptionRow(
             subsCount = subs.size,
             active = activeSub != null,
@@ -210,7 +191,12 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
 
         when {
             state.loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    contentAlignment = Alignment.Center
+                ) {
                     CircularProgressIndicator()
                 }
             }
@@ -381,6 +367,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
             }
         }
     }
+    }
 }
 
 @Composable
@@ -449,7 +436,12 @@ private fun CheckMark(visible: Boolean) {
 
 @Composable
 private fun CenteredMessage(text: String, action: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        contentAlignment = Alignment.Center
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             EmptyState(text)
             action()

@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.ConnectionInfo
@@ -100,9 +101,23 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "${data.size} 条连接",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+                Text(
+                    "↑${formatBytes(data.sumOf { it.upload })}  ↓${formatBytes(data.sumOf { it.download })}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             HeaderIcon(GwIcon.Logs, selected = mode == 0) { mode = 0 }
             HeaderIcon(GwIcon.Tree, selected = mode == 1) { mode = 1 }
             HeaderIcon(GwIcon.Chart, selected = mode == 2) { mode = 2 }
@@ -120,15 +135,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
             ) { vm.closeAll() }
         }
 
-        Spacer(Modifier.height(2.dp))
-
-        Text(
-            "${data.size} 条 · ↑${formatBytes(data.sumOf { it.upload })} ↓${formatBytes(data.sumOf { it.download })}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
 
         SearchBar(
             value = query,

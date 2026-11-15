@@ -171,15 +171,22 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
 @Composable
 private fun SummaryLine(state: RulesUiState) {
     val enabled = state.custom.count { it.enabled }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("自定义 ${state.custom.size} 条", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-        Text(" · ", color = MaterialTheme.colorScheme.outline)
-        Text("启用 $enabled", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(" · ", color = MaterialTheme.colorScheme.outline)
-        Text(
-            "重复 ${state.conflicts.size}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (state.conflicts.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else WarnColor
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        StatColumn("自定义", state.custom.size.toString())
+        Spacer(Modifier.width(26.dp))
+        StatColumn("启用", enabled.toString())
+        Spacer(Modifier.width(26.dp))
+        StatColumn(
+            "重复",
+            state.conflicts.size.toString(),
+            if (state.conflicts.isEmpty()) MaterialTheme.colorScheme.onSurface else WarnColor
         )
         Spacer(Modifier.weight(1f))
         Text(
@@ -195,6 +202,18 @@ private fun SummaryLine(state: RulesUiState) {
                 else -> OkColor
             }
         )
+    }
+}
+
+@Composable
+private fun StatColumn(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
+    Column {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(value, style = MaterialTheme.typography.titleMedium, color = valueColor)
     }
 }
 

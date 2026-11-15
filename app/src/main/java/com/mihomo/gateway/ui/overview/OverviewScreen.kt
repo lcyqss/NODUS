@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.ui.components.KeyValueRow
 import com.mihomo.gateway.ui.components.Metric
+import com.mihomo.gateway.ui.components.PullRefreshBox
 import com.mihomo.gateway.ui.components.SectionCard
 import com.mihomo.gateway.ui.components.SegmentedControl
 import com.mihomo.gateway.ui.components.TrafficChart
@@ -191,71 +192,6 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
 }
 
 
-@Composable
-private fun PullRefreshBox(onRefresh: () -> Unit, content: @Composable () -> Unit) {
-    val density = LocalDensity.current
-    val threshold = with(density) { 56.dp.toPx() }
-    val maxPull = with(density) { 96.dp.toPx() }
-    var pull by remember { mutableFloatStateOf(0f) }
-    var refreshing by remember { mutableStateOf(false) }
-
-    val nested = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.Drag && available.y < 0f && pull > 0f) {
-                    val consumed = available.y.coerceAtLeast(-pull)
-                    pull = (pull + consumed).coerceAtLeast(0f)
-                    return Offset(0f, consumed)
-                }
-                return Offset.Zero
-            }
-
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.Drag && available.y > 0f && !refreshing) {
-                    pull = (pull + available.y * 0.55f).coerceAtMost(maxPull)
-                    return Offset(0f, available.y)
-                }
-                return Offset.Zero
-            }
-
-            override suspend fun onPreFling(available: Velocity): Velocity {
-                if (pull <= 0f) return Velocity.Zero
-                if (pull >= threshold && !refreshing) {
-                    refreshing = true
-                    onRefresh()
-                    pull = threshold
-                    delay(700)
-                    refreshing = false
-                }
-                animate(pull, 0f) { value, _ -> pull = value }
-                return Velocity(0f, available.y)
-            }
-        }
-    }
-
-    Box(Modifier.fillMaxSize().nestedScroll(nested)) {
-        Box(Modifier.offset { IntOffset(0, pull.roundToInt()) }) { content() }
-        when {
-            refreshing -> CircularProgressIndicator(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 8.dp)
-                    .size(20.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary
-            )
-            pull > 0f -> CircularProgressIndicator(
-                progress = (pull / threshold).coerceIn(0f, 1f),
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 8.dp)
-                    .size(20.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-    }
-}
 @Composable
 private fun LegendDot(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
