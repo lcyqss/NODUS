@@ -131,10 +131,22 @@ private fun SettingsMain(
             SettingsDivider()
             SettingsSwitchRow(
                 title = "IPv6 拦截",
-                subtitle = "关闭后客户端可用 IPv6 直连",
+                subtitle = if (settings.ipv6Gateway) "IPv6 代理开启时不生效" else "关闭后客户端可用 IPv6 直连",
                 checked = settings.blockIpv6,
-                enabled = !busy,
+                enabled = !busy && !settings.ipv6Gateway,
                 onChange = vm::setBlockIpv6
+            )
+            SettingsDivider()
+            SettingsSwitchRow(
+                title = "局域网 IPv6 代理",
+                subtitle = if (settings.ipv6Gateway) {
+                    "客户端 ULA + IPv6 TPROXY，经节点转发"
+                } else {
+                    "让客户端 IPv6 字面量也走代理"
+                },
+                checked = settings.ipv6Gateway,
+                enabled = !busy,
+                onChange = vm::setIpv6Gateway
             )
         }
 

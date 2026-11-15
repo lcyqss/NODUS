@@ -70,12 +70,17 @@ data class ProviderInfo(
     val testUrl: String
 )
 
-data class GatewayConf(val mode: IpMode = IpMode.AUTO, val blockIpv6: Boolean = true)
+data class GatewayConf(
+    val mode: IpMode = IpMode.AUTO,
+    val blockIpv6: Boolean = true,
+    val ipv6Gateway: Boolean = false
+)
 
 data class GatewayState(
     val running: Boolean = false,
     val mode: IpMode = IpMode.AUTO,
     val blockIpv6: Boolean = true,
+    val ipv6Gateway: Boolean = false,
     val interfaces: List<NetIface> = emptyList(),
     val version: String = "",
     val error: String? = null
@@ -85,6 +90,7 @@ data class AppSettings(
     val subscriptionUrl: String = "",
     val ipMode: IpMode = IpMode.AUTO,
     val blockIpv6: Boolean = true,
+    val ipv6Gateway: Boolean = false,
     val autoStart: Boolean = true,
     val desiredRunning: Boolean = true,
     val updateIntervalHours: Int = 0,

@@ -72,6 +72,25 @@ class SettingsViewModel(
         }
     }
 
+    fun setIpv6Gateway(enabled: Boolean) {
+        viewModelScope.launch {
+            _busy.value = true
+            store.update {
+                it.copy(
+                    ipv6Gateway = enabled,
+                    blockIpv6 = if (enabled) false else true
+                )
+            }
+            val result = gateway.setIpv6Gateway(enabled)
+            _message.value = if (result.isSuccess) {
+                if (enabled) "局域网 IPv6 代理已开启" else "局域网 IPv6 代理已关闭"
+            } else {
+                "设置失败: ${result.exceptionOrNull()?.message}"
+            }
+            _busy.value = false
+        }
+    }
+
     fun setBlockIpv6(enabled: Boolean) {
         viewModelScope.launch {
             _busy.value = true

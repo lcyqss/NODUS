@@ -1,6 +1,10 @@
 #!/system/bin/sh
 BASE=/data/adb/mihomo
 . "$BASE/common.sh"
+
+# 先停 IPv6 入口，避免残留 RA/TPROXY6
+[ -f "$BASE/ipv6.sh" ] && sh "$BASE/ipv6.sh" disable >/dev/null 2>&1
+
 IPT=/system/bin/iptables
 IP6=/system/bin/ip6tables
 

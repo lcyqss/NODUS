@@ -45,7 +45,7 @@ for IF in $(list_gateways); do
   $IPT -w -A MIHOMO_FWD -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 -j DROP
   $IPT -w -A MIHOMO_IN -i "$IF" -p tcp --dport 9090 -j DROP
   $IPT -w -A MIHOMO_IN -i "$IF" -p tcp --dport 7890 -j DROP
-  if [ "$BLOCK_IPV6" = "1" ]; then
+  if [ "$BLOCK_IPV6" = "1" ] && [ "$IPV6_GATEWAY" != "1" ]; then
     $IP6 -w -A MIHOMO6_FWD -i "$IF" -j DROP
   fi
 done
@@ -61,4 +61,8 @@ if [ "$IP_MODE" = "auto" ]; then
       sh "$BASE/set-ipver.sh" auto >> "$LOG" 2>&1
     fi
   fi
+fi
+# IPv6 局域网网关：配置开启时在应用规则后启动入口
+if [ "$IPV6_GATEWAY" = "1" ] && [ -x "$BASE/ipv6.sh" ]; then
+  sh "$BASE/ipv6.sh" enable >> "$LOG" 2>&1
 fi

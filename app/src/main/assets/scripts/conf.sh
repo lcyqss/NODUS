@@ -6,6 +6,6 @@ CONF=/data/adb/mihomo/gateway.conf
 if grep -q "^$1=" "$CONF" 2>/dev/null; then
   sed -i "s|^$1=.*|$1=$2|" "$CONF"
 else
-  echo "$1=$2" >> "$CONF"
+  printf '\n%s=%s\n' "$1" "$2" >> "$CONF"
 fi
 grep "^$1=" "$CONF"

@@ -21,6 +21,7 @@ interface GatewayController {
     suspend fun stop(): Result<Unit>
     suspend fun setIpMode(mode: IpMode): Result<Unit>
     suspend fun setBlockIpv6(enabled: Boolean): Result<Unit>
+    suspend fun setIpv6Gateway(enabled: Boolean): Result<Unit>
     suspend fun applyRules(): Result<Unit>
     suspend fun refresh()
 
@@ -57,6 +58,7 @@ class GatewayControllerImpl(
                 version = ready ?: "",
                 mode = conf?.mode ?: it.mode,
                 blockIpv6 = conf?.blockIpv6 ?: it.blockIpv6,
+                ipv6Gateway = conf?.ipv6Gateway ?: it.ipv6Gateway,
                 error = if (ready == null) "内核未就绪" else null
             )
         }
@@ -91,6 +93,26 @@ class GatewayControllerImpl(
         Result.success(Unit)
     }
 
+    override suspend fun setIpv6Gateway(enabled: Boolean): Result<Unit> = mutex.withLock {
+        val value = if (enabled) "1" else "0"
+        val conf = shell.run("sh $base/conf.sh IPV6_GATEWAY $value")
+        if (conf.code != 0) return Result.failure(IllegalStateException(conf.stdout.take(200)))
+        if (enabled) {
+            shell.run("sh $base/conf.sh BLOCK_IPV6 0")
+            if (shell.run("pidof mihomo").stdout.isNotBlank()) {
+                val r = shell.run("sh $base/ipv6.sh enable", 30_000)
+                if (r.code != 0) return Result.failure(IllegalStateException(r.stdout.take(300)))
+            }
+            _state.update { it.copy(ipv6Gateway = true, blockIpv6 = false) }
+        } else {
+            if (shell.run("pidof mihomo").stdout.isNotBlank()) {
+                shell.run("sh $base/ipv6.sh disable", 30_000)
+            }
+            _state.update { it.copy(ipv6Gateway = false, blockIpv6 = true) }
+        }
+        Result.success(Unit)
+    }
+
     override suspend fun applyRules(): Result<Unit> {
         val result = shell.run("sh $base/apply.sh")
         return if (result.code == 0) Result.success(Unit)
@@ -114,7 +136,8 @@ class GatewayControllerImpl(
             else -> IpMode.AUTO
         }
         val block = map["BLOCK_IPV6"]?.trim() != "0"
-        return GatewayConf(mode, block)
+        val ipv6Gateway = map["IPV6_GATEWAY"]?.trim() == "1"
+        return GatewayConf(mode, block, ipv6Gateway)
     }
 
     override suspend fun cleanup(): Result<Unit> {
@@ -133,6 +156,7 @@ class GatewayControllerImpl(
                 version = version.getOrNull()?.version ?: "",
                 mode = conf?.mode ?: it.mode,
                 blockIpv6 = conf?.blockIpv6 ?: it.blockIpv6,
+                ipv6Gateway = conf?.ipv6Gateway ?: it.ipv6Gateway,
                 error = version.exceptionOrNull()?.message
             )
         }
