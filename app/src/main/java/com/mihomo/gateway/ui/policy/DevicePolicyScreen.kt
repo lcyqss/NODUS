@@ -76,6 +76,7 @@ fun DevicePolicyScreen(
 
     var editing by remember { mutableStateOf<DevicePolicy?>(null) }
     var showTags by remember { mutableStateOf(false) }
+    var showBackup by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.refresh() }
     LaunchedEffect(message) {
@@ -162,6 +163,29 @@ fun DevicePolicyScreen(
             onChange = { vm.setIpInterval(it) }
         )
         Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable {
+                    showBackup = true
+                    vm.exportBackup()
+                }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("备份与恢复", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    "导出/导入策略、标签、条件模板",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
+        }
+        Spacer(Modifier.height(8.dp))
 
         message?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
@@ -220,6 +244,126 @@ fun DevicePolicyScreen(
             }
         )
     }
+
+    if (showBackup) {
+        BackupDialog(vm = vm, onDismiss = { showBackup = false })
+    }
+}
+
+@Composable
+private fun BackupDialog(vm: DevicePolicyViewModel, onDismiss: () -> Unit) {
+    val backupJson by vm.backupJson.collectAsState()
+    val message by vm.message.collectAsState()
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    var importText by remember { mutableStateOf("") }
+    var confirmReplace by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(0) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("备份与恢复") },
+        text = {
+            Column(
+                Modifier.height(380.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TabChip("导出", tab == 0) { tab = 0 }
+                    TabChip("导入", tab == 1) { tab = 1 }
+                }
+                Spacer(Modifier.height(4.dp))
+
+                if (tab == 0) {
+                    OutlinedTextField(
+                        value = backupJson,
+                        onValueChange = {},
+                        readOnly = true,
+                        minLines = 8,
+                        maxLines = 10,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row {
+                        TextButton(onClick = {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(backupJson))
+                        }) { Text("复制", style = MaterialTheme.typography.labelSmall) }
+                        TextButton(onClick = {
+                            importText = backupJson
+                            tab = 1
+                        }) { Text("粘贴到导入", style = MaterialTheme.typography.labelSmall) }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = importText,
+                        onValueChange = { importText = it },
+                        placeholder = { Text("粘贴备份 JSON") },
+                        minLines = 8,
+                        maxLines = 10,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row {
+                        TextButton(
+                            enabled = importText.isNotBlank(),
+                            onClick = { vm.importBackup(importText, merge = true) }
+                        ) { Text("合并导入", style = MaterialTheme.typography.labelSmall) }
+                        TextButton(
+                            enabled = importText.isNotBlank(),
+                            onClick = { confirmReplace = true }
+                        ) {
+                            Text(
+                                "覆盖导入",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        TextButton(onClick = {
+                            importText = clipboard.getText()?.text.orEmpty()
+                        }) { Text("从剪贴板", style = MaterialTheme.typography.labelSmall) }
+                    }
+                }
+                message?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        }
+    )
+
+    if (confirmReplace) {
+        AlertDialog(
+            onDismissRequest = { confirmReplace = false },
+            title = { Text("覆盖导入？") },
+            text = { Text("会替换当前设备策略、自定义标签和条件模板。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReplace = false
+                    vm.importBackup(importText, merge = false)
+                }) { Text("覆盖", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReplace = false }) { Text("取消") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun TabChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = if (selected) MaterialTheme.colorScheme.onPrimary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    )
 }
 
 @Composable

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.data.catalog.DeviceTarget
 import com.mihomo.gateway.data.catalog.NodeInfo
 import com.mihomo.gateway.data.policy.DevicePolicyRepository
+import com.mihomo.gateway.data.policy.PolicyBackupService
 import com.mihomo.gateway.data.policy.PolicyRuntime
 import com.mihomo.gateway.data.tags.ConditionTemplateRepository
 import com.mihomo.gateway.data.tags.NodeTagRepository
@@ -24,7 +25,8 @@ import kotlinx.coroutines.launch
 class DevicePolicyViewModel(
     private val repo: DevicePolicyRepository = AppContainer.devicePolicies,
     private val tagRepo: NodeTagRepository = AppContainer.nodeTags,
-    private val templateRepo: ConditionTemplateRepository = AppContainer.conditionTemplates
+    private val templateRepo: ConditionTemplateRepository = AppContainer.conditionTemplates,
+    private val backupService: PolicyBackupService = AppContainer.policyBackup
 ) : ViewModel() {
 
     val policies: StateFlow<List<DevicePolicy>> = repo.policies
@@ -47,6 +49,9 @@ class DevicePolicyViewModel(
 
     val templates: StateFlow<List<ConditionTemplate>> = templateRepo.templates
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _backupJson = MutableStateFlow("")
+    val backupJson: StateFlow<String> = _backupJson.asStateFlow()
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
@@ -165,6 +170,28 @@ class DevicePolicyViewModel(
 
     fun deleteTemplate(id: String) {
         viewModelScope.launch { templateRepo.delete(id) }
+    }
+
+    fun exportBackup() {
+        viewModelScope.launch {
+            runCatching { backupService.export() }
+                .onSuccess { _backupJson.value = it }
+                .onFailure { _message.value = "导出失败: ${it.message}" }
+        }
+    }
+
+    fun importBackup(raw: String, merge: Boolean) {
+        viewModelScope.launch {
+            _busy.value = true
+            backupService.import(raw, merge)
+                .onSuccess { summary ->
+                    _message.value = "已导入 ${summary.policies} 条策略、${summary.tags} 个标签、${summary.templates} 个模板"
+                    refresh()
+                    runCatching { repo.apply() }
+                }
+                .onFailure { _message.value = "导入失败: ${it.message}" }
+            _busy.value = false
+        }
     }
 
     fun matchNodes(expr: TagExpr?): List<NodeInfo> =

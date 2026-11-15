@@ -12,6 +12,7 @@ import com.mihomo.gateway.data.catalog.NodeCatalogRepository
 import com.mihomo.gateway.data.catalog.NodeCatalogRepositoryImpl
 import com.mihomo.gateway.data.policy.DevicePolicyRepository
 import com.mihomo.gateway.data.policy.DevicePolicyRepositoryImpl
+import com.mihomo.gateway.data.policy.PolicyBackupService
 import com.mihomo.gateway.data.tags.NodeTagRepository
 import com.mihomo.gateway.data.tags.ConditionTemplateRepository
 import com.mihomo.gateway.data.tags.ConditionTemplateRepositoryImpl
@@ -56,6 +57,8 @@ object AppContainer {
         private set
     lateinit var conditionTemplates: ConditionTemplateRepository
         private set
+    lateinit var policyBackup: PolicyBackupService
+        private set
 
     private var initialized = false
 
@@ -74,6 +77,7 @@ object AppContainer {
         val nodeCatalog: NodeCatalogRepository = NodeCatalogRepositoryImpl(app, settings)
         nodeTags = NodeTagRepositoryImpl(settings)
         conditionTemplates = ConditionTemplateRepositoryImpl(settings)
+        policyBackup = PolicyBackupService(settings)
         devicePolicies = DevicePolicyRepositoryImpl(
             context = app,
             settings = settings,
