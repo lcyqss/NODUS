@@ -255,13 +255,15 @@ private fun TagEditorDialog(
                     value = include,
                     onValueChange = { include = it },
                     label = { Text("包含关键词（逗号分隔，任一命中）") },
-                    minLines = 2
+                    minLines = 2,
+                    enabled = exprText.isBlank()
                 )
                 OutlinedTextField(
                     value = exclude,
                     onValueChange = { exclude = it },
                     label = { Text("排除关键词（逗号分隔，命中即排除）") },
-                    minLines = 2
+                    minLines = 2,
+                    enabled = exprText.isBlank()
                 )
                 OutlinedTextField(
                     value = exprText,
@@ -275,7 +277,11 @@ private fun TagEditorDialog(
                     isError = error != null
                 )
                 Text(
-                    error ?: "表达式可引用其他标签；含空格的标签名用引号",
+                    error ?: if (exprText.isNotBlank()) {
+                        "已填写表达式：关键词将被忽略"
+                    } else {
+                        "表达式可引用其他标签；含空格的标签名用引号"
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = if (error != null) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.onSurfaceVariant

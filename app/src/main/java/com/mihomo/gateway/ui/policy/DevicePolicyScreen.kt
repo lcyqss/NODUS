@@ -3,6 +3,7 @@ package com.mihomo.gateway.ui.policy
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -232,11 +235,14 @@ fun DevicePolicyScreen(
                 )
             }
         } else {
+            val macCounts = policies.groupingBy { it.mac.lowercase() }.eachCount()
             policies.forEachIndexed { index, policy ->
                 PolicyCard(
                     policy = policy,
                     runtime = runtimeById[policy.id],
                     tags = tags,
+                    duplicate = (macCounts[policy.mac.lowercase()] ?: 0) > 1,
+                    onToggle = { enabled -> vm.save(policy.copy(enabled = enabled)) },
                     onClick = { editing = policy }
                 )
                 if (index != policies.lastIndex) Spacer(Modifier.height(8.dp))
@@ -254,7 +260,7 @@ fun DevicePolicyScreen(
 @Composable
 private fun BackupDialog(vm: DevicePolicyViewModel, onDismiss: () -> Unit) {
     val backupJson by vm.backupJson.collectAsState()
-    val message by vm.message.collectAsState()
+    val message by vm.backupMessage.collectAsState()
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var importText by remember { mutableStateOf("") }
     var confirmReplace by remember { mutableStateOf(false) }
@@ -368,10 +374,33 @@ private fun TabChip(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
+private fun TinySwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Box(
+        Modifier
+            .width(38.dp)
+            .height(22.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+            .toggleable(value = checked, onValueChange = onCheckedChange, role = Role.Switch)
+            .padding(2.dp),
+        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Box(
+            Modifier
+                .size(18.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(Color.White)
+        )
+    }
+}
+
+@Composable
 private fun PolicyCard(
     policy: DevicePolicy,
     runtime: PolicyRuntime?,
     tags: List<NodeTag>,
+    duplicate: Boolean,
+    onToggle: (Boolean) -> Unit,
     onClick: () -> Unit
 ) {
     Column(
@@ -394,7 +423,21 @@ private fun PolicyCard(
                 Spacer(Modifier.width(6.dp))
                 Text("已停用", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
+            if (duplicate) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "重复 MAC",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.10f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                )
+            }
             Spacer(Modifier.weight(1f))
+            TinySwitch(checked = policy.enabled, onCheckedChange = onToggle)
+            Spacer(Modifier.width(6.dp))
             Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
         }
         Text(

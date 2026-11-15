@@ -37,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -103,7 +104,12 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     var sortMode by remember { mutableStateOf(SortMode.Default) }
     var hideUnavailable by remember { mutableStateOf(false) }
     var favoritesFirst by remember { mutableStateOf(true) }
+    var jumpNode by remember { mutableStateOf<String?>(null) }
     val pendingNode by AppContainer.navigator.proxyNode.collectAsState()
+
+    DisposableEffect(Unit) {
+        onDispose { AppContainer.navigator.consumeProxyNode() }
+    }
 
     // 设备策略点「命中节点」后跳到这里：选中包含该节点的组并过滤
     LaunchedEffect(pendingNode, state.groups) {
@@ -118,6 +124,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
         if (group != null) vm.selectGroup(group.name)
         query = target
         searchOpen = false
+        jumpNode = target
         AppContainer.navigator.consumeProxyNode()
     }
 
@@ -243,6 +250,39 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                     }
                 }
 
+                jumpNode?.let { node ->
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "已定位：$node",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "清除",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable {
+                                    jumpNode = null
+                                    query = ""
+                                }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
                 if (currentGroup != null) {
                     Spacer(Modifier.height(8.dp))
 
@@ -275,6 +315,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                         }
                         ToolIcon(GwIcon.Search, active = searchOpen) {
                             searchOpen = !searchOpen
+                            if (searchOpen) jumpNode = null
                             if (!searchOpen) query = ""
                         }
                         Box {
@@ -338,7 +379,10 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                         SearchField(
                             query = query,
                             focusRequester = focusRequester,
-                            onQueryChange = { query = it },
+                            onQueryChange = {
+                                query = it
+                                jumpNode = null
+                            },
                             onCancel = {
                                 query = ""
                                 searchOpen = false

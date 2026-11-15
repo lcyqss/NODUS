@@ -78,7 +78,7 @@ class OverviewViewModel(
                 _today.value = Traffic(s.todayUp, s.todayDown)
             }
         }
-        loadCurrentNode()
+        viewModelScope.launch { loadCurrentNode() }
         viewModelScope.launch {
             while (isActive) {
             runCatching {
@@ -129,7 +129,7 @@ class OverviewViewModel(
                     )
                 }
                 loadCurrentNode()
-                delay(3000)
+                delay(5000)
             }
         }
     }
@@ -159,9 +159,8 @@ class OverviewViewModel(
         }
     }
 
-    private fun loadCurrentNode() {
-        viewModelScope.launch {
-            api.proxies().onSuccess { nodes ->
+    private suspend fun loadCurrentNode() {
+        api.proxies().onSuccess { nodes ->
                 val byName = nodes.associateBy { it.name }
                 // 设备策略的 __dev_ 组是按设备的隐藏出口，不代表首页展示的主链路
                 val groups = nodes.filter {
@@ -185,6 +184,5 @@ class OverviewViewModel(
                 _currentGroup.value = start?.name
                 _currentNode.value = current?.takeUnless { ProxyNames.isInfoNode(it) }
             }
-        }
     }
 }

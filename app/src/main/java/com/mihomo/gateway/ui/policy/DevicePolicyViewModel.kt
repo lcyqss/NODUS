@@ -53,6 +53,9 @@ class DevicePolicyViewModel(
     private val _backupJson = MutableStateFlow("")
     val backupJson: StateFlow<String> = _backupJson.asStateFlow()
 
+    private val _backupMessage = MutableStateFlow<String?>(null)
+    val backupMessage: StateFlow<String?> = _backupMessage.asStateFlow()
+
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
@@ -175,21 +178,26 @@ class DevicePolicyViewModel(
     fun exportBackup() {
         viewModelScope.launch {
             runCatching { backupService.export() }
-                .onSuccess { _backupJson.value = it }
-                .onFailure { _message.value = "导出失败: ${it.message}" }
+                .onSuccess {
+                    _backupJson.value = it
+                    _backupMessage.value = null
+                }
+                .onFailure { _backupMessage.value = "导出失败: ${it.message}" }
         }
     }
 
     fun importBackup(raw: String, merge: Boolean) {
         viewModelScope.launch {
             _busy.value = true
+            _backupMessage.value = if (merge) "正在合并导入…" else "正在覆盖导入…"
             backupService.import(raw, merge)
                 .onSuccess { summary ->
-                    _message.value = "已导入 ${summary.policies} 条策略、${summary.tags} 个标签、${summary.templates} 个模板"
+                    _backupMessage.value =
+                        "已导入 ${summary.policies} 条策略、${summary.tags} 个标签、${summary.templates} 个模板"
                     refresh()
                     runCatching { repo.apply() }
                 }
-                .onFailure { _message.value = "导入失败: ${it.message}" }
+                .onFailure { _backupMessage.value = "导入失败: ${it.message}" }
             _busy.value = false
         }
     }
