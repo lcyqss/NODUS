@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -32,8 +33,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mihomo.gateway.data.tags.TagExprParser
+import com.mihomo.gateway.data.catalog.DeviceTarget
 import com.mihomo.gateway.model.ConditionTemplate
+import com.mihomo.gateway.model.DevicePolicy
+import com.mihomo.gateway.model.DeviceSelector
 import com.mihomo.gateway.ui.components.SubPageHeader
+import java.util.UUID
 
 /** 条件模板管理：重命名、排序、删除；新建仍在条件编辑区完成。 */
 @Composable
@@ -43,9 +48,12 @@ fun ConditionTemplateScreen(
 ) {
     val templates by vm.templates.collectAsState()
     val tags by vm.tags.collectAsState()
+    val devices by vm.devices.collectAsState()
+    val policies by vm.policies.collectAsState()
 
     var renaming by remember { mutableStateOf<ConditionTemplate?>(null) }
     var deleting by remember { mutableStateOf<ConditionTemplate?>(null) }
+    var applying by remember { mutableStateOf<ConditionTemplate?>(null) }
 
     Column(
         Modifier
@@ -85,6 +93,7 @@ fun ConditionTemplateScreen(
                     canDown = index < templates.lastIndex,
                     onUp = { vm.moveTemplate(template.id, true) },
                     onDown = { vm.moveTemplate(template.id, false) },
+                    onApply = { applying = template },
                     onRename = { renaming = template },
                     onDelete = { deleting = template }
                 )
@@ -139,6 +148,76 @@ fun ConditionTemplateScreen(
             }
         )
     }
+
+    applying?.let { template ->
+        AlertDialog(
+            onDismissRequest = { applying = null },
+            title = { Text("从模板新建设备策略") },
+            text = {
+                Column(
+                    Modifier
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        "模板：${template.name}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    if (devices.isEmpty()) {
+                        Text(
+                            "未发现设备，请先连接热点/局域网",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    devices.forEach { target ->
+                        val existing = policies.firstOrNull {
+                            it.mac.equals(target.mac, true)
+                        }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    val policy = existing?.copy(
+                                        primary = DeviceSelector(template.expr)
+                                    ) ?: DevicePolicy(
+                                        id = UUID.randomUUID().toString(),
+                                        mac = target.mac,
+                                        label = target.hostname ?: target.mac,
+                                        primary = DeviceSelector(template.expr),
+                                        fallback = DeviceSelector()
+                                    )
+                                    vm.save(policy)
+                                    applying = null
+                                    onBack()
+                                }
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    target.hostname?.takeIf { it.isNotBlank() } ?: target.mac,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    "${target.mac} · ${target.ip}" +
+                                        if (existing != null) " · 将替换现有策略" else "",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (existing != null) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { applying = null }) { Text("关闭") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -149,6 +228,7 @@ private fun TemplateRow(
     canDown: Boolean,
     onUp: () -> Unit,
     onDown: () -> Unit,
+    onApply: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -170,6 +250,7 @@ private fun TemplateRow(
             )
             SmallAction("↑", canUp, onUp)
             SmallAction("↓", canDown, onDown)
+            SmallAction("新建", true, onApply, MaterialTheme.colorScheme.primary)
             SmallAction("重命名", true, onRename)
             SmallAction("删除", true, onDelete, MaterialTheme.colorScheme.error)
         }
