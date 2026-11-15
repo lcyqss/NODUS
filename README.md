@@ -37,7 +37,7 @@
 
 | 版本 | 内容 |
 |---|---|
-| v2.38.0 | IPv6 DNS：mihomo 双栈监听 + RA RDNSS |`n| v2.37.1 | 旁路由 IPv6 RA 检测，冲突时禁用 IPv6 代理 |`n| v2.36.1 | IPv6 设备策略：SRC-IP-CIDR v6 + 离线策略保护 |
+| v2.39.0 | Windows DNS 兜底：DHCPv6 下发 IPv6 DNS |`n| v2.38.0 | IPv6 DNS：mihomo 双栈监听 + RA RDNSS |`n| v2.37.1 | 旁路由 IPv6 RA 检测，冲突时禁用 IPv6 代理 |`n| v2.36.1 | IPv6 设备策略：SRC-IP-CIDR v6 + 离线策略保护 |
 | v2.36.0 | 设备策略同时生成 IPv4/IPv6 源规则 |
 | v2.35.2 | 局域网 IPv6 代理：ULA/RA、IPv6 TPROXY、关闭时撤回 RA |
 | v2.34.0 | 条件模板可套用到设备的优先或回落条件 |

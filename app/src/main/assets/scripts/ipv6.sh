@@ -8,6 +8,7 @@ CFG=$BASE/config.yaml
 CONF=$BASE/gateway.conf
 IP6=/system/bin/ip6tables
 RA=$BASE/v6ra
+DHCP=$BASE/v6dhcp
 LOG=$BASE/ipv6.log
 LOCK=$BASE/.ipv6.lock
 DNS_BAK=$BASE/.dns-listen.bak
@@ -92,6 +93,18 @@ start_ra() {
   done
 }
 
+start_dhcp() {
+  [ -x "$DHCP" ] || return 0
+  for IF in $(list_gateways); do
+    PIDFILE="$BASE/v6dhcp.$IF.pid"
+    [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null
+    setsid "$DHCP" -i "$IF" -d "$ULA_ADDR" \
+      >"$BASE/v6dhcp.$IF.log" 2>&1 &
+    echo $! > "$PIDFILE"
+    log "dhcpv6 started on $IF pid=$(cat "$PIDFILE")"
+  done
+}
+
 stop_ra() {
   # Withdraw the default route before stopping the daemon.
   if [ -x "$RA" ]; then
@@ -99,12 +112,12 @@ stop_ra() {
       "$RA" -i "$IF" -p "$ULA_PREFIX" -l 0 -once >/dev/null 2>&1
     done
   fi
-  for P in "$BASE"/v6ra.*.pid; do
+  for P in "$BASE"/v6ra.*.pid "$BASE"/v6dhcp.*.pid; do
     [ -f "$P" ] || continue
     kill "$(cat "$P")" 2>/dev/null
     rm -f "$P"
   done
-  killall v6ra 2>/dev/null
+  killall v6ra v6dhcp 2>/dev/null
 }
 
 teardown() {
@@ -129,6 +142,7 @@ enable() {
   setup_tproxy
   stop_ra
   start_ra
+  start_dhcp
   if grep -q '^IPV6_GATEWAY=' "$CONF" 2>/dev/null; then
     sed -i 's/^IPV6_GATEWAY=.*/IPV6_GATEWAY=1/' "$CONF"
   else

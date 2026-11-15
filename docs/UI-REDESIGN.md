@@ -436,3 +436,9 @@
 - 开启 IPv6 代理时 mihomo DNS 切到 [::]:1053
 - RA 携带 RDNSS
 - 关闭时恢复原 DNS 监听
+## 41. v2.39.0 Windows DHCPv6 DNS
+
+- RA 设置 O 标志
+- 新增 v6dhcp 无状态 DHCPv6 服务
+- Windows 获取 fd00:1234::1 作为 DNS
+- Windows 域名 IPv6 解析进入 mihomo

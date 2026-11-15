@@ -33,6 +33,7 @@ class AssetInstaller(
             copyAsset("mihomo", File(cache, "mihomo"))
             copyAssetDir("scripts", File(cache, "scripts"))
             copyAsset("ipv6/v6ra", File(cache, "v6ra"))
+            copyAsset("ipv6/v6dhcp", File(cache, "v6dhcp"))
             copyAsset("config.template.yaml", File(cache, "config.template.yaml"))
             copyAsset("gateway.conf", File(cache, "gateway.conf"))
             copyAsset("GeoSite.dat", File(cache, "GeoSite.dat"))
@@ -52,7 +53,10 @@ class AssetInstaller(
             cp -f $c/v6ra $base/v6ra.new
             chmod 755 $base/v6ra.new
             mv -f $base/v6ra.new $base/v6ra
-            chmod 755 $base/mihomo $base/*.sh $base/v6ra
+            cp -f $c/v6dhcp $base/v6dhcp.new
+            chmod 755 $base/v6dhcp.new
+            mv -f $base/v6dhcp.new $base/v6dhcp
+            chmod 755 $base/mihomo $base/*.sh $base/v6ra $base/v6dhcp
             [ -f $base/config.yaml ] || cp -f $c/config.template.yaml $base/config.yaml
             [ -f $base/gateway.conf ] || cp -f $c/gateway.conf $base/gateway.conf
             [ -f $base/GeoSite.dat ] || cp -f $c/GeoSite.dat $base/GeoSite.dat
