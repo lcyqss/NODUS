@@ -21,3 +21,22 @@
 ## 结果
 
 同一 ULA 流量按 MAC 命中独立 listener，mihomo 日志显示对应 __dev_* 组，不再依赖临时 IPv6 地址。
+## 实机验证（2026-11-16）
+
+主力手机（MAC `4e:fa:61:9d:f7:3c`）访问 IPv6 字面量后：
+
+```text
+tcp fd00:1234::70ae:da76:4abe:c791 -> 2606:4700:4700::1111
+inbound=dev-aad4491b, inboundPort=7910
+chains=香港高速01|BGP|CMCU, __dev_aad4491b2c
+```
+
+同一时刻 Windows 无策略流量：
+
+```text
+tcp fd00:1234::2539:2958:a7ca:ccba -> 2404:6800:400b:c01b::bc
+inbound=DEFAULT-TPROXY, inboundPort=7895
+chains=日本高速01|BGP|CUCM, 良心云
+```
+
+说明 MAC listener 已优先命中，且不依赖客户端当前 IPv6 地址。
