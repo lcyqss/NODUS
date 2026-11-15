@@ -116,7 +116,7 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
             Column(Modifier.weight(1f)) {
                 Text("设备策略", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
-                    "按设备选择地区与协议",
+                    "按设备选择节点标签",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

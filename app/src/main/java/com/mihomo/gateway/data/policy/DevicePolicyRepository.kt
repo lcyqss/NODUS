@@ -9,6 +9,8 @@ import com.mihomo.gateway.data.catalog.NodeCatalogRepository
 import com.mihomo.gateway.data.catalog.NodeInfo
 import com.mihomo.gateway.data.config.DevicePolicyConfig
 import com.mihomo.gateway.data.store.SettingsStore
+import com.mihomo.gateway.data.tags.NodeTagRepository
+import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.DevicePolicyCodec
 import com.mihomo.gateway.model.DeviceSelector
@@ -40,6 +42,7 @@ interface DevicePolicyRepository : DevicePolicyApplier {
     suspend fun runtime(): List<PolicyRuntime>
     suspend fun devices(): List<DeviceTarget>
     suspend fun nodes(): List<NodeInfo>
+    suspend fun tags(): List<NodeTag>
 
     /** 保存并立即应用（运行中会热重载）。 */
     suspend fun save(policy: DevicePolicy): Result<String>
@@ -56,6 +59,7 @@ class DevicePolicyRepositoryImpl(
     private val context: Context,
     private val settings: SettingsStore,
     private val catalog: NodeCatalogRepository,
+    private val tagRepository: NodeTagRepository,
     private val neighbors: NeighborResolver,
     private val shell: ShellExecutor,
     private val api: MihomoApi,
@@ -66,6 +70,8 @@ class DevicePolicyRepositoryImpl(
         settings.settings.map { DevicePolicyCodec.decode(it.devicePolicies) }
 
     override suspend fun nodes(): List<NodeInfo> = catalog.nodes()
+
+    override suspend fun tags(): List<NodeTag> = tagRepository.allTags(catalog.nodes())
 
     override suspend fun devices(): List<DeviceTarget> = withContext(Dispatchers.IO) {
         neighbors.resolve().values
@@ -84,15 +90,27 @@ class DevicePolicyRepositoryImpl(
 
     override suspend fun runtime(): List<PolicyRuntime> = withContext(Dispatchers.IO) {
         val allNodes = catalog.nodes()
+        val allTags = tagRepository.allTags(allNodes)
+        val missingTag = DevicePolicyCodec.decode(settings.settings.first().devicePolicies)
+            .any { policy ->
+                (policy.primary.tags + policy.fallback.tags).any { selection ->
+                    allTags.none { it.id == selection.tagId }
+                }
+            }
         val neighborsByMac = neighbors.resolve().values
             .filter { it.mac.isNotBlank() && it.ip.isNotBlank() }
             .groupBy { it.mac.lowercase() }
         DevicePolicyCodec.decode(settings.settings.first().devicePolicies).map { policy ->
-            val primary = match(allNodes, policy.primary)
-            val fallback = match(allNodes, policy.fallback)
+            val primary = allNodes.filter { node ->
+                tagRepository.matches(allTags, policy.primary.tags, node)
+            }
+            val fallback = allNodes.filter { node ->
+                tagRepository.matches(allTags, policy.fallback.tags, node)
+            }
             val ip = pickIp(neighborsByMac[policy.mac.lowercase()].orEmpty().map { it.ip })
             val error = when {
                 !policy.enabled -> null
+                missingTag -> "引用的标签已被删除"
                 primary.isEmpty() && fallback.isEmpty() -> "没有匹配的节点"
                 ip == null -> "设备未在线（未解析到 IP）"
                 else -> null
@@ -223,11 +241,6 @@ class DevicePolicyRepositoryImpl(
         else "SRC-IP-CIDR,$ip/32,$target"
     }
 
-    private fun match(nodes: List<NodeInfo>, selector: DeviceSelector): List<NodeInfo> =
-        nodes.filter { node ->
-            (selector.region.isBlank() || node.region == selector.region) &&
-                (selector.protocol.isBlank() || node.type == selector.protocol)
-        }
 
     private suspend fun coreRunning(): Boolean =
         shell.run("pidof mihomo >/dev/null 2>&1 && echo yes || echo no").stdout.trim() == "yes"

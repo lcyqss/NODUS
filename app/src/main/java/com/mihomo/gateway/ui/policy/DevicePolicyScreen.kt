@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -39,18 +40,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.mihomo.gateway.data.catalog.NodeRegions
+import com.mihomo.gateway.data.catalog.DeviceTarget
 import com.mihomo.gateway.data.policy.PolicyRuntime
 import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.DeviceSelector
+import com.mihomo.gateway.model.NodeTag
+import com.mihomo.gateway.model.TagSelection
 import com.mihomo.gateway.ui.components.SubPageHeader
 import com.mihomo.gateway.ui.icons.GwIcon
 import kotlinx.coroutines.delay
 import java.util.UUID
 
 /**
- * 设备策略：按源设备（MAC）选择「地区 + 协议」出口，并支持一个回落条件。
- * v1 的回落语义：主条件节点全部不可用时走回落条件。
+ * 设备策略：按源设备（MAC）选择一组标签条件，并支持一个回落条件。
+ * 条件由标签组成，多个标签默认 AND，每个标签可单独取反。
  */
 @Composable
 fun DevicePolicyScreen(
@@ -60,11 +63,12 @@ fun DevicePolicyScreen(
     val policies by vm.policies.collectAsState()
     val runtime by vm.runtime.collectAsState()
     val devices by vm.devices.collectAsState()
-    val nodes by vm.nodes.collectAsState()
+    val tags by vm.tags.collectAsState()
     val busy by vm.busy.collectAsState()
     val message by vm.message.collectAsState()
 
     var editing by remember { mutableStateOf<DevicePolicy?>(null) }
+    var showTags by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.refresh() }
     LaunchedEffect(message) {
@@ -72,6 +76,11 @@ fun DevicePolicyScreen(
             delay(4000)
             vm.clearMessage()
         }
+    }
+
+    if (showTags) {
+        NodeTagManagerScreen(onBack = { showTags = false }, vm = vm)
+        return
     }
 
     val runtimeById = runtime.associateBy { it.policy.id }
@@ -84,7 +93,7 @@ fun DevicePolicyScreen(
     ) {
         SubPageHeader(
             title = "设备策略",
-            subtitle = "按设备选择地区与协议，主条件不可用时回落",
+            subtitle = "按设备选择节点标签，主条件不可用时回落",
             onBack = onBack
         ) {
             if (busy) {
@@ -105,6 +114,28 @@ fun DevicePolicyScreen(
             }
         }
 
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable { showTags = true }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("节点标签", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    "${tags.count { !it.builtin }} 个自定义 · ${tags.count { it.builtin }} 个内置",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
+        }
+
         Spacer(Modifier.height(10.dp))
 
         message?.let {
@@ -122,7 +153,7 @@ fun DevicePolicyScreen(
             ) {
                 Text("还没有设备策略", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
-                    "点右上角 ＋ 选择一台局域网设备，指定它优先使用哪个地区/协议的节点",
+                    "点右上角 ＋ 选择一台局域网设备，指定它优先使用哪些节点标签",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -132,6 +163,7 @@ fun DevicePolicyScreen(
                 PolicyCard(
                     policy = policy,
                     runtime = runtimeById[policy.id],
+                    tags = tags,
                     onClick = { editing = policy }
                 )
                 if (index != policies.lastIndex) Spacer(Modifier.height(8.dp))
@@ -145,9 +177,10 @@ fun DevicePolicyScreen(
         PolicyEditorDialog(
             draft = draft,
             devices = devices,
-            nodeRegions = nodes.map { it.region }.filter { it.isNotBlank() }.distinct(),
-            nodeProtocols = nodes.map { it.type }.filter { it.isNotBlank() }.distinct().sorted(),
+            tags = tags,
             busy = busy,
+            matchCount = { selections -> vm.matchCount(selections) },
+            countTag = { tag -> vm.countTag(tag) },
             onDismiss = { editing = null },
             onSave = {
                 editing = null
@@ -162,7 +195,12 @@ fun DevicePolicyScreen(
 }
 
 @Composable
-private fun PolicyCard(policy: DevicePolicy, runtime: PolicyRuntime?, onClick: () -> Unit) {
+private fun PolicyCard(
+    policy: DevicePolicy,
+    runtime: PolicyRuntime?,
+    tags: List<NodeTag>,
+    onClick: () -> Unit
+) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -187,7 +225,7 @@ private fun PolicyCard(policy: DevicePolicy, runtime: PolicyRuntime?, onClick: (
             Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
         }
         Text(
-            selectorText(policy.primary) + " → " + selectorText(policy.fallback),
+            selectorText(policy.primary, tags) + " → " + selectorText(policy.fallback, tags),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary
         )
@@ -211,20 +249,19 @@ private fun PolicyCard(policy: DevicePolicy, runtime: PolicyRuntime?, onClick: (
 @Composable
 private fun PolicyEditorDialog(
     draft: DevicePolicy,
-    devices: List<com.mihomo.gateway.data.catalog.DeviceTarget>,
-    nodeRegions: List<String>,
-    nodeProtocols: List<String>,
+    devices: List<DeviceTarget>,
+    tags: List<NodeTag>,
     busy: Boolean,
+    matchCount: (List<TagSelection>) -> Int,
+    countTag: (NodeTag) -> Int,
     onDismiss: () -> Unit,
     onSave: (DevicePolicy) -> Unit,
     onDelete: () -> Unit
 ) {
     var mac by remember { mutableStateOf(draft.mac) }
     var label by remember { mutableStateOf(draft.label) }
-    var primaryRegion by remember { mutableStateOf(draft.primary.region) }
-    var primaryProtocol by remember { mutableStateOf(draft.primary.protocol) }
-    var fallbackRegion by remember { mutableStateOf(draft.fallback.region) }
-    var fallbackProtocol by remember { mutableStateOf(draft.fallback.protocol) }
+    var primary by remember { mutableStateOf(draft.primary.tags) }
+    var fallback by remember { mutableStateOf(draft.fallback.tags) }
     var enabled by remember { mutableStateOf(draft.enabled) }
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -248,35 +285,31 @@ private fun PolicyEditorDialog(
                     singleLine = true
                 )
 
-                Text("优先条件", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OptionPicker(
-                        title = NodeRegions.label(primaryRegion),
-                        options = listOf("" to "任意地区") +
-                            nodeRegions.map { it to NodeRegions.label(it) },
-                        onSelect = { primaryRegion = it }
-                    )
-                    OptionPicker(
-                        title = if (primaryProtocol.isBlank()) "任意协议" else primaryProtocol,
-                        options = listOf("" to "任意协议") + nodeProtocols.map { it to it },
-                        onSelect = { primaryProtocol = it }
-                    )
-                }
+                TagSelectorField(
+                    title = "优先条件",
+                    selections = primary,
+                    tags = tags,
+                    countTag = countTag,
+                    onChange = { primary = it }
+                )
+                Text(
+                    "命中 ${matchCount(primary)} 个节点",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                Text("回落条件", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OptionPicker(
-                        title = NodeRegions.label(fallbackRegion),
-                        options = listOf("" to "任意地区") +
-                            nodeRegions.map { it to NodeRegions.label(it) },
-                        onSelect = { fallbackRegion = it }
-                    )
-                    OptionPicker(
-                        title = if (fallbackProtocol.isBlank()) "任意协议" else fallbackProtocol,
-                        options = listOf("" to "任意协议") + nodeProtocols.map { it to it },
-                        onSelect = { fallbackProtocol = it }
-                    )
-                }
+                TagSelectorField(
+                    title = "回落条件",
+                    selections = fallback,
+                    tags = tags,
+                    countTag = countTag,
+                    onChange = { fallback = it }
+                )
+                Text(
+                    "命中 ${matchCount(fallback)} 个节点",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("启用", style = MaterialTheme.typography.bodyMedium)
@@ -293,8 +326,8 @@ private fun PolicyEditorDialog(
                         draft.copy(
                             mac = mac.lowercase(),
                             label = label.trim(),
-                            primary = DeviceSelector(primaryRegion, primaryProtocol),
-                            fallback = DeviceSelector(fallbackRegion, fallbackProtocol),
+                            primary = DeviceSelector(primary),
+                            fallback = DeviceSelector(fallback),
                             enabled = enabled
                         )
                     )
@@ -333,10 +366,124 @@ private fun PolicyEditorDialog(
 }
 
 @Composable
+private fun TagSelectorField(
+    title: String,
+    selections: List<TagSelection>,
+    tags: List<NodeTag>,
+    countTag: (NodeTag) -> Int,
+    onChange: (List<TagSelection>) -> Unit
+) {
+    var picker by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                selectorText(DeviceSelector(selections), tags),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        TextButton(onClick = { picker = true }) { Text("选择") }
+    }
+    if (picker) {
+        TagPickerDialog(
+            title = title,
+            selections = selections,
+            tags = tags,
+            countTag = countTag,
+            onDismiss = { picker = false },
+            onApply = {
+                picker = false
+                onChange(it)
+            }
+        )
+    }
+}
+
+@Composable
+private fun TagPickerDialog(
+    title: String,
+    selections: List<TagSelection>,
+    tags: List<NodeTag>,
+    countTag: (NodeTag) -> Int,
+    onDismiss: () -> Unit,
+    onApply: (List<TagSelection>) -> Unit
+) {
+    var draft by remember { mutableStateOf(selections) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                Modifier
+                    .height(360.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    "多个标签为 AND；选中后可点「取反」变成 NOT。留空表示任意节点。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(6.dp))
+                tags.forEach { tag ->
+                    val selection = draft.firstOrNull { it.tagId == tag.id }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = selection != null,
+                            onCheckedChange = { checked ->
+                                draft = if (checked) {
+                                    draft + TagSelection(tag.id)
+                                } else {
+                                    draft.filterNot { it.tagId == tag.id }
+                                }
+                            }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                tag.name + if (tag.builtin) "（内置）" else "",
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "命中 ${countTag(tag)} 节点",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (selection != null) {
+                            TextButton(onClick = {
+                                draft = draft.map {
+                                    if (it.tagId == tag.id) it.copy(negated = !it.negated) else it
+                                }
+                            }) {
+                                Text(
+                                    if (selection.negated) "取反 ✓" else "取反",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (selection.negated) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onApply(draft) }) { Text("确定") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
+@Composable
 private fun DevicePicker(
-    devices: List<com.mihomo.gateway.data.catalog.DeviceTarget>,
+    devices: List<DeviceTarget>,
     selectedMac: String,
-    onPick: (com.mihomo.gateway.data.catalog.DeviceTarget) -> Unit
+    onPick: (DeviceTarget) -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     val selected = devices.firstOrNull { it.mac == selectedMac }
@@ -372,34 +519,10 @@ private fun DevicePicker(
     }
 }
 
-@Composable
-private fun OptionPicker(
-    title: String,
-    options: List<Pair<String, String>>,
-    onSelect: (String) -> Unit
-) {
-    var menu by remember { mutableStateOf(false) }
-    Box {
-        TextButton(onClick = { menu = true }) {
-            Text(title, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-            Text(" ▾", style = MaterialTheme.typography.bodySmall)
-        }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            options.forEach { (value, label) ->
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    onClick = {
-                        menu = false
-                        onSelect(value)
-                    }
-                )
-            }
-        }
+private fun selectorText(selector: DeviceSelector, tags: List<NodeTag>): String {
+    if (selector.tags.isEmpty()) return "任意节点"
+    return selector.tags.joinToString(" ∧ ") { selection ->
+        val name = tags.firstOrNull { it.id == selection.tagId }?.name ?: "已删除标签"
+        if (selection.negated) "¬$name" else name
     }
-}
-
-private fun selectorText(selector: DeviceSelector): String {
-    val region = NodeRegions.label(selector.region)
-    val protocol = selector.protocol.ifBlank { "任意协议" }
-    return "$region · $protocol"
 }

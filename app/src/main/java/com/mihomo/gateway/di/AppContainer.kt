@@ -12,6 +12,8 @@ import com.mihomo.gateway.data.catalog.NodeCatalogRepository
 import com.mihomo.gateway.data.catalog.NodeCatalogRepositoryImpl
 import com.mihomo.gateway.data.policy.DevicePolicyRepository
 import com.mihomo.gateway.data.policy.DevicePolicyRepositoryImpl
+import com.mihomo.gateway.data.tags.NodeTagRepository
+import com.mihomo.gateway.data.tags.NodeTagRepositoryImpl
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.GatewayControllerImpl
 import com.mihomo.gateway.data.repo.ProfileRepository
@@ -48,6 +50,8 @@ object AppContainer {
         private set
     lateinit var devicePolicies: DevicePolicyRepository
         private set
+    lateinit var nodeTags: NodeTagRepository
+        private set
 
     private var initialized = false
 
@@ -64,10 +68,12 @@ object AppContainer {
         neighbors = NeighborResolver(shell)
         rules = RuleRepositoryImpl(app, shell, api, RuleStore(app), base = BASE)
         val nodeCatalog: NodeCatalogRepository = NodeCatalogRepositoryImpl(app, settings)
+        nodeTags = NodeTagRepositoryImpl(settings)
         devicePolicies = DevicePolicyRepositoryImpl(
             context = app,
             settings = settings,
             catalog = nodeCatalog,
+            tagRepository = nodeTags,
             neighbors = neighbors,
             shell = shell,
             api = api,

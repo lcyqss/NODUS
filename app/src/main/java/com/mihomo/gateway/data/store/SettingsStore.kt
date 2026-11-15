@@ -45,6 +45,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putString(KEY_SUBSCRIPTIONS, next.subscriptions)
                 .putString(KEY_ACTIVE_SUB, next.activeSubId)
                 .putString(KEY_DEVICE_POLICIES, next.devicePolicies)
+                .putString(KEY_NODE_TAGS, next.nodeTags)
                 .apply()
             _settings.value = next
         }
@@ -106,7 +107,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         favoriteNodes = prefs.getString(KEY_FAVORITES, "").orEmpty(),
         subscriptions = prefs.getString(KEY_SUBSCRIPTIONS, "").orEmpty(),
         activeSubId = prefs.getString(KEY_ACTIVE_SUB, "").orEmpty(),
-        devicePolicies = prefs.getString(KEY_DEVICE_POLICIES, "").orEmpty()
+        devicePolicies = prefs.getString(KEY_DEVICE_POLICIES, "").orEmpty(),
+        nodeTags = prefs.getString(KEY_NODE_TAGS, "").orEmpty()
     )
 
     companion object {
@@ -126,5 +128,6 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_SUBSCRIPTIONS = "subscriptions"
         private const val KEY_ACTIVE_SUB = "active_sub_id"
         private const val KEY_DEVICE_POLICIES = "device_policies"
+        private const val KEY_NODE_TAGS = "node_tags"
     }
 }

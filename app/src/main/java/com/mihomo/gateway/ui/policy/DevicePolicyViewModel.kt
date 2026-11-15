@@ -6,8 +6,11 @@ import com.mihomo.gateway.data.catalog.DeviceTarget
 import com.mihomo.gateway.data.catalog.NodeInfo
 import com.mihomo.gateway.data.policy.DevicePolicyRepository
 import com.mihomo.gateway.data.policy.PolicyRuntime
+import com.mihomo.gateway.data.tags.NodeTagRepository
 import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.model.DevicePolicy
+import com.mihomo.gateway.model.NodeTag
+import com.mihomo.gateway.model.TagSelection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +19,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class DevicePolicyViewModel(
-    private val repo: DevicePolicyRepository = AppContainer.devicePolicies
+    private val repo: DevicePolicyRepository = AppContainer.devicePolicies,
+    private val tagRepo: NodeTagRepository = AppContainer.nodeTags
 ) : ViewModel() {
 
     val policies: StateFlow<List<DevicePolicy>> = repo.policies
@@ -31,6 +35,9 @@ class DevicePolicyViewModel(
     private val _nodes = MutableStateFlow<List<NodeInfo>>(emptyList())
     val nodes: StateFlow<List<NodeInfo>> = _nodes.asStateFlow()
 
+    private val _tags = MutableStateFlow<List<NodeTag>>(emptyList())
+    val tags: StateFlow<List<NodeTag>> = _tags.asStateFlow()
+
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
@@ -44,7 +51,9 @@ class DevicePolicyViewModel(
     fun refresh() {
         viewModelScope.launch {
             _busy.value = true
-            _nodes.value = runCatching { repo.nodes() }.getOrDefault(emptyList())
+            val nodes = runCatching { repo.nodes() }.getOrDefault(emptyList())
+            _nodes.value = nodes
+            _tags.value = runCatching { repo.tags() }.getOrDefault(emptyList())
             _devices.value = runCatching { repo.devices() }.getOrDefault(emptyList())
             _runtime.value = runCatching { repo.runtime() }.getOrDefault(emptyList())
             _busy.value = false
@@ -65,21 +74,6 @@ class DevicePolicyViewModel(
         }
     }
 
-    /** 重新解析设备 IP 并重新应用（设备离线/上线后手动刷新）。 */
-    fun reapply() {
-        viewModelScope.launch {
-            _busy.value = true
-            repo.apply()
-                .onSuccess {
-                    _message.value = it
-                    _runtime.value = repo.runtime()
-                    _devices.value = repo.devices()
-                }
-                .onFailure { _message.value = "应用失败: " }
-            _busy.value = false
-        }
-    }
-
     fun delete(id: String) {
         viewModelScope.launch {
             _busy.value = true
@@ -92,4 +86,47 @@ class DevicePolicyViewModel(
             _busy.value = false
         }
     }
+
+    /** 重新解析设备 IP 并重新应用（设备离线/上线后手动刷新）。 */
+    fun reapply() {
+        viewModelScope.launch {
+            _busy.value = true
+            repo.apply()
+                .onSuccess {
+                    _message.value = it
+                    _runtime.value = repo.runtime()
+                    _devices.value = repo.devices()
+                }
+                .onFailure { _message.value = "应用失败: ${it.message}" }
+            _busy.value = false
+        }
+    }
+
+    fun saveTag(tag: NodeTag) {
+        viewModelScope.launch {
+            tagRepo.save(tag)
+                .onSuccess {
+                    _tags.value = repo.tags()
+                    _message.value = "标签已保存"
+                }
+                .onFailure { _message.value = "标签保存失败: ${it.message}" }
+        }
+    }
+
+    fun deleteTag(id: String) {
+        viewModelScope.launch {
+            tagRepo.delete(id)
+            _tags.value = repo.tags()
+            _message.value = "标签已删除"
+        }
+    }
+
+    /** 条件命中的节点数，用于 UI 预览。 */
+    fun matchCount(selections: List<TagSelection>): Int {
+        val allTags = _tags.value
+        return _nodes.value.count { node -> tagRepo.matches(allTags, selections, node) }
+    }
+
+    fun countTag(tag: NodeTag): Int =
+        _nodes.value.count { node -> tagRepo.matches(tag, node) }
 }

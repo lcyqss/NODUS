@@ -97,7 +97,8 @@ data class AppSettings(
     val favoriteNodes: String = "",
     val subscriptions: String = "",
     val activeSubId: String = "",
-    val devicePolicies: String = ""
+    val devicePolicies: String = "",
+    val nodeTags: String = ""
 )
 
 data class SubscriptionProfile(

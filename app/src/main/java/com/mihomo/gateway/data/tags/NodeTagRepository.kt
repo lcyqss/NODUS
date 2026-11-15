@@ -1,0 +1,119 @@
+package com.mihomo.gateway.data.tags
+
+import com.mihomo.gateway.data.catalog.NodeInfo
+import com.mihomo.gateway.data.catalog.NodeRegions
+import com.mihomo.gateway.data.store.SettingsStore
+import com.mihomo.gateway.model.NodeTag
+import com.mihomo.gateway.model.NodeTagCodec
+import com.mihomo.gateway.model.TagSelection
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import java.util.UUID
+
+/**
+ * 节点标签：内置标签（类型、识别地区）+ 用户自定义关键词标签。
+ * 普通标签语义：名称包含 include 任一（OR），且不包含 exclude 任一（NOT）。
+ */
+interface NodeTagRepository {
+    val customTags: Flow<List<NodeTag>>
+
+    /** 内置 + 自定义，供 UI 与策略求值使用。 */
+    suspend fun allTags(nodes: List<NodeInfo>): List<NodeTag>
+
+    suspend fun save(tag: NodeTag): Result<Unit>
+    suspend fun delete(id: String)
+
+    fun matches(tag: NodeTag, node: NodeInfo): Boolean
+
+    /** 多个标签默认 AND；每个标签可单独取反。 */
+    fun matches(tags: List<NodeTag>, selections: List<TagSelection>, node: NodeInfo): Boolean
+}
+
+class NodeTagRepositoryImpl(
+    private val settings: SettingsStore
+) : NodeTagRepository {
+
+    override val customTags: Flow<List<NodeTag>> =
+        settings.settings.map { NodeTagCodec.decode(it.nodeTags) }
+
+    override suspend fun allTags(nodes: List<NodeInfo>): List<NodeTag> = withContext(Dispatchers.IO) {
+        val builtinTypes = nodes.map { it.type }.filter { it.isNotBlank() }.distinct().sorted()
+            .map { type ->
+                NodeTag(
+                    id = "__type_$type",
+                    name = type,
+                    builtin = true,
+                    builtinKind = "type"
+                )
+            }
+        val builtinRegions = NodeRegions.all.map { region ->
+            NodeTag(
+                id = "__region_${region.code}",
+                name = region.label,
+                builtin = true,
+                builtinKind = "region"
+            )
+        }
+        val custom = NodeTagCodec.decode(settings.settings.first().nodeTags)
+            .sortedBy { it.name.lowercase() }
+        custom + builtinTypes + builtinRegions
+    }
+
+    override suspend fun save(tag: NodeTag): Result<Unit> = withContext(Dispatchers.IO) {
+        val name = tag.name.trim()
+        if (name.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("标签名不能为空"))
+        }
+        val cleaned = tag.copy(
+            id = tag.id.ifBlank { UUID.randomUUID().toString() },
+            name = name,
+            include = tag.include.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+            exclude = tag.exclude.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+            builtin = false,
+            builtinKind = null
+        )
+        val current = NodeTagCodec.decode(settings.settings.first().nodeTags)
+        val list = current.filterNot { it.id == cleaned.id } + cleaned
+        settings.update { it.copy(nodeTags = NodeTagCodec.encode(list)) }
+        Result.success(Unit)
+    }
+
+    override suspend fun delete(id: String) {
+        withContext(Dispatchers.IO) {
+            val current = NodeTagCodec.decode(settings.settings.first().nodeTags)
+            settings.update {
+                it.copy(nodeTags = NodeTagCodec.encode(current.filterNot { tag -> tag.id == id }))
+            }
+        }
+    }
+
+    override fun matches(tag: NodeTag, node: NodeInfo): Boolean {
+        if (tag.builtin) {
+            return when (tag.builtinKind) {
+                "type" -> node.type.equals(tag.id.removePrefix("__type_"), true)
+                "region" -> node.region.equals(tag.id.removePrefix("__region_"), true)
+                else -> false
+            }
+        }
+        val lower = node.name.lowercase()
+        val includeOk = tag.include.isEmpty() || tag.include.any { lower.contains(it.lowercase()) }
+        val excludeHit = tag.exclude.any { lower.contains(it.lowercase()) }
+        return includeOk && !excludeHit
+    }
+
+    override fun matches(
+        tags: List<NodeTag>,
+        selections: List<TagSelection>,
+        node: NodeInfo
+    ): Boolean {
+        if (selections.isEmpty()) return true
+        return selections.all { selection ->
+            val tag = tags.firstOrNull { it.id == selection.tagId } ?: return false
+            val hit = matches(tag, node)
+            if (selection.negated) !hit else hit
+        }
+    }
+}
