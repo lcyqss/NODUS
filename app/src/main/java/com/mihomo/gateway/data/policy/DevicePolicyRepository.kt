@@ -54,6 +54,9 @@ interface DevicePolicyRepository : DevicePolicyApplier {
 
     /** 按延迟阈值切换优先/回落组（仅 maxDelayMs > 0 的策略）。 */
     suspend fun evaluateRouting(): Result<Int>
+
+    /** 设备 IP 变化（DHCP 续租/重连）时自动重建规则；无变化返回 false。 */
+    suspend fun syncIfNeeded(): Result<Boolean>
 }
 
 private val IPV4 = Regex("""^(\d{1,3}\.){3}\d{1,3}$""")
@@ -68,6 +71,9 @@ class DevicePolicyRepositoryImpl(
     private val api: MihomoApi,
     private val base: String = "/data/adb/mihomo"
 ) : DevicePolicyRepository {
+
+    /** 上次写入配置的 MAC→IP 映射；null 表示尚未从现有配置读取。 */
+    private var appliedIps: Map<String, String>? = null
 
     override val policies: Flow<List<DevicePolicy>> =
         settings.settings.map { DevicePolicyCodec.decode(it.devicePolicies) }
@@ -215,8 +221,52 @@ class DevicePolicyRepositoryImpl(
                 "cp -f ${cache.absolutePath} $base/config.yaml",
             20_000
         )
-        if (replace.code == 0) Result.success(Unit)
-        else Result.failure(IllegalStateException("写入配置失败"))
+        if (replace.code == 0) {
+            appliedIps = validPlans.mapNotNull { plan ->
+                plan.ip?.let { plan.policy.id to it }
+            }.toMap()
+            Result.success(Unit)
+        } else Result.failure(IllegalStateException("写入配置失败"))
+    }
+
+    override suspend fun syncIfNeeded(): Result<Boolean> = withContext(Dispatchers.IO) {
+        val plans = runtime().filter {
+            it.policy.enabled && it.targetGroup != null && it.ip != null
+        }
+        if (plans.isEmpty()) return@withContext Result.success(false)
+        if (appliedIps == null) appliedIps = readAppliedIps()
+        val changed = plans.any { appliedIps?.get(it.policy.id) != it.ip }
+        if (!changed) return@withContext Result.success(false)
+
+        val applied = applyToConfig()
+        if (applied.isFailure) return@withContext Result.failure(applied.exceptionOrNull()!!)
+        if (coreRunning()) {
+            val reload = api.reloadConfigs()
+            if (reload.isFailure) {
+                shell.run("cp -f $base/config.yaml.bak.policy $base/config.yaml", 20_000)
+                api.reloadConfigs()
+                return@withContext Result.failure(
+                    IllegalStateException("设备 IP 变化后重载失败: ${reload.exceptionOrNull()?.message}")
+                )
+            }
+        }
+        Result.success(true)
+    }
+
+    /** 从现有 config 的 SRC-IP 规则反推已生效的 IP，避免进程重启后误判。 */
+    private suspend fun readAppliedIps(): Map<String, String> {
+        val text = shell.run("cat $base/config.yaml 2>/dev/null").stdout
+        if (text.isBlank()) return emptyMap()
+        val result = mutableMapOf<String, String>()
+        DevicePolicyCodec.decode(settings.settings.first().devicePolicies).forEach { policy ->
+            val base = groupName(policy)
+            val regex = Regex("""^-\s*SRC-IP-CIDR6?,([^/]+)/\d+,($base(?:_[pf])?)$""")
+            text.lineSequence().forEach { line ->
+                val match = regex.find(line.trim()) ?: return@forEach
+                result[policy.id] = match.groupValues[1]
+            }
+        }
+        return result
     }
 
     private fun buildGroups(plan: PolicyRuntime): List<String> {

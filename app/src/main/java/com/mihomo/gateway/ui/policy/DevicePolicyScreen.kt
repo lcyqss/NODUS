@@ -65,6 +65,7 @@ fun DevicePolicyScreen(
     val runtime by vm.runtime.collectAsState()
     val devices by vm.devices.collectAsState()
     val tags by vm.tags.collectAsState()
+    val intervalSec by vm.intervalSec.collectAsState()
     val busy by vm.busy.collectAsState()
     val message by vm.message.collectAsState()
 
@@ -138,6 +139,10 @@ fun DevicePolicyScreen(
             }
             Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
         }
+
+        Spacer(Modifier.height(8.dp))
+
+        IntervalRow(seconds = intervalSec, onChange = { vm.setInterval(it) })
 
         Spacer(Modifier.height(10.dp))
 
@@ -527,6 +532,49 @@ private fun DevicePicker(
                         }
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IntervalRow(seconds: Int, onChange: (Int) -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    val options = listOf(30 to "30 秒", 60 to "1 分钟", 300 to "5 分钟")
+    Box {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable { menu = true }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("延迟调度间隔", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    "仅对设置了延迟阈值的策略生效",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                options.firstOrNull { it.first == seconds }?.second ?: " 秒",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(" ▾", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            options.forEach { (value, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        menu = false
+                        onChange(value)
+                    }
+                )
             }
         }
     }

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -43,6 +44,16 @@ class DevicePolicyViewModel(
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
+
+    val intervalSec: StateFlow<Int> = AppContainer.settings.settings
+        .map { it.policyIntervalSec }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 60)
+
+    fun setInterval(seconds: Int) {
+        viewModelScope.launch {
+            AppContainer.settings.update { it.copy(policyIntervalSec = seconds) }
+        }
+    }
 
     fun clearMessage() {
         _message.value = null

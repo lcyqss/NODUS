@@ -91,12 +91,24 @@ class GatewayService : Service() {
             }
         }
 
-        // 设备策略的延迟阈值调度：每分钟评估一次（仅 maxDelayMs > 0 的策略）
+        // 设备策略：IP 跟随（DHCP 变化时重建 SRC-IP 规则），固定 60 秒
+        scope.launch {
+            while (isActive) {
+                runCatching { AppContainer.devicePolicies.syncIfNeeded() }
+                    .onFailure { Log.w(TAG, "device policy ip sync: ${it.message}") }
+                delay(60_000L)
+            }
+        }
+
+        // 设备策略：延迟阈值调度，间隔可在设备策略页设置
         scope.launch {
             while (isActive) {
                 runCatching { AppContainer.devicePolicies.evaluateRouting() }
                     .onFailure { Log.w(TAG, "device policy routing: ${it.message}") }
-                delay(60_000L)
+                val seconds = runCatching {
+                    AppContainer.settings.settings.first().policyIntervalSec
+                }.getOrDefault(60).coerceIn(30, 300)
+                delay(seconds * 1000L)
             }
         }
 

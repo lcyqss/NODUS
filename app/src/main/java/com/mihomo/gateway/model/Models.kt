@@ -98,7 +98,8 @@ data class AppSettings(
     val subscriptions: String = "",
     val activeSubId: String = "",
     val devicePolicies: String = "",
-    val nodeTags: String = ""
+    val nodeTags: String = "",
+    val policyIntervalSec: Int = 60
 )
 
 data class SubscriptionProfile(
