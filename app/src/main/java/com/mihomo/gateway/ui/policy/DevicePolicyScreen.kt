@@ -3,6 +3,7 @@ package com.mihomo.gateway.ui.policy
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -43,18 +43,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mihomo.gateway.data.catalog.DeviceTarget
 import com.mihomo.gateway.data.policy.PolicyRuntime
+import com.mihomo.gateway.data.tags.TagExprParser
 import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.DeviceSelector
 import com.mihomo.gateway.model.NodeTag
-import com.mihomo.gateway.model.TagSelection
+import com.mihomo.gateway.model.TagExpr
 import com.mihomo.gateway.ui.components.SubPageHeader
 import com.mihomo.gateway.ui.icons.GwIcon
 import kotlinx.coroutines.delay
 import java.util.UUID
 
 /**
- * 设备策略：按源设备（MAC）选择一组标签条件，并支持一个回落条件。
- * 条件由标签组成，多个标签默认 AND，每个标签可单独取反。
+ * 设备策略：按源设备（MAC）选择标签表达式条件，并支持一个回落条件。
+ * 表达式支持 ∧/∨/¬ 与括号；留空表示任意节点。
  */
 @Composable
 fun DevicePolicyScreen(
@@ -97,7 +98,7 @@ fun DevicePolicyScreen(
     ) {
         SubPageHeader(
             title = "设备策略",
-            subtitle = "按设备选择节点标签，主条件不可用时回落",
+            subtitle = "按设备选择标签表达式，主条件不满足时回落",
             onBack = onBack
         ) {
             if (busy) {
@@ -141,10 +142,8 @@ fun DevicePolicyScreen(
         }
 
         Spacer(Modifier.height(8.dp))
-
         IntervalRow(seconds = intervalSec, onChange = { vm.setInterval(it) })
-
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
 
         message?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
@@ -187,8 +186,7 @@ fun DevicePolicyScreen(
             devices = devices,
             tags = tags,
             busy = busy,
-            matchCount = { selections -> vm.matchCount(selections) },
-            countTag = { tag -> vm.countTag(tag) },
+            matchCount = { expr -> vm.matchCount(expr) },
             onDismiss = { editing = null },
             onSave = {
                 editing = null
@@ -261,16 +259,17 @@ private fun PolicyEditorDialog(
     devices: List<DeviceTarget>,
     tags: List<NodeTag>,
     busy: Boolean,
-    matchCount: (List<TagSelection>) -> Int,
-    countTag: (NodeTag) -> Int,
+    matchCount: (TagExpr?) -> Int,
     onDismiss: () -> Unit,
     onSave: (DevicePolicy) -> Unit,
     onDelete: () -> Unit
 ) {
     var mac by remember { mutableStateOf(draft.mac) }
     var label by remember { mutableStateOf(draft.label) }
-    var primary by remember { mutableStateOf(draft.primary.tags) }
-    var fallback by remember { mutableStateOf(draft.fallback.tags) }
+    var primaryText by remember { mutableStateOf(TagExprParser.toText(draft.primary.expr, tags)) }
+    var fallbackText by remember { mutableStateOf(TagExprParser.toText(draft.fallback.expr, tags)) }
+    var primaryError by remember { mutableStateOf<String?>(null) }
+    var fallbackError by remember { mutableStateOf<String?>(null) }
     var enabled by remember { mutableStateOf(draft.enabled) }
     var maxDelay by remember { mutableStateOf(if (draft.maxDelayMs > 0) draft.maxDelayMs.toString() else "") }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -279,7 +278,12 @@ private fun PolicyEditorDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (draft.mac.isBlank()) "添加设备策略" else "编辑设备策略") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier
+                    .height(460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 DevicePicker(
                     devices = devices,
                     selectedMac = mac,
@@ -295,30 +299,28 @@ private fun PolicyEditorDialog(
                     singleLine = true
                 )
 
-                TagSelectorField(
+                ExprField(
                     title = "优先条件",
-                    selections = primary,
+                    text = primaryText,
+                    onTextChange = {
+                        primaryText = it
+                        primaryError = null
+                    },
                     tags = tags,
-                    countTag = countTag,
-                    onChange = { primary = it }
-                )
-                Text(
-                    "命中 ${matchCount(primary)} 个节点",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    error = primaryError,
+                    count = matchCount(parseOrNull(primaryText, tags))
                 )
 
-                TagSelectorField(
+                ExprField(
                     title = "回落条件",
-                    selections = fallback,
+                    text = fallbackText,
+                    onTextChange = {
+                        fallbackText = it
+                        fallbackError = null
+                    },
                     tags = tags,
-                    countTag = countTag,
-                    onChange = { fallback = it }
-                )
-                Text(
-                    "命中 ${matchCount(fallback)} 个节点",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    error = fallbackError,
+                    count = matchCount(parseOrNull(fallbackText, tags))
                 )
 
                 OutlinedTextField(
@@ -339,16 +341,22 @@ private fun PolicyEditorDialog(
             TextButton(
                 enabled = !busy && mac.isNotBlank(),
                 onClick = {
-                    onSave(
-                        draft.copy(
-                            mac = mac.lowercase(),
-                            label = label.trim(),
-                            primary = DeviceSelector(primary),
-                            fallback = DeviceSelector(fallback),
-                            maxDelayMs = maxDelay.toIntOrNull() ?: 0,
-                            enabled = enabled
+                    val parsedPrimary = TagExprParser.parse(primaryText, tags)
+                    val parsedFallback = TagExprParser.parse(fallbackText, tags)
+                    primaryError = parsedPrimary.exceptionOrNull()?.message
+                    fallbackError = parsedFallback.exceptionOrNull()?.message
+                    if (parsedPrimary.isSuccess && parsedFallback.isSuccess) {
+                        onSave(
+                            draft.copy(
+                                mac = mac.lowercase(),
+                                label = label.trim(),
+                                primary = DeviceSelector(parsedPrimary.getOrNull()),
+                                fallback = DeviceSelector(parsedFallback.getOrNull()),
+                                maxDelayMs = maxDelay.toIntOrNull() ?: 0,
+                                enabled = enabled
+                            )
                         )
-                    )
+                    }
                 }
             ) { Text("保存并应用") }
         },
@@ -384,117 +392,52 @@ private fun PolicyEditorDialog(
 }
 
 @Composable
-private fun TagSelectorField(
+private fun ExprField(
     title: String,
-    selections: List<TagSelection>,
+    text: String,
+    onTextChange: (String) -> Unit,
     tags: List<NodeTag>,
-    countTag: (NodeTag) -> Int,
-    onChange: (List<TagSelection>) -> Unit
+    error: String?,
+    count: Int
 ) {
-    var picker by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                selectorText(DeviceSelector(selections), tags),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        TextButton(onClick = { picker = true }) { Text("选择") }
-    }
-    if (picker) {
-        TagPickerDialog(
-            title = title,
-            selections = selections,
-            tags = tags,
-            countTag = countTag,
-            onDismiss = { picker = false },
-            onApply = {
-                picker = false
-                onChange(it)
+    Column {
+        Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = text,
+            onValueChange = onTextChange,
+            placeholder = { Text("例如 香港 ∧ vless，留空=任意") },
+            minLines = 2,
+            isError = error != null,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            tags.take(10).forEach { tag ->
+                Text(
+                    tag.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable {
+                            onTextChange(if (text.isBlank()) tag.name else "$text ∧ ${tag.name}")
+                        }
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                )
             }
+        }
+        Text(
+            error ?: "命中 $count 个节点 · 支持 ∧ ∨ ¬ 与括号",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (error != null) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
-}
-
-@Composable
-private fun TagPickerDialog(
-    title: String,
-    selections: List<TagSelection>,
-    tags: List<NodeTag>,
-    countTag: (NodeTag) -> Int,
-    onDismiss: () -> Unit,
-    onApply: (List<TagSelection>) -> Unit
-) {
-    var draft by remember { mutableStateOf(selections) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(
-                Modifier
-                    .height(360.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    "多个标签为 AND；选中后可点「取反」变成 NOT。留空表示任意节点。",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(6.dp))
-                tags.forEach { tag ->
-                    val selection = draft.firstOrNull { it.tagId == tag.id }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = selection != null,
-                            onCheckedChange = { checked ->
-                                draft = if (checked) {
-                                    draft + TagSelection(tag.id)
-                                } else {
-                                    draft.filterNot { it.tagId == tag.id }
-                                }
-                            }
-                        )
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                tag.name + if (tag.builtin) "（内置）" else "",
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                "命中 ${countTag(tag)} 节点",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (selection != null) {
-                            TextButton(onClick = {
-                                draft = draft.map {
-                                    if (it.tagId == tag.id) it.copy(negated = !it.negated) else it
-                                }
-                            }) {
-                                Text(
-                                    if (selection.negated) "取反 ✓" else "取反",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (selection.negated) MaterialTheme.colorScheme.error
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onApply(draft) }) { Text("确定") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
-    )
 }
 
 @Composable
@@ -560,7 +503,7 @@ private fun IntervalRow(seconds: Int, onChange: (Int) -> Unit) {
                 )
             }
             Text(
-                options.firstOrNull { it.first == seconds }?.second ?: " 秒",
+                options.firstOrNull { it.first == seconds }?.second ?: "$seconds 秒",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -580,10 +523,10 @@ private fun IntervalRow(seconds: Int, onChange: (Int) -> Unit) {
     }
 }
 
+private fun parseOrNull(text: String, tags: List<NodeTag>): TagExpr? =
+    TagExprParser.parse(text, tags).getOrNull()
+
 private fun selectorText(selector: DeviceSelector, tags: List<NodeTag>): String {
-    if (selector.tags.isEmpty()) return "任意节点"
-    return selector.tags.joinToString(" ∧ ") { selection ->
-        val name = tags.firstOrNull { it.id == selection.tagId }?.name ?: "已删除标签"
-        if (selection.negated) "¬$name" else name
-    }
+    val text = TagExprParser.toText(selector.expr, tags)
+    return text.ifBlank { "任意节点" }
 }

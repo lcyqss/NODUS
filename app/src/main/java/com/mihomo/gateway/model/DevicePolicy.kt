@@ -3,15 +3,17 @@ package com.mihomo.gateway.model
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** 策略条件里对一个标签的引用；negated 表示取反（NOT）。 */
-data class TagSelection(
-    val tagId: String,
-    val negated: Boolean = false
-)
+/** 策略条件的布尔表达式：标签引用 + AND/OR/NOT。 */
+sealed interface TagExpr {
+    data class Ref(val tagId: String, val negated: Boolean = false) : TagExpr
+    data class And(val items: List<TagExpr>) : TagExpr
+    data class Or(val items: List<TagExpr>) : TagExpr
+    data class Not(val item: TagExpr) : TagExpr
+}
 
-/** 设备策略的出口条件：多个标签默认 AND。 */
+/** 设备策略的出口条件；expr 为空表示任意节点。 */
 data class DeviceSelector(
-    val tags: List<TagSelection> = emptyList()
+    val expr: TagExpr? = null
 )
 
 /** 按源设备（MAC）生效的出口策略：优先条件 + 回落条件。 */
@@ -119,36 +121,71 @@ object DevicePolicyCodec {
         return array.toString()
     }
 
-    /** 兼容旧格式 {region, protocol}：映射成内置地区/协议标签。 */
+    /** 兼容两种旧格式：tags 列表（AND）与 {region, protocol}。 */
     private fun decodeSelector(obj: JSONObject?): DeviceSelector {
         if (obj == null) return DeviceSelector()
+        obj.optJSONObject("expr")?.let { return DeviceSelector(decodeExpr(it)) }
+
         val tagsArray = obj.optJSONArray("tags")
         if (tagsArray != null) {
-            val tags = (0 until tagsArray.length()).mapNotNull { index ->
+            val refs = (0 until tagsArray.length()).mapNotNull { index ->
                 val item = tagsArray.optJSONObject(index) ?: return@mapNotNull null
                 val tagId = item.optString("tagId")
-                if (tagId.isBlank()) return@mapNotNull null
-                TagSelection(tagId, item.optBoolean("negated", false))
+                if (tagId.isBlank()) null else TagExpr.Ref(tagId, item.optBoolean("negated", false))
             }
-            return DeviceSelector(tags)
+            return DeviceSelector(if (refs.isEmpty()) null else TagExpr.And(refs))
         }
-        val legacy = mutableListOf<TagSelection>()
+
+        val refs = mutableListOf<TagExpr>()
         val region = obj.optString("region")
-        if (region.isNotBlank()) legacy += TagSelection("__region_$region")
+        if (region.isNotBlank()) refs += TagExpr.Ref("__region_$region")
         val protocol = obj.optString("protocol").lowercase()
-        if (protocol.isNotBlank()) legacy += TagSelection("__type_$protocol")
-        return DeviceSelector(legacy)
+        if (protocol.isNotBlank()) refs += TagExpr.Ref("__type_$protocol")
+        return DeviceSelector(if (refs.isEmpty()) null else TagExpr.And(refs))
     }
 
-    private fun encodeSelector(selector: DeviceSelector): JSONObject {
-        val tags = JSONArray()
-        selector.tags.forEach { selection ->
-            tags.put(
-                JSONObject()
-                    .put("tagId", selection.tagId)
-                    .put("negated", selection.negated)
-            )
+    private fun encodeSelector(selector: DeviceSelector): JSONObject =
+        JSONObject().put("expr", selector.expr?.let { encodeExpr(it) })
+
+    private fun encodeExpr(expr: TagExpr): JSONObject = when (expr) {
+        is TagExpr.Ref -> JSONObject()
+            .put("type", "ref")
+            .put("tagId", expr.tagId)
+            .put("negated", expr.negated)
+
+        is TagExpr.And -> JSONObject()
+            .put("type", "and")
+            .put("items", JSONArray(expr.items.map { encodeExpr(it) }))
+
+        is TagExpr.Or -> JSONObject()
+            .put("type", "or")
+            .put("items", JSONArray(expr.items.map { encodeExpr(it) }))
+
+        is TagExpr.Not -> JSONObject()
+            .put("type", "not")
+            .put("item", encodeExpr(expr.item))
+    }
+
+    private fun decodeExpr(obj: JSONObject): TagExpr? = when (obj.optString("type")) {
+        "ref" -> obj.optString("tagId")
+            .takeIf { it.isNotBlank() }
+            ?.let { TagExpr.Ref(it, obj.optBoolean("negated", false)) }
+
+        "and" -> obj.optJSONArray("items")?.let { array ->
+            val items = (0 until array.length()).mapNotNull { index ->
+                array.optJSONObject(index)?.let { decodeExpr(it) }
+            }
+            if (items.isEmpty()) null else TagExpr.And(items)
         }
-        return JSONObject().put("tags", tags)
+
+        "or" -> obj.optJSONArray("items")?.let { array ->
+            val items = (0 until array.length()).mapNotNull { index ->
+                array.optJSONObject(index)?.let { decodeExpr(it) }
+            }
+            if (items.isEmpty()) null else TagExpr.Or(items)
+        }
+
+        "not" -> obj.optJSONObject("item")?.let { decodeExpr(it) }?.let { TagExpr.Not(it) }
+        else -> null
     }
 }

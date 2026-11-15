@@ -5,7 +5,7 @@ import com.mihomo.gateway.data.catalog.NodeRegions
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.NodeTagCodec
-import com.mihomo.gateway.model.TagSelection
+import com.mihomo.gateway.model.TagExpr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -28,8 +28,8 @@ interface NodeTagRepository {
 
     fun matches(tag: NodeTag, node: NodeInfo): Boolean
 
-    /** 多个标签默认 AND；每个标签可单独取反。 */
-    fun matches(tags: List<NodeTag>, selections: List<TagSelection>, node: NodeInfo): Boolean
+    /** 按布尔表达式求值；null 表示任意节点。 */
+    fun matches(tags: List<NodeTag>, expr: TagExpr?, node: NodeInfo): Boolean
 }
 
 class NodeTagRepositoryImpl(
@@ -104,16 +104,16 @@ class NodeTagRepositoryImpl(
         return includeOk && !excludeHit
     }
 
-    override fun matches(
-        tags: List<NodeTag>,
-        selections: List<TagSelection>,
-        node: NodeInfo
-    ): Boolean {
-        if (selections.isEmpty()) return true
-        return selections.all { selection ->
-            val tag = tags.firstOrNull { it.id == selection.tagId } ?: return false
-            val hit = matches(tag, node)
-            if (selection.negated) !hit else hit
+    override fun matches(tags: List<NodeTag>, expr: TagExpr?, node: NodeInfo): Boolean =
+        when (expr) {
+            null -> true
+            is TagExpr.Ref -> {
+                val tag = tags.firstOrNull { it.id == expr.tagId }
+                val hit = tag != null && matches(tag, node)
+                if (expr.negated) !hit else hit
+            }
+            is TagExpr.And -> expr.items.all { matches(tags, it, node) }
+            is TagExpr.Or -> expr.items.any { matches(tags, it, node) }
+            is TagExpr.Not -> !matches(tags, expr.item, node)
         }
-    }
 }

@@ -11,6 +11,7 @@ import com.mihomo.gateway.data.config.DevicePolicyConfig
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.data.tags.NodeTagRepository
 import com.mihomo.gateway.model.NodeTag
+import com.mihomo.gateway.model.TagExpr
 import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.DevicePolicyCodec
 import com.mihomo.gateway.model.DeviceSelector
@@ -102,8 +103,8 @@ class DevicePolicyRepositoryImpl(
         val allTags = tagRepository.allTags(allNodes)
         val missingTag = DevicePolicyCodec.decode(settings.settings.first().devicePolicies)
             .any { policy ->
-                (policy.primary.tags + policy.fallback.tags).any { selection ->
-                    allTags.none { it.id == selection.tagId }
+                (exprIds(policy.primary.expr) + exprIds(policy.fallback.expr)).any { tagId ->
+                    allTags.none { it.id == tagId }
                 }
             }
         val neighborsByMac = neighbors.resolve().values
@@ -111,10 +112,10 @@ class DevicePolicyRepositoryImpl(
             .groupBy { it.mac.lowercase() }
         DevicePolicyCodec.decode(settings.settings.first().devicePolicies).map { policy ->
             val primary = allNodes.filter { node ->
-                tagRepository.matches(allTags, policy.primary.tags, node)
+                tagRepository.matches(allTags, policy.primary.expr, node)
             }
             val fallback = allNodes.filter { node ->
-                tagRepository.matches(allTags, policy.fallback.tags, node)
+                tagRepository.matches(allTags, policy.fallback.expr, node)
             }
             val ip = pickIp(neighborsByMac[policy.mac.lowercase()].orEmpty().map { it.ip })
             val error = when {
@@ -269,8 +270,15 @@ class DevicePolicyRepositoryImpl(
         return result
     }
 
-    private fun buildGroups(plan: PolicyRuntime): List<String> {
-        val baseName = groupName(plan.policy)
+    private fun exprIds(expr: TagExpr?): Set<String> = when (expr) {
+        null -> emptySet()
+        is TagExpr.Ref -> setOf(expr.tagId)
+        is TagExpr.And -> expr.items.flatMap { exprIds(it) }.toSet()
+        is TagExpr.Or -> expr.items.flatMap { exprIds(it) }.toSet()
+        is TagExpr.Not -> exprIds(expr.item)
+    }
+
+    private fun buildGroups(plan: PolicyRuntime): List<String> {        val baseName = groupName(plan.policy)
         val out = mutableListOf<String>()
         if (plan.primaryNodes.isNotEmpty()) {
             out += groupLine("${baseName}_p", "url-test", plan.primaryNodes.map { it.name }, 300)

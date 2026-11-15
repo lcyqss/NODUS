@@ -10,7 +10,7 @@ import com.mihomo.gateway.data.tags.NodeTagRepository
 import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.NodeTag
-import com.mihomo.gateway.model.TagSelection
+import com.mihomo.gateway.model.TagExpr
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -133,10 +133,8 @@ class DevicePolicyViewModel(
     }
 
     /** 条件命中的节点数，用于 UI 预览。 */
-    fun matchCount(selections: List<TagSelection>): Int {
-        val allTags = _tags.value
-        return _nodes.value.count { node -> tagRepo.matches(allTags, selections, node) }
-    }
+    fun matchCount(expr: TagExpr?): Int =
+        _nodes.value.count { node -> tagRepo.matches(_tags.value, expr, node) }
 
     fun countTag(tag: NodeTag): Int =
         _nodes.value.count { node -> tagRepo.matches(tag, node) }
