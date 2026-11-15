@@ -79,6 +79,7 @@ fun DevicePolicyScreen(
 
     var editing by remember { mutableStateOf<DevicePolicy?>(null) }
     var showTags by remember { mutableStateOf(false) }
+    var showTemplates by remember { mutableStateOf(false) }
     var showBackup by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.refresh() }
@@ -90,9 +91,15 @@ fun DevicePolicyScreen(
     }
 
     BackHandler(enabled = showTags) { showTags = false }
+    BackHandler(enabled = showTemplates) { showTemplates = false }
 
     if (showTags) {
         NodeTagManagerScreen(onBack = { showTags = false }, vm = vm)
+        return
+    }
+
+    if (showTemplates) {
+        ConditionTemplateScreen(onBack = { showTemplates = false }, vm = vm)
         return
     }
 
@@ -166,6 +173,28 @@ fun DevicePolicyScreen(
                 Text("节点标签", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
                     "${tags.count { !it.builtin }} 个自定义 · ${tags.count { it.builtin }} 个内置",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable { showTemplates = true }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("条件模板", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    "${templates.size} 个模板 · 可复用条件树",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

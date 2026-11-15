@@ -175,6 +175,18 @@ class DevicePolicyViewModel(
         viewModelScope.launch { templateRepo.delete(id) }
     }
 
+    fun renameTemplate(id: String, name: String) {
+        viewModelScope.launch {
+            templateRepo.rename(id, name)
+                .onSuccess { _message.value = "模板已重命名" }
+                .onFailure { _message.value = "重命名失败: ${it.message}" }
+        }
+    }
+
+    fun moveTemplate(id: String, up: Boolean) {
+        viewModelScope.launch { templateRepo.move(id, up) }
+    }
+
     fun exportBackup() {
         viewModelScope.launch {
             runCatching { backupService.export() }
