@@ -76,6 +76,12 @@ start_ra() {
 }
 
 stop_ra() {
+  # 先发 lifetime=0 的 RA，让客户端尽快移除默认路由
+  if [ -x "$RA" ]; then
+    for IF in $(list_gateways); do
+      "$RA" -i "$IF" -p "$ULA_PREFIX" -l 0 -once >/dev/null 2>&1
+    done
+  fi
   for P in "$BASE"/v6ra.*.pid; do
     [ -f "$P" ] || continue
     kill "$(cat "$P")" 2>/dev/null

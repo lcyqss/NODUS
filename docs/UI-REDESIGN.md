@@ -415,3 +415,8 @@
 - 开启时下发 ULA/RA、启动 IPv6 TPROXY，关闭 IPv6 拦截
 - 关闭时清理 RA/TPROXY/ULA，并恢复 IPv6 拦截
 - IPv6 入口独立于设备策略，便于后续扩展
+## 37. v2.35.2 关闭 IPv6 代理时撤回 RA
+
+- v6ra 增加一次性发送模式
+- disable 时先发 lifetime=0 的 RA，再停止进程
+- 避免客户端长时间保留失效默认路由
