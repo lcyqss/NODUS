@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.mihomo.gateway.data.catalog.NodeInfo
 import com.mihomo.gateway.data.tags.TagExprParser
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.TagExpr
@@ -101,6 +102,7 @@ fun ConditionSection(
     initial: TagExpr?,
     tags: List<NodeTag>,
     matchCount: (TagExpr?) -> Int,
+    matchNodes: (TagExpr?) -> List<NodeInfo>,
     onExprChange: (TagExpr?) -> Unit,
     onInvalidChange: (Boolean) -> Unit
 ) {
@@ -108,6 +110,7 @@ fun ConditionSection(
     var advanced by remember { mutableStateOf(false) }
     var text by remember { mutableStateOf(TagExprParser.toText(initial, tags)) }
     var error by remember { mutableStateOf<String?>(null) }
+    var expanded by remember { mutableStateOf(false) }
 
     val parsed = if (advanced) TagExprParser.parse(text, tags) else Result.success(CondCodec.toExpr(root))
     val current = parsed.getOrNull()
@@ -124,10 +127,18 @@ fun ConditionSection(
             Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.weight(1f))
             Text(
-                if (parsed.isFailure) "表达式有误" else "命中 $count 个节点",
+                if (parsed.isFailure) "表达式有误" else "命中 $count 个节点 ▾",
                 style = MaterialTheme.typography.labelSmall,
                 color = if (parsed.isFailure) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.primary,
+                modifier = if (parsed.isFailure) {
+                    Modifier
+                } else {
+                    Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { expanded = !expanded }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                }
             )
             Spacer(Modifier.width(4.dp))
             TextButton(onClick = {
@@ -165,6 +176,31 @@ fun ConditionSection(
                 else MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
+            if (expanded && parsed.isSuccess) {
+                val matched = matchNodes(parsed.getOrNull())
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    if (matched.isEmpty()) {
+                        Text("没有命中的节点", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        matched.take(12).forEach { node ->
+                            Text(
+                                "• ${node.name}  (${node.type})",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (matched.size > 12) {
+                            Text("还有  个…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                        }
+                    }
+                }
+            }
             GroupBlock(
                 group = root,
                 tags = tags,
@@ -182,8 +218,17 @@ private fun GroupBlock(
     tags: List<NodeTag>,
     depth: Int,
     onChange: (CondNode.Group) -> Unit,
-    onDelete: (() -> Unit)?
+    onDelete: (() -> Unit)?,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null
 ) {
+    fun move(from: Int, to: Int) {
+        if (to !in group.children.indices) return
+        val list = group.children.toMutableList()
+        val item = list.removeAt(from)
+        list.add(to, item)
+        onChange(group.copy(children = list))
+    }
     Column(
         Modifier
             .fillMaxWidth()
@@ -204,6 +249,8 @@ private fun GroupBlock(
             Spacer(Modifier.width(4.dp))
             OpChip("¬ 取反", group.negated) { onChange(group.copy(negated = !group.negated)) }
             Spacer(Modifier.weight(1f))
+            ArrowButton("↑", onMoveUp)
+            ArrowButton("↓", onMoveDown)
             if (onDelete != null) {
                 Text(
                     "×",
@@ -231,6 +278,8 @@ private fun GroupBlock(
                     tagId = child.tagId,
                     negated = child.negated,
                     tags = tags,
+                    onMoveUp = if (index > 0) ({ move(index, index - 1) }) else null,
+                    onMoveDown = if (index < group.children.lastIndex) ({ move(index, index + 1) }) else null,
                     onToggleNegated = {
                         onChange(group.copy(
                             children = group.children.toMutableList().also {
@@ -252,6 +301,8 @@ private fun GroupBlock(
                         list[index] = updated
                         onChange(group.copy(children = list))
                     },
+                    onMoveUp = if (index > 0) ({ move(index, index - 1) }) else null,
+                    onMoveDown = if (index < group.children.lastIndex) ({ move(index, index + 1) }) else null,
                     onDelete = {
                         onChange(group.copy(children = group.children.filterIndexed { i, _ -> i != index }))
                     }
@@ -279,6 +330,8 @@ private fun TagRow(
     tagId: String,
     negated: Boolean,
     tags: List<NodeTag>,
+    onMoveUp: (() -> Unit)?,
+    onMoveDown: (() -> Unit)?,
     onToggleNegated: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -297,6 +350,8 @@ private fun TagRow(
         }
         Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
         Spacer(Modifier.weight(1f))
+        ArrowButton("↑", onMoveUp)
+        ArrowButton("↓", onMoveDown)
         Text(
             "取反",
             style = MaterialTheme.typography.labelSmall,
@@ -316,6 +371,18 @@ private fun TagRow(
                 .padding(horizontal = 6.dp)
         )
     }
+}
+
+@Composable
+private fun ArrowButton(text: String, onClick: (() -> Unit)?) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (onClick == null) MaterialTheme.colorScheme.outline
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = (if (onClick == null) Modifier else Modifier.clickable(onClick = onClick))
+            .padding(horizontal = 5.dp, vertical = 2.dp)
+    )
 }
 
 @Composable

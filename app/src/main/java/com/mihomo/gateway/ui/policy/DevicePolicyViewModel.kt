@@ -148,4 +148,7 @@ class DevicePolicyViewModel(
 
     fun countTag(tag: NodeTag): Int =
         _nodes.value.count { node -> tagRepo.matches(_tags.value, TagExpr.Ref(tag.id), node) }
+
+    fun matchNodes(expr: TagExpr?): List<NodeInfo> =
+        _nodes.value.filter { node -> tagRepo.matches(_tags.value, expr, node) }
 }

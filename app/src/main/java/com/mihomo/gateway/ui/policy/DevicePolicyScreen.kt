@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mihomo.gateway.data.catalog.DeviceTarget
+import com.mihomo.gateway.data.catalog.NodeInfo
 import com.mihomo.gateway.data.policy.PolicyRuntime
 import com.mihomo.gateway.data.tags.TagExprParser
 import com.mihomo.gateway.model.DevicePolicy
@@ -202,6 +203,7 @@ fun DevicePolicyScreen(
             tags = tags,
             busy = busy,
             matchCount = { expr -> vm.matchCount(expr) },
+            matchNodes = { expr -> vm.matchNodes(expr) },
             onDismiss = { editing = null },
             onSave = {
                 editing = null
@@ -275,6 +277,7 @@ private fun PolicyEditorDialog(
     tags: List<NodeTag>,
     busy: Boolean,
     matchCount: (TagExpr?) -> Int,
+    matchNodes: (TagExpr?) -> List<NodeInfo>,
     onDismiss: () -> Unit,
     onSave: (DevicePolicy) -> Unit,
     onDelete: () -> Unit
@@ -319,6 +322,7 @@ private fun PolicyEditorDialog(
                     initial = draft.primary.expr,
                     tags = tags,
                     matchCount = matchCount,
+                    matchNodes = matchNodes,
                     onExprChange = { primaryExpr = it },
                     onInvalidChange = { primaryInvalid = it }
                 )
@@ -328,6 +332,7 @@ private fun PolicyEditorDialog(
                     initial = draft.fallback.expr,
                     tags = tags,
                     matchCount = matchCount,
+                    matchNodes = matchNodes,
                     onExprChange = { fallbackExpr = it },
                     onInvalidChange = { fallbackInvalid = it }
                 )
