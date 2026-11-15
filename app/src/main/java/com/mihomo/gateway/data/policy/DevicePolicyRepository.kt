@@ -35,6 +35,9 @@ data class PolicyRuntime(
 /** 供订阅安装流程在写盘后调用：只改 config，不触发重载。 */
 interface DevicePolicyApplier {
     suspend fun applyToConfig(): Result<Unit>
+
+    /** 配置被外部回滚后调用，让下一次 sync 重新判断。 */
+    fun invalidateAppliedState()
 }
 
 interface DevicePolicyRepository : DevicePolicyApplier {
@@ -209,6 +212,10 @@ class DevicePolicyRepositoryImpl(
             api.select(baseName, target).onSuccess { changed++ }
         }
         Result.success(changed)
+    }
+
+    override fun invalidateAppliedState() {
+        appliedIps = null
     }
 
     override suspend fun applyToConfig(): Result<Unit> = withContext(Dispatchers.IO) {

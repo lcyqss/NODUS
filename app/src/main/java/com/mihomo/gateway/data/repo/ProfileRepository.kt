@@ -273,6 +273,7 @@ class ProfileRepositoryImpl(
     }
 
     private suspend fun rollback(backup: String, modeArg: String, wasRunning: Boolean) {
+        devicePolicies.invalidateAppliedState()
         shell.run("cp -f $backup $base/config.yaml && sh $base/set-ipver.sh $modeArg", 90_000)
         if (wasRunning) waitReady()
     }
