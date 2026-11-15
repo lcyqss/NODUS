@@ -163,7 +163,10 @@ class OverviewViewModel(
         viewModelScope.launch {
             api.proxies().onSuccess { nodes ->
                 val byName = nodes.associateBy { it.name }
-                val groups = nodes.filter { it.isGroup && !it.now.isNullOrBlank() }
+                // 设备策略的 __dev_ 组是按设备的隐藏出口，不代表首页展示的主链路
+                val groups = nodes.filter {
+                    it.isGroup && !it.now.isNullOrBlank() && !it.name.startsWith("__dev_")
+                }
                 val nested = groups.filter { it.name != "GLOBAL" }.flatMap { it.all }.toSet()
                 // 顶层策略组：不被其他组引用的组（GLOBAL 除外）
                 val topLevel = groups.filter { it.name !in nested && it.name != "GLOBAL" }

@@ -141,7 +141,10 @@ class DevicePolicyRepositoryImpl(
 
     override suspend fun save(policy: DevicePolicy): Result<String> = withContext(Dispatchers.IO) {
         val current = DevicePolicyCodec.decode(settings.settings.first().devicePolicies)
-        val list = current.filterNot { it.id == policy.id } + policy
+        // 同一 MAC 只保留一条策略，避免出现多条 SRC-IP 规则只命中第一条
+        val list = current.filterNot {
+            it.id == policy.id || it.mac.equals(policy.mac, true)
+        } + policy
         settings.update { it.copy(devicePolicies = DevicePolicyCodec.encode(list)) }
         apply().map { "已应用 ${policy.label.ifBlank { policy.mac }}" }
     }
