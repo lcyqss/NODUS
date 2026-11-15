@@ -9,6 +9,7 @@ CONF=$BASE/gateway.conf
 IP6=/system/bin/ip6tables
 RA=$BASE/v6ra
 DHCP=$BASE/v6dhcp
+DNSRELAY=$BASE/v6dns
 LOG=$BASE/ipv6.log
 LOCK=$BASE/.ipv6.lock
 DNS_BAK=$BASE/.dns-listen.bak
@@ -97,6 +98,16 @@ start_ra() {
   done
 }
 
+start_dnsrelay() {
+  [ -x "$DNSRELAY" ] || return 0
+  PIDFILE="$BASE/v6dns.pid"
+  [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null
+  setsid "$DNSRELAY" -l "$ULA_ADDR" -u 127.0.0.1:1053 \
+    >"$BASE/v6dns.log" 2>&1 &
+  echo $! > "$PIDFILE"
+  log "dns relay started pid=$(cat "$PIDFILE")"
+}
+
 start_dhcp() {
   [ -x "$DHCP" ] || return 0
   for IF in $(list_gateways); do
@@ -116,12 +127,12 @@ stop_ra() {
       "$RA" -i "$IF" -p "$ULA_PREFIX" -l 0 -once >/dev/null 2>&1
     done
   fi
-  for P in "$BASE"/v6ra.*.pid "$BASE"/v6dhcp.*.pid; do
+  for P in "$BASE"/v6ra.*.pid "$BASE"/v6dhcp.*.pid "$BASE/v6dns.pid"; do
     [ -f "$P" ] || continue
     kill "$(cat "$P")" 2>/dev/null
     rm -f "$P"
   done
-  killall v6ra v6dhcp 2>/dev/null
+  killall v6ra v6dhcp v6dns 2>/dev/null
 }
 
 teardown() {
@@ -145,6 +156,7 @@ enable() {
   for IF in $(list_gateways); do setup_iface "$IF"; done
   setup_tproxy
   stop_ra
+  start_dnsrelay
   start_ra
   start_dhcp
   if grep -q '^IPV6_GATEWAY=' "$CONF" 2>/dev/null; then
