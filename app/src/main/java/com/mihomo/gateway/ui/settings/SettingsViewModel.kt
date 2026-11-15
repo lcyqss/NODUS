@@ -42,6 +42,13 @@ class SettingsViewModel(
         viewModelScope.launch {
             _ipv6RaBlocked.value = gateway.detectUpstreamRa()
         }
+        viewModelScope.launch {
+            val conf = runCatching { gateway.readConf() }.getOrNull() ?: return@launch
+            store.update {
+                if (it.ipv6Gateway == conf.ipv6Gateway && it.blockIpv6 == conf.blockIpv6) it
+                else it.copy(ipv6Gateway = conf.ipv6Gateway, blockIpv6 = conf.blockIpv6)
+            }
+        }
     }
 
     fun clearMessage() {
@@ -57,6 +64,13 @@ class SettingsViewModel(
         }
         viewModelScope.launch {
             _ipv6RaBlocked.value = gateway.detectUpstreamRa()
+        }
+        viewModelScope.launch {
+            val conf = runCatching { gateway.readConf() }.getOrNull() ?: return@launch
+            store.update {
+                if (it.ipv6Gateway == conf.ipv6Gateway && it.blockIpv6 == conf.blockIpv6) it
+                else it.copy(ipv6Gateway = conf.ipv6Gateway, blockIpv6 = conf.blockIpv6)
+            }
         }
     }
 
@@ -91,13 +105,15 @@ class SettingsViewModel(
                 return@launch
             }
             _busy.value = true
-            store.update {
-                it.copy(
-                    ipv6Gateway = enabled,
-                    blockIpv6 = if (enabled) false else true
-                )
-            }
             val result = gateway.setIpv6Gateway(enabled)
+            if (result.isSuccess) {
+                store.update {
+                    it.copy(
+                        ipv6Gateway = enabled,
+                        blockIpv6 = if (enabled) false else true
+                    )
+                }
+            }
             _message.value = if (result.isSuccess) {
                 if (enabled) "局域网 IPv6 代理已开启" else "局域网 IPv6 代理已关闭"
             } else {
@@ -111,8 +127,10 @@ class SettingsViewModel(
     fun setBlockIpv6(enabled: Boolean) {
         viewModelScope.launch {
             _busy.value = true
-            store.update { it.copy(blockIpv6 = enabled) }
             val result = gateway.setBlockIpv6(enabled)
+            if (result.isSuccess) {
+                store.update { it.copy(blockIpv6 = enabled) }
+            }
             _message.value = if (result.isSuccess) "IPv6 拦截: ${if (enabled) "开" else "关"}"
             else "设置失败: ${result.exceptionOrNull()?.message}"
             _busy.value = false

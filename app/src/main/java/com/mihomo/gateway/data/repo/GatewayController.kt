@@ -105,20 +105,26 @@ class GatewayControllerImpl(
                 IllegalStateException("检测到主路由 IPv6 RA，旁路由下无法保证 IPv6 全部代理")
             )
         }
-        val value = if (enabled) "1" else "0"
-        val conf = shell.run("sh $base/conf.sh IPV6_GATEWAY $value")
-        if (conf.code != 0) return Result.failure(IllegalStateException(conf.stdout.take(200)))
+        val coreRunning = shell.run("pidof mihomo").stdout.isNotBlank()
         if (enabled) {
-            shell.run("sh $base/conf.sh BLOCK_IPV6 0")
-            if (shell.run("pidof mihomo").stdout.isNotBlank()) {
+            if (coreRunning) {
                 val r = shell.run("sh $base/ipv6.sh enable", 30_000)
-                if (r.code != 0) return Result.failure(IllegalStateException(r.stdout.take(300)))
+                if (r.code != 0) {
+                    shell.run("sh $base/ipv6.sh disable", 30_000)
+                    shell.run("sh $base/conf.sh IPV6_GATEWAY 0")
+                    shell.run("sh $base/conf.sh BLOCK_IPV6 1")
+                    return Result.failure(IllegalStateException(r.stdout.take(300)))
+                }
+            } else {
+                shell.run("sh $base/conf.sh IPV6_GATEWAY 1")
+                shell.run("sh $base/conf.sh BLOCK_IPV6 0")
             }
             _state.update { it.copy(ipv6Gateway = true, blockIpv6 = false) }
         } else {
-            if (shell.run("pidof mihomo").stdout.isNotBlank()) {
-                shell.run("sh $base/ipv6.sh disable", 30_000)
-            }
+            // Clean up even if the core is down; RA/TPROXY may still be alive.
+            shell.run("sh $base/ipv6.sh disable", 30_000)
+            shell.run("sh $base/conf.sh IPV6_GATEWAY 0")
+            shell.run("sh $base/conf.sh BLOCK_IPV6 1")
             _state.update { it.copy(ipv6Gateway = false, blockIpv6 = true) }
         }
         Result.success(Unit)

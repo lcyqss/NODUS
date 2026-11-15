@@ -151,6 +151,23 @@ teardown() {
 enable() {
   read_conf
   [ -x "$RA" ] || { echo "ipv6: missing $RA"; return 1; }
+  # Never start IPv6 gateway while an upstream router is still advertising RA.
+  if detect | grep -q "UPSTREAM_RA=1"; then
+    echo "ipv6: upstream RA detected; refusing to start"
+    log "enable refused: upstream RA detected"
+    if grep -q '^IPV6_GATEWAY=' "$CONF" 2>/dev/null; then
+      sed -i 's/^IPV6_GATEWAY=.*/IPV6_GATEWAY=0/' "$CONF"
+    fi
+    if grep -q '^BLOCK_IPV6=' "$CONF" 2>/dev/null; then
+      sed -i 's/^BLOCK_IPV6=.*/BLOCK_IPV6=1/' "$CONF"
+    fi
+    return 1
+  fi
+  if grep -q '^BLOCK_IPV6=' "$CONF" 2>/dev/null; then
+    sed -i 's/^BLOCK_IPV6=.*/BLOCK_IPV6=0/' "$CONF"
+  else
+    printf '\nBLOCK_IPV6=0\n' >> "$CONF"
+  fi
   ensure_tproxy_port
   ensure_dns6
   for IF in $(list_gateways); do setup_iface "$IF"; done
@@ -164,24 +181,26 @@ enable() {
   else
     printf '\nIPV6_GATEWAY=1\n' >> "$CONF"
   fi
+  if ! pidof mihomo >/dev/null 2>&1; then
+    log "enable failed: mihomo is not running"
+    echo "ipv6: mihomo is not running"
+    return 1
+  fi
   log "enabled prefix=$ULA_PREFIX"
   status
 }
 
 disable() {
-  read_conf
   teardown
   restore_dns
-  if [ "$BLOCK_IPV6" = "0" ]; then
-    if grep -q '^BLOCK_IPV6=' "$CONF" 2>/dev/null; then
-      sed -i 's/^BLOCK_IPV6=.*/BLOCK_IPV6=1/' "$CONF"
-    else
-      printf '\nBLOCK_IPV6=1\n' >> "$CONF"
-    fi
-    for IF in $(list_gateways); do
-      $IP6 -w -A MIHOMO6_FWD -i "$IF" -j DROP 2>/dev/null
-    done
+  if grep -q '^BLOCK_IPV6=' "$CONF" 2>/dev/null; then
+    sed -i 's/^BLOCK_IPV6=.*/BLOCK_IPV6=1/' "$CONF"
+  else
+    printf '\nBLOCK_IPV6=1\n' >> "$CONF"
   fi
+  for IF in $(list_gateways); do
+    $IP6 -w -A MIHOMO6_FWD -i "$IF" -j DROP 2>/dev/null
+  done
   if grep -q '^IPV6_GATEWAY=' "$CONF" 2>/dev/null; then
     sed -i 's/^IPV6_GATEWAY=.*/IPV6_GATEWAY=0/' "$CONF"
   fi
@@ -201,8 +220,10 @@ status() {
 
 detect() {
   for IF in $(list_gateways); do
+    # Any RA-derived route on the wlan (default or prefix-only) means the
+    # upstream router is still advertising IPv6.
     if ip -6 route show table all 2>/dev/null |
-      grep -Eq "^default via fe80[0-9a-f:]* dev $IF( |$)"; then
+      grep -E "dev $IF( |$)" | grep -q "proto ra"; then
       echo "UPSTREAM_RA=1"
       echo "IFACE=$IF"
       return 0
