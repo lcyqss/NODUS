@@ -1,5 +1,6 @@
 package com.mihomo.gateway.ui.rules
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -66,6 +67,8 @@ import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.SegmentedControl
 import com.mihomo.gateway.ui.components.SearchBar
 import com.mihomo.gateway.ui.icons.GwIcon
+import com.mihomo.gateway.ui.policy.DevicePolicyScreen
+import com.mihomo.gateway.ui.policy.DevicePolicyViewModel
 import kotlinx.coroutines.delay
 
 private val WarnColor = Color(0xFFEA580C)
@@ -78,6 +81,15 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
     var tab by remember { mutableStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
     var showSheet by remember { mutableStateOf(false) }
+    var showPolicy by remember { mutableStateOf(false) }
+    val policyVm: DevicePolicyViewModel = viewModel()
+
+    BackHandler(enabled = showPolicy) { showPolicy = false }
+
+    if (showPolicy) {
+        DevicePolicyScreen(onBack = { showPolicy = false }, vm = policyVm)
+        return
+    }
 
     // 操作提示几秒后自动消失，避免“记得应用”之类文案一直挂着
     LaunchedEffect(state.message) {
@@ -90,6 +102,27 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         SummaryLine(state)
         if (state.mode != "rule") ModeWarning(state.mode)
+
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable { showPolicy = true }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("设备策略", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    "按设备选择地区与协议",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
+        }
 
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

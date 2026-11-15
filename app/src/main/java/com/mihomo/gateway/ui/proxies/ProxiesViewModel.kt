@@ -92,7 +92,7 @@ class ProxiesViewModel(
                     val visible = nodes.filterNot { ProxyNames.isInfoNode(it.name) }
                     val byName = visible.associateBy { it.name }
                     val groups = visible
-                        .filter { it.isGroup }
+                        .filter { it.isGroup && !it.name.startsWith("__dev_") }
                         .map { g ->
                             ProxyGroupUi(
                                 name = g.name,

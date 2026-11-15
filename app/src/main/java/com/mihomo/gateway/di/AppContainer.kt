@@ -8,6 +8,10 @@ import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.core.ShellExecutorImpl
 import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.data.api.MihomoApiImpl
+import com.mihomo.gateway.data.catalog.NodeCatalogRepository
+import com.mihomo.gateway.data.catalog.NodeCatalogRepositoryImpl
+import com.mihomo.gateway.data.policy.DevicePolicyRepository
+import com.mihomo.gateway.data.policy.DevicePolicyRepositoryImpl
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.GatewayControllerImpl
 import com.mihomo.gateway.data.repo.ProfileRepository
@@ -42,6 +46,8 @@ object AppContainer {
         private set
     lateinit var rules: RuleRepository
         private set
+    lateinit var devicePolicies: DevicePolicyRepository
+        private set
 
     private var initialized = false
 
@@ -57,6 +63,16 @@ object AppContainer {
         core = AssetInstaller(app, shell, base = BASE)
         neighbors = NeighborResolver(shell)
         rules = RuleRepositoryImpl(app, shell, api, RuleStore(app), base = BASE)
+        val nodeCatalog: NodeCatalogRepository = NodeCatalogRepositoryImpl(app, settings)
+        devicePolicies = DevicePolicyRepositoryImpl(
+            context = app,
+            settings = settings,
+            catalog = nodeCatalog,
+            neighbors = neighbors,
+            shell = shell,
+            api = api,
+            base = BASE
+        )
         profiles = ProfileRepositoryImpl(
             context = app,
             shell = shell,
@@ -64,6 +80,7 @@ object AppContainer {
             settings = settings,
             coreInstaller = core,
             rules = rules,
+            devicePolicies = devicePolicies,
             base = BASE
         )
     }

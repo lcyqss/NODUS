@@ -6,6 +6,7 @@ import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.data.store.RuleStore
 import com.mihomo.gateway.model.CustomRule
 import com.mihomo.gateway.model.RuleKind
+import com.mihomo.gateway.data.config.DevicePolicyConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
@@ -169,7 +170,9 @@ class RuleRepositoryImpl(
                 }
             }
 
-            val rulesIndex = kept.indexOfFirst { it.trimEnd() == "rules:" }
+            // 设备策略的 SRC-IP 规则必须保持在最前；自定义规则插在它之后
+            val policyEnd = kept.indexOfFirst { it.trim() == DevicePolicyConfig.RULE_END }
+            val rulesIndex = if (policyEnd >= 0) policyEnd else kept.indexOfFirst { it.trimEnd() == "rules:" }
 
             // 与订阅现有 rules 的缩进保持一致，否则 YAML 解析失败
             val indent = if (rulesIndex >= 0) {

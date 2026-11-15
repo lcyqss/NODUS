@@ -5,6 +5,7 @@ import android.util.Log
 import com.mihomo.gateway.core.CoreInstaller
 import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.data.api.MihomoApi
+import com.mihomo.gateway.data.policy.DevicePolicyApplier
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.model.ProviderMeta
 import com.mihomo.gateway.model.SubscriptionCodec
@@ -53,6 +54,7 @@ class ProfileRepositoryImpl(
     private val settings: SettingsStore,
     private val coreInstaller: CoreInstaller,
     private val rules: RuleRepository,
+    private val devicePolicies: DevicePolicyApplier,
     private val base: String = "/data/adb/mihomo"
 ) : ProfileRepository {
 
@@ -252,11 +254,20 @@ class ProfileRepositoryImpl(
             return@withLock Result.failure(IllegalStateException("新配置无法启动，已回滚"))
         }
 
-        // 重新注入自定义规则（订阅原文不含）：运行中用 apply（含热重载），停止时只写文件
+        // 先写自定义规则，再写设备策略（设备规则必须排在自定义规则之前）
+        rules.injectOnly().onFailure { Log.w(TAG, "inject rules failed: ${it.message}") }
+        devicePolicies.applyToConfig()
+            .onFailure { Log.w(TAG, "apply device policy failed: ${it.message}") }
+
+        // 两处注入都只改文件：运行中统一热重载一次，失败回滚
         if (running) {
-            rules.apply().onFailure { Log.w(TAG, "inject rules failed: ${it.message}") }
-        } else {
-            rules.injectOnly().onFailure { Log.w(TAG, "inject rules failed: ${it.message}") }
+            val reload = api.reloadConfigs()
+            if (reload.isFailure) {
+                rollback(backup, modeArg, running)
+                return@withLock Result.failure(
+                    IllegalStateException("配置重载失败，已回滚: ${reload.exceptionOrNull()?.message}")
+                )
+            }
         }
         Result.success(Unit)
     }
