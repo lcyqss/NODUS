@@ -51,9 +51,8 @@ fun SubscriptionDetailPage(
     message: String?,
     onBack: () -> Unit,
     onSave: (String, String) -> Unit,
-    onUpdate: () -> Unit,
+    onSaveAndUpdate: (String, String) -> Unit,
     onSetInterval: (Int) -> Unit,
-    onSetActive: () -> Unit,
     onDelete: () -> Unit,
     loadProviders: suspend () -> List<ProviderMeta>
 ) {
@@ -79,11 +78,7 @@ fun SubscriptionDetailPage(
             title = profile.name,
             subtitle = if (active) "当前订阅" else "未启用",
             onBack = onBack
-        ) {
-            if (!active) {
-                TextButton(onClick = onSetActive, enabled = !busy) { Text("设为当前") }
-            }
-        }
+        )
 
         Spacer(Modifier.height(12.dp))
 
@@ -112,10 +107,16 @@ fun SubscriptionDetailPage(
 
         Spacer(Modifier.height(8.dp))
 
-        OutlinedButton(
-            onClick = { onSave(name, url) },
-            enabled = !busy && (name != profile.name || url != profile.url)
-        ) { Text("保存名称与链接") }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = { onSave(name, url) },
+                enabled = !busy && (name != profile.name || url != profile.url)
+            ) { Text("保存") }
+            OutlinedButton(
+                onClick = { onSaveAndUpdate(name, url) },
+                enabled = !busy && !switching
+            ) { Text("保存并更新") }
+        }
 
         Spacer(Modifier.height(16.dp))
 
@@ -188,21 +189,6 @@ fun SubscriptionDetailPage(
         )
 
         Spacer(Modifier.height(16.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(onClick = onUpdate, enabled = !busy && !switching) {
-                if (switching) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.padding(end = 6.dp).height(14.dp),
-                        strokeWidth = 2.dp
-                    )
-                }
-                Text(if (active) "立即更新并生效" else "立即更新缓存")
-            }
-            if (!active) {
-                OutlinedButton(onClick = onSetActive, enabled = !busy) { Text("设为当前") }
-            }
-        }
 
         Spacer(Modifier.height(18.dp))
 

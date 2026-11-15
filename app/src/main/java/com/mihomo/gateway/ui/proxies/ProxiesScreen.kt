@@ -59,7 +59,6 @@ import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.Tag
 import com.mihomo.gateway.ui.icons.GwIcon
 import com.mihomo.gateway.ui.subscription.SubscriptionManagementPage
-import com.mihomo.gateway.ui.subscription.SubscriptionSheet
 import com.mihomo.gateway.ui.subscription.SubscriptionViewModel
 import kotlinx.coroutines.delay
 
@@ -90,7 +89,6 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     val subSwitching by subVm.switchingId.collectAsState()
     val subMessage by subVm.message.collectAsState()
     val subRefreshTick by subVm.refreshTick.collectAsState()
-    var showSubSheet by remember { mutableStateOf(false) }
     var showSubPage by remember { mutableStateOf(false) }
 
     val currentGroup = state.groups.firstOrNull { it.name == state.selectedGroup }
@@ -114,7 +112,6 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     // URLTest 组重载后要等首次测速才有 now：稍后补刷一次，仍为空就主动测速
     LaunchedEffect(subRefreshTick) {
         if (subRefreshTick > 0) {
-            showSubSheet = false
             vm.load()
             delay(1600)
             vm.load()
@@ -187,13 +184,6 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
                 }
                 DropdownMenu(expanded = pageMenuOpen, onDismissRequest = { pageMenuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text("管理订阅") },
-                        onClick = {
-                            pageMenuOpen = false
-                            showSubPage = true
-                        }
-                    )
-                    DropdownMenuItem(
                         text = { Text("重新加载节点") },
                         onClick = {
                             pageMenuOpen = false
@@ -207,11 +197,10 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
         Spacer(Modifier.height(8.dp))
 
         SubscriptionRow(
-            name = activeSub?.name ?: subSettings.subName.ifBlank { "未设置订阅" },
-            nodeCount = activeSub?.nodeCount ?: subSettings.nodeCount,
             subsCount = subs.size,
+            active = activeSub != null,
             busy = subBusy,
-            onClick = { showSubSheet = true }
+            onClick = { showSubPage = true }
         )
 
         Spacer(Modifier.height(10.dp))
@@ -230,7 +219,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
             }
 
             state.groups.isEmpty() -> {
-                CenteredMessage("没有可用的代理组，点右上角菜单管理订阅") {
+                CenteredMessage("没有可用的代理组，先从订阅入口添加订阅") {
                     OutlinedButton(onClick = { vm.load() }) { Text("重新加载") }
                 }
             }
@@ -389,31 +378,12 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
             }
         }
     }
-
-    if (showSubSheet) {
-        SubscriptionSheet(
-            subs = subs,
-            activeId = subSettings.activeSubId,
-            busy = subBusy,
-            switchingId = subSwitching,
-            message = subMessage,
-            onSelect = { subVm.switchTo(it) },
-            onUpdate = { subVm.update(it) },
-            onInterval = { profile, hours -> subVm.setInterval(profile, hours) },
-            onManage = {
-                showSubSheet = false
-                showSubPage = true
-            },
-            onDismiss = { showSubSheet = false }
-        )
-    }
 }
 
 @Composable
 private fun SubscriptionRow(
-    name: String,
-    nodeCount: Int,
     subsCount: Int,
+    active: Boolean,
     busy: Boolean,
     onClick: () -> Unit
 ) {
@@ -433,11 +403,10 @@ private fun SubscriptionRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                name,
+                "$subsCount 个订阅",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 1
             )
         }
         if (busy) {
@@ -446,22 +415,16 @@ private fun SubscriptionRow(
                 strokeWidth = 2.dp,
                 color = MaterialTheme.colorScheme.primary
             )
-            Spacer(Modifier.width(8.dp))
         } else {
-            Column(horizontalAlignment = Alignment.End) {
-                if (nodeCount > 0) {
-                    Text(
-                        "$nodeCount 节点",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Text(
-                    if (subsCount > 1) "$subsCount 个订阅 ›" else "切换 ›",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            Text(
+                when {
+                    subsCount == 0 -> "添加 ›"
+                    active -> "1 个已启用 ›"
+                    else -> "未启用 ›"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
         Text(
             "›",
