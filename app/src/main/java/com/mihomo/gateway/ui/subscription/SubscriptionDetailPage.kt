@@ -18,6 +18,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,6 +38,7 @@ import com.mihomo.gateway.ui.components.SettingsDivider
 import com.mihomo.gateway.ui.components.SettingsGroup
 import com.mihomo.gateway.ui.components.SettingsRow
 import com.mihomo.gateway.ui.components.SubPageHeader
+import kotlin.math.roundToInt
 
 /**
  * 单个订阅的详情：名称/链接、自动更新、Provider（只读）、立即更新、设为当前、删除。
@@ -60,7 +62,7 @@ fun SubscriptionDetailPage(
     var url by remember(profile.id) { mutableStateOf(profile.url) }
     var intervalMenu by remember { mutableStateOf(false) }
     var customInterval by remember { mutableStateOf(false) }
-    var customMinutes by remember { mutableStateOf("") }
+    var customMinutes by remember { mutableStateOf(10) }
     var confirmDelete by remember { mutableStateOf(false) }
     var providers by remember(profile.id) { mutableStateOf<List<ProviderMeta>>(emptyList()) }
     var providersLoaded by remember(profile.id) { mutableStateOf(false) }
@@ -148,7 +150,7 @@ fun SubscriptionDetailPage(
                         onClick = {
                             intervalMenu = false
                             customMinutes = profile.autoUpdateMinutes
-                                .takeIf { it > 0 }?.toString().orEmpty()
+                                .takeIf { it >= 10 }?.let { (it / 10) * 10 } ?: 10
                             customInterval = true
                         }
                     )
@@ -243,36 +245,49 @@ fun SubscriptionDetailPage(
     }
 
     if (customInterval) {
-        val minutes = customMinutes.toIntOrNull()
-        val valid = minutes != null && minutes >= 10 && minutes % 10 == 0
         AlertDialog(
             onDismissRequest = { customInterval = false },
             title = { Text("自定义自动更新间隔") },
             text = {
                 Column {
-                    OutlinedTextField(
-                        value = customMinutes,
-                        onValueChange = { customMinutes = it.filter { ch -> ch.isDigit() } },
-                        label = { Text("分钟") },
-                        singleLine = true
-                    )
-                    Spacer(Modifier.height(4.dp))
                     Text(
-                        "最小 10 分钟，且为 10 的倍数",
+                        intervalLabel(customMinutes),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { customMinutes = (customMinutes - 10).coerceAtLeast(10) }
+                        ) { Text("-10 分钟") }
+                        OutlinedButton(
+                            onClick = { customMinutes = (customMinutes + 10).coerceAtMost(1440) }
+                        ) { Text("+10 分钟") }
+                    }
+                    Slider(
+                        value = customMinutes.toFloat(),
+                        onValueChange = {
+                            customMinutes = ((it / 10f).roundToInt() * 10).coerceIn(10, 1440)
+                        },
+                        valueRange = 10f..1440f,
+                        steps = 142
+                    )
+                    Text(
+                        "范围 10 分钟 – 24 小时，步进 10 分钟",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (valid) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
             confirmButton = {
-                TextButton(
-                    enabled = valid,
-                    onClick = {
-                        minutes?.let { onSetInterval(it) }
-                        customInterval = false
-                    }
-                ) { Text("保存") }
+                TextButton(onClick = {
+                    onSetInterval(customMinutes)
+                    customInterval = false
+                }) { Text("保存") }
             },
             dismissButton = {
                 TextButton(onClick = { customInterval = false }) { Text("取消") }

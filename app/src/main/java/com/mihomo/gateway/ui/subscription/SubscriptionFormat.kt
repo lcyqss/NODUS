@@ -7,6 +7,7 @@ internal fun intervalLabel(minutes: Int): String = when {
     minutes <= 0 -> "关闭"
     minutes == 1440 -> "每天"
     minutes % 60 == 0 -> "每 ${minutes / 60} 小时"
+    minutes > 60 -> "每 ${minutes / 60} 小时 ${minutes % 60} 分钟"
     else -> "每 $minutes 分钟"
 }
 
