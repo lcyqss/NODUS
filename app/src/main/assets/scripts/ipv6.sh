@@ -1,7 +1,6 @@
 #!/system/bin/sh
-# IPv6 局域网网关模块
-# 职责：ULA 地址/本地路由、RA 守护进程、TPROXY6、策略路由。
-# 只做 IPv6 入口；代理规则仍由 mihomo 负责。
+# IPv6 LAN gateway module.
+# Owns: ULA address/local route, RA daemon, TPROXY6, policy route, IPv6 DNS listener.
 
 BASE=/data/adb/mihomo
 . "$BASE/common.sh"
@@ -11,6 +10,7 @@ IP6=/system/bin/ip6tables
 RA=$BASE/v6ra
 LOG=$BASE/ipv6.log
 LOCK=$BASE/.ipv6.lock
+DNS_BAK=$BASE/.dns-listen.bak
 
 ULA_PREFIX=fd00:1234::/64
 ULA_ADDR=fd00:1234::1
@@ -34,6 +34,23 @@ read_conf() {
   [ -z "$BLOCK_IPV6" ] && BLOCK_IPV6=1
 }
 
+ensure_dns6() {
+  if [ ! -f "$DNS_BAK" ]; then
+    grep -m1 '^    listen:' "$CFG" > "$DNS_BAK" 2>/dev/null || true
+  fi
+  sed -i 's#^    listen: .*#    listen: "[::]:1053"#' "$CFG"
+  reload_core >/dev/null 2>&1 || restart_core >/dev/null 2>&1 || true
+}
+
+restore_dns() {
+  if [ -f "$DNS_BAK" ]; then
+    LINE=$(cat "$DNS_BAK")
+    [ -n "$LINE" ] && sed -i "s#^    listen: .*#$LINE#" "$CFG"
+    rm -f "$DNS_BAK"
+    reload_core >/dev/null 2>&1 || true
+  fi
+}
+
 ensure_tproxy_port() {
   grep -q "^tproxy-port:" "$CFG" 2>/dev/null && return 0
   cp -f "$CFG" "$CFG.bak.ipv6.$(date +%s)"
@@ -45,7 +62,7 @@ ensure_tproxy_port() {
 setup_iface() {
   IF=$1
   ip -6 addr replace "$ULA_ADDR/64" dev "$IF" 2>/dev/null
-  # Android/部分内核不会随地址自动补 local 路由；TPROXY 依赖它。
+  # Some Android kernels do not add the local route for a manually added address.
   ip -6 route replace local "$ULA_ADDR/128" dev "$IF" table local 2>/dev/null
   sysctl -w net.ipv6.conf."$IF".forwarding=1 >/dev/null 2>&1
   $IP6 -w -D MIHOMO6_FWD -i "$IF" -j DROP 2>/dev/null
@@ -68,7 +85,7 @@ start_ra() {
   for IF in $(list_gateways); do
     PIDFILE="$BASE/v6ra.$IF.pid"
     [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null
-    setsid "$RA" -i "$IF" -p "$ULA_PREFIX" \
+    setsid "$RA" -i "$IF" -p "$ULA_PREFIX" -d "$ULA_ADDR" \
       >"$BASE/v6ra.$IF.log" 2>&1 &
     echo $! > "$PIDFILE"
     log "ra started on $IF pid=$(cat "$PIDFILE")"
@@ -76,7 +93,7 @@ start_ra() {
 }
 
 stop_ra() {
-  # 先发 lifetime=0 的 RA，让客户端尽快移除默认路由
+  # Withdraw the default route before stopping the daemon.
   if [ -x "$RA" ]; then
     for IF in $(list_gateways); do
       "$RA" -i "$IF" -p "$ULA_PREFIX" -l 0 -once >/dev/null 2>&1
@@ -87,7 +104,6 @@ stop_ra() {
     kill "$(cat "$P")" 2>/dev/null
     rm -f "$P"
   done
-  # 兼容手工启动/旧版本残留
   killall v6ra 2>/dev/null
 }
 
@@ -101,9 +117,6 @@ teardown() {
   for IF in $(list_gateways); do
     ip -6 addr del "$ULA_ADDR/64" dev "$IF" 2>/dev/null
     ip -6 route del local "$ULA_ADDR/128" dev "$IF" table local 2>/dev/null
-    if [ "$BLOCK_IPV6" = "1" ]; then
-      $IP6 -w -A MIHOMO6_FWD -i "$IF" -j DROP 2>/dev/null
-    fi
   done
 }
 
@@ -111,6 +124,7 @@ enable() {
   read_conf
   [ -x "$RA" ] || { echo "ipv6: missing $RA"; return 1; }
   ensure_tproxy_port
+  ensure_dns6
   for IF in $(list_gateways); do setup_iface "$IF"; done
   setup_tproxy
   stop_ra
@@ -127,7 +141,7 @@ enable() {
 disable() {
   read_conf
   teardown
-  # 关闭 IPv6 代理后恢复默认拦截，避免客户端 IPv6 绕过规则
+  restore_dns
   if [ "$BLOCK_IPV6" = "0" ]; then
     if grep -q '^BLOCK_IPV6=' "$CONF" 2>/dev/null; then
       sed -i 's/^BLOCK_IPV6=.*/BLOCK_IPV6=1/' "$CONF"
@@ -156,10 +170,9 @@ status() {
 }
 
 detect() {
-  # 旁路由检测：wlan 上出现来自上游路由器的 IPv6 默认路由，说明主路由 RA 未关闭。
   for IF in $(list_gateways); do
     if ip -6 route show table all 2>/dev/null |
-      awk -v i="$IF" '$0 ~ ("dev " i " ") && /^default via fe80/ {found=1} END {exit !found}'; then
+      grep -Eq "^default via fe80[0-9a-f:]* dev $IF( |$)"; then
       echo "UPSTREAM_RA=1"
       echo "IFACE=$IF"
       return 0
@@ -173,5 +186,5 @@ case "$1" in
   disable) with_lock disable ;;
   status) status ;;
   detect) detect ;;
-  *) echo "用法: $0 enable|disable|status|detect"; exit 1 ;;
+  *) echo "usage: $0 enable|disable|status|detect"; exit 1 ;;
 esac
