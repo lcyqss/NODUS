@@ -286,7 +286,7 @@ private fun SubscriptionCard(
                 buildString {
                     append(if (item.nodeCount > 0) "${item.nodeCount} 节点" else "节点数未知")
                     append(" · ")
-                    append(intervalLabel(item.autoUpdateHours))
+                    append(intervalLabel(item.autoUpdateMinutes))
                     append(" · ")
                     append(if (item.lastUpdateAt <= 0) "未更新" else formatTime(item.lastUpdateAt))
                 },

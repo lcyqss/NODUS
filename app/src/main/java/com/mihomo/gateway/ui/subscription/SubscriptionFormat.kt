@@ -1,15 +1,13 @@
 package com.mihomo.gateway.ui.subscription
 
-/** 自动更新间隔选项（小时，0=关闭）。 */
-internal val AutoUpdateOptions = listOf(0, 1, 6, 12, 24)
+/** 自动更新间隔选项（分钟，0=关闭，最小 10 分钟）。 */
+internal val AutoUpdateOptions = listOf(0, 10, 20, 30, 60, 120, 360, 720, 1440)
 
-internal fun intervalLabel(hours: Int): String = when (hours) {
-    0 -> "关闭"
-    1 -> "每 1 小时"
-    6 -> "每 6 小时"
-    12 -> "每 12 小时"
-    24 -> "每天"
-    else -> "每 $hours 小时"
+internal fun intervalLabel(minutes: Int): String = when {
+    minutes <= 0 -> "关闭"
+    minutes == 1440 -> "每天"
+    minutes % 60 == 0 -> "每 ${minutes / 60} 小时"
+    else -> "每 $minutes 分钟"
 }
 
 internal fun formatTime(millis: Long): String =

@@ -87,7 +87,7 @@ class GatewayService : Service() {
                     val updated = AppContainer.profiles.autoUpdateDue().getOrThrow()
                     if (updated > 0) Log.i(TAG, "auto updated $updated subscription(s)")
                 }.onFailure { Log.w(TAG, "auto update loop: ${it.message}") }
-                delay(30 * 60_000L)
+                delay(5 * 60_000L)
             }
         }
 

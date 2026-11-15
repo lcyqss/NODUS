@@ -59,6 +59,8 @@ fun SubscriptionDetailPage(
     var name by remember(profile.id) { mutableStateOf(profile.name) }
     var url by remember(profile.id) { mutableStateOf(profile.url) }
     var intervalMenu by remember { mutableStateOf(false) }
+    var customInterval by remember { mutableStateOf(false) }
+    var customMinutes by remember { mutableStateOf("") }
     var confirmDelete by remember { mutableStateOf(false) }
     var providers by remember(profile.id) { mutableStateOf<List<ProviderMeta>>(emptyList()) }
     var providersLoaded by remember(profile.id) { mutableStateOf(false) }
@@ -126,21 +128,30 @@ fun SubscriptionDetailPage(
             SettingsRow(
                 title = "自动更新",
                 subtitle = "仅对这个订阅生效",
-                value = intervalLabel(profile.autoUpdateHours),
+                value = intervalLabel(profile.autoUpdateMinutes),
                 enabled = !busy,
                 onClick = { intervalMenu = true }
             )
             Box {
                 DropdownMenu(expanded = intervalMenu, onDismissRequest = { intervalMenu = false }) {
-                    AutoUpdateOptions.forEach { hours ->
+                    AutoUpdateOptions.forEach { minutes ->
                         DropdownMenuItem(
-                            text = { Text(intervalLabel(hours)) },
+                            text = { Text(intervalLabel(minutes)) },
                             onClick = {
                                 intervalMenu = false
-                                onSetInterval(hours)
+                                onSetInterval(minutes)
                             }
                         )
                     }
+                    DropdownMenuItem(
+                        text = { Text("自定义…") },
+                        onClick = {
+                            intervalMenu = false
+                            customMinutes = profile.autoUpdateMinutes
+                                .takeIf { it > 0 }?.toString().orEmpty()
+                            customInterval = true
+                        }
+                    )
                 }
             }
             SettingsDivider()
@@ -163,8 +174,8 @@ fun SubscriptionDetailPage(
             when {
                 !providersLoaded -> SettingsRow(title = "加载中…", showChevron = false)
                 providers.isEmpty() -> SettingsRow(
-                    title = "未使用 Provider",
-                    subtitle = "节点直接内联在订阅配置里",
+                    title = "该订阅未使用 proxy-providers",
+                    subtitle = "节点直接写在订阅配置中，属于正常情况",
                     showChevron = false
                 )
                 else -> providers.forEachIndexed { index, provider ->
@@ -186,7 +197,7 @@ fun SubscriptionDetailPage(
 
         Spacer(Modifier.height(8.dp))
         Text(
-            "Provider 健康检查仅在订阅生效时可用",
+            "Provider 健康检查仅适用于 proxy-providers 型订阅",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -227,6 +238,44 @@ fun SubscriptionDetailPage(
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("取消") }
+            }
+        )
+    }
+
+    if (customInterval) {
+        val minutes = customMinutes.toIntOrNull()
+        val valid = minutes != null && minutes >= 10 && minutes % 10 == 0
+        AlertDialog(
+            onDismissRequest = { customInterval = false },
+            title = { Text("自定义自动更新间隔") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = customMinutes,
+                        onValueChange = { customMinutes = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("分钟") },
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "最小 10 分钟，且为 10 的倍数",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (valid) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = valid,
+                    onClick = {
+                        minutes?.let { onSetInterval(it) }
+                        customInterval = false
+                    }
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { customInterval = false }) { Text("取消") }
             }
         )
     }

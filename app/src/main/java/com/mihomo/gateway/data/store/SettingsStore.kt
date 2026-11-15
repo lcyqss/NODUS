@@ -64,8 +64,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
             val legacyInterval = prefs.getInt(KEY_UPDATE_INTERVAL, 0)
             val active = prefs.getString(KEY_ACTIVE_SUB, "").orEmpty()
                 .ifBlank { list.first().id }
-            val migrated = if (legacyInterval > 0 && list.none { it.autoUpdateHours > 0 }) {
-                list.map { if (it.id == active) it.copy(autoUpdateHours = legacyInterval) else it }
+            val migrated = if (legacyInterval > 0 && list.none { it.autoUpdateMinutes > 0 }) {
+                list.map { if (it.id == active) it.copy(autoUpdateMinutes = legacyInterval * 60) else it }
             } else {
                 list
             }
@@ -84,7 +84,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
             url = url,
             lastUpdateAt = prefs.getLong(KEY_LAST_UPDATE, 0L),
             nodeCount = prefs.getInt(KEY_NODE_COUNT, 0),
-            autoUpdateHours = prefs.getInt(KEY_UPDATE_INTERVAL, 0)
+            autoUpdateMinutes = prefs.getInt(KEY_UPDATE_INTERVAL, 0) * 60
         )
         prefs.edit()
             .putString(KEY_SUBSCRIPTIONS, SubscriptionCodec.encode(listOf(profile)))

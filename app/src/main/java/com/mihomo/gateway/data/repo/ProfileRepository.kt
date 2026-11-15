@@ -105,9 +105,9 @@ class ProfileRepositoryImpl(
     override suspend fun switchTo(profile: SubscriptionProfile): Result<Unit> =
         withContext(Dispatchers.IO) {
             val cache = cacheFile(profile)
-            val stale = profile.autoUpdateHours > 0 &&
+            val stale = profile.autoUpdateMinutes > 0 &&
                 System.currentTimeMillis() - profile.lastUpdateAt >
-                profile.autoUpdateHours * 3_600_000L
+                profile.autoUpdateMinutes * 60_000L
             if (cache.exists() && !stale) {
                 installFromCache(profile).onSuccess { return@withContext Result.success(Unit) }
             }
@@ -121,9 +121,9 @@ class ProfileRepositoryImpl(
         var updated = 0
         var lastError: Throwable? = null
         for (profile in list) {
-            if (profile.autoUpdateHours <= 0) continue
+            if (profile.autoUpdateMinutes <= 0) continue
             val due = System.currentTimeMillis() - profile.lastUpdateAt >=
-                profile.autoUpdateHours * 3_600_000L
+                profile.autoUpdateMinutes * 60_000L
             if (!due) continue
             val fetched = fetchToCache(profile)
             if (fetched.isFailure) {

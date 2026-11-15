@@ -116,7 +116,7 @@ data class SubscriptionProfile(
     val url: String,
     val lastUpdateAt: Long = 0L,
     val nodeCount: Int = 0,
-    val autoUpdateHours: Int = 0
+    val autoUpdateMinutes: Int = 0
 )
 
 /** 解析订阅 YAML 得到的 provider 元数据（只读，不持久化）。 */
@@ -142,7 +142,11 @@ object SubscriptionCodec {
                     url = url,
                     lastUpdateAt = obj.optLong("lastUpdateAt", 0L),
                     nodeCount = obj.optInt("nodeCount", 0),
-                    autoUpdateHours = obj.optInt("autoUpdateHours", 0)
+                    autoUpdateMinutes = if (obj.has("autoUpdateMinutes")) {
+                        obj.optInt("autoUpdateMinutes", 0)
+                    } else {
+                        obj.optInt("autoUpdateHours", 0) * 60
+                    }
                 )
             }
         }.getOrDefault(emptyList())
@@ -158,7 +162,8 @@ object SubscriptionCodec {
                     .put("url", item.url)
                     .put("lastUpdateAt", item.lastUpdateAt)
                     .put("nodeCount", item.nodeCount)
-                    .put("autoUpdateHours", item.autoUpdateHours)
+                    .put("autoUpdateMinutes", item.autoUpdateMinutes)
+                    .put("autoUpdateHours", (item.autoUpdateMinutes + 59) / 60)
             )
         }
         return array.toString()

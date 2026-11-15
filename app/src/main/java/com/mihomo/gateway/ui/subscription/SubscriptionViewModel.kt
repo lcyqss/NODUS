@@ -133,15 +133,15 @@ class SubscriptionViewModel(
         }
     }
 
-    fun setInterval(profile: SubscriptionProfile, hours: Int) {
+    fun setInterval(profile: SubscriptionProfile, minutes: Int) {
         viewModelScope.launch {
             updateList { list ->
-                list.map { if (it.id == profile.id) it.copy(autoUpdateHours = hours) else it }
+                list.map { if (it.id == profile.id) it.copy(autoUpdateMinutes = minutes) else it }
             }
-            _message.value = if (hours <= 0) {
+            _message.value = if (minutes <= 0) {
                 "已关闭「${profile.name}」的自动更新"
             } else {
-                "「${profile.name}」每 $hours 小时自动更新"
+                "「${profile.name}」每 $minutes 分钟自动更新"
             }
         }
     }
