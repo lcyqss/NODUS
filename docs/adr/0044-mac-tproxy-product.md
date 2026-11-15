@@ -40,3 +40,15 @@ chains=日本高速01|BGP|CUCM, 良心云
 ```
 
 说明 MAC listener 已优先命中，且不依赖客户端当前 IPv6 地址。
+## 生命周期验证（2026-11-16）
+
+1. 新增第二台设备（Windows MAC `ac:d5...`）：
+   - listener 7911 生成
+   - TSV 增加一行
+   - ip6tables 增加对应 MAC 规则
+2. 删除该策略：
+   - listener 7911 消失
+   - TSV 恢复为只有主力手机
+   - ip6tables 的 7911 规则消失
+   - 主力手机 7910 保留
+3. `ipv6.sh ensure` 对健康 listener 不重复重启。
