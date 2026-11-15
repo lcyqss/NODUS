@@ -39,19 +39,23 @@ ensure_dns6() {
   if [ ! -f "$DNS_BAK" ]; then
     grep -m1 '^    listen:' "$CFG" > "$DNS_BAK" 2>/dev/null || true
   fi
-  sed -i 's#^    listen: .*#    listen: "[::]:1053"#' "$CFG"
+  # Normalize to exactly one listen line; repeated enable/disable must not duplicate it.
+  awk 'BEGIN{done=0} /^    listen: / { if(!done){print "    listen: \"[::]:1053\""; done=1} next } {print}' \
+    "$CFG" > "$CFG.tmp" && mv -f "$CFG.tmp" "$CFG"
   reload_core >/dev/null 2>&1 || restart_core >/dev/null 2>&1 || true
 }
 
 restore_dns() {
   if [ -f "$DNS_BAK" ]; then
     LINE=$(cat "$DNS_BAK")
-    [ -n "$LINE" ] && sed -i "s#^    listen: .*#$LINE#" "$CFG"
+    if [ -n "$LINE" ]; then
+      awk -v line="$LINE" 'BEGIN{done=0} /^    listen: / { if(!done){print line; done=1} next } {print}' \
+        "$CFG" > "$CFG.tmp" && mv -f "$CFG.tmp" "$CFG"
+    fi
     rm -f "$DNS_BAK"
     reload_core >/dev/null 2>&1 || true
   fi
 }
-
 ensure_tproxy_port() {
   grep -q "^tproxy-port:" "$CFG" 2>/dev/null && return 0
   cp -f "$CFG" "$CFG.bak.ipv6.$(date +%s)"
@@ -86,7 +90,7 @@ start_ra() {
   for IF in $(list_gateways); do
     PIDFILE="$BASE/v6ra.$IF.pid"
     [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null
-    setsid "$RA" -i "$IF" -p "$ULA_PREFIX" -d "$ULA_ADDR" \
+    setsid "$RA" -i "$IF" -p "$ULA_PREFIX" -d "$ULA_ADDR" -t 5s \
       >"$BASE/v6ra.$IF.log" 2>&1 &
     echo $! > "$PIDFILE"
     log "ra started on $IF pid=$(cat "$PIDFILE")"

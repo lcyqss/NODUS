@@ -442,3 +442,8 @@
 - 新增 v6dhcp 无状态 DHCPv6 服务
 - Windows 获取 fd00:1234::1 作为 DNS
 - Windows 域名 IPv6 解析进入 mihomo
+## 42. v2.40.2 客户端 RA 与 DNS 稳定性
+
+- RS 触发单播 RA，兼容不处理多播 RA 的客户端
+- RA 周期 5 秒
+- DNS listen 归一化，修复重复配置导致的内核启动失败
