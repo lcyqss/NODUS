@@ -120,6 +120,7 @@ class OverviewViewModel(
                         downloadTotal = list.sumOf { it.download }
                     )
                 }
+                loadCurrentNode()
                 delay(3000)
             }
         }
@@ -153,14 +154,25 @@ class OverviewViewModel(
     private fun loadCurrentNode() {
         viewModelScope.launch {
             api.proxies().onSuccess { nodes ->
+                val byName = nodes.associateBy { it.name }
                 val groups = nodes.filter { it.isGroup && !it.now.isNullOrBlank() }
-                val usable = groups.filter { !ProxyNames.isInfoNode(it.now.orEmpty()) }
-                val group = usable.firstOrNull { it.name == "自动选择" }
-                    ?: usable.firstOrNull { it.name != "GLOBAL" }
-                    ?: usable.firstOrNull()
+                val nested = groups.filter { it.name != "GLOBAL" }.flatMap { it.all }.toSet()
+                // 顶层策略组：不被其他组引用的组（GLOBAL 除外）
+                val topLevel = groups.filter { it.name !in nested && it.name != "GLOBAL" }
+                val start = topLevel.firstOrNull { !ProxyNames.isInfoNode(it.now.orEmpty()) }
+                    ?: topLevel.firstOrNull()
+                    ?: groups.firstOrNull { it.name == "自动选择" }
+                    ?: groups.firstOrNull { it.name != "GLOBAL" }
                     ?: groups.firstOrNull()
-                _currentGroup.value = group?.name
-                _currentNode.value = group?.now?.takeUnless { ProxyNames.isInfoNode(it) }
+                // 顶层组可能委托给子组，顺着 now 链找到最终节点
+                var current = start?.now
+                val seen = mutableSetOf<String>()
+                while (current != null && seen.add(current)) {
+                    val next = byName[current]
+                    if (next?.isGroup == true) current = next.now else break
+                }
+                _currentGroup.value = start?.name
+                _currentNode.value = current?.takeUnless { ProxyNames.isInfoNode(it) }
             }
         }
     }
