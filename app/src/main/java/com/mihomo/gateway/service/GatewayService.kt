@@ -91,12 +91,15 @@ class GatewayService : Service() {
             }
         }
 
-        // 设备策略：IP 跟随（DHCP 变化时重建 SRC-IP 规则），固定 60 秒
+        // 设备策略：IP 跟随（DHCP 变化时重建 SRC-IP 规则），间隔可设置
         scope.launch {
             while (isActive) {
                 runCatching { AppContainer.devicePolicies.syncIfNeeded() }
                     .onFailure { Log.w(TAG, "device policy ip sync: ${it.message}") }
-                delay(60_000L)
+                val seconds = runCatching {
+                    AppContainer.settings.settings.first().ipFollowIntervalSec
+                }.getOrDefault(60).coerceIn(30, 300)
+                delay(seconds * 1000L)
             }
         }
 

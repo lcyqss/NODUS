@@ -54,6 +54,13 @@ object TagExprParser {
         }
     }
 
+    private fun quoteName(name: String): String {
+        val reserved = name.equals("and", true) || name.equals("or", true) || name.equals("not", true)
+        val special = name.isEmpty() || name.any { it.isWhitespace() || it in "∧&∨|¬!()\"" }
+        if (!reserved && !special) return name
+        return "\"" + name.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+    }
+
     private fun nameIndex(tags: List<NodeTag>): Map<String, String> =
         tags.associate { it.name.lowercase() to it.id }
 
@@ -103,6 +110,9 @@ object TagExprParser {
         private fun parsePrimary(): TagExpr {
             skipSpace()
             if (pos >= text.length) fail("表达式不完整")
+            if (text[pos] == '"' || text[pos] == '\'') {
+                return TagExpr.Ref(resolve(readQuoted()))
+            }
             if (text[pos] == '(') {
                 pos++
                 val inner = parseOr()
@@ -116,6 +126,30 @@ object TagExprParser {
             val id = names[name.lowercase()] ?: ids[name]
                 ?: fail("未知标签: $name")
             return TagExpr.Ref(id)
+        }
+
+        private fun resolve(name: String): String =
+            names[name.lowercase()] ?: ids[name] ?: fail("未知标签: ")
+
+        private fun readQuoted(): String {
+            val quote = text[pos]
+            pos++
+            val builder = StringBuilder()
+            while (pos < text.length) {
+                val ch = text[pos]
+                if (ch == '\\' && pos + 1 < text.length) {
+                    builder.append(text[pos + 1])
+                    pos += 2
+                    continue
+                }
+                if (ch == quote) {
+                    pos++
+                    return builder.toString()
+                }
+                builder.append(ch)
+                pos++
+            }
+            fail("引号未闭合")
         }
 
         private fun readName(): String {

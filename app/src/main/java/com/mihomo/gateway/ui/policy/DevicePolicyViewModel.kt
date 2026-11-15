@@ -49,9 +49,19 @@ class DevicePolicyViewModel(
         .map { it.policyIntervalSec }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 60)
 
+    val ipIntervalSec: StateFlow<Int> = AppContainer.settings.settings
+        .map { it.ipFollowIntervalSec }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 60)
+
     fun setInterval(seconds: Int) {
         viewModelScope.launch {
             AppContainer.settings.update { it.copy(policyIntervalSec = seconds) }
+        }
+    }
+
+    fun setIpInterval(seconds: Int) {
+        viewModelScope.launch {
+            AppContainer.settings.update { it.copy(ipFollowIntervalSec = seconds) }
         }
     }
 

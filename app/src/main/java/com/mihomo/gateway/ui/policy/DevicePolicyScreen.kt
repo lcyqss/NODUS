@@ -67,6 +67,7 @@ fun DevicePolicyScreen(
     val devices by vm.devices.collectAsState()
     val tags by vm.tags.collectAsState()
     val intervalSec by vm.intervalSec.collectAsState()
+    val ipIntervalSec by vm.ipIntervalSec.collectAsState()
     val busy by vm.busy.collectAsState()
     val message by vm.message.collectAsState()
 
@@ -142,7 +143,21 @@ fun DevicePolicyScreen(
         }
 
         Spacer(Modifier.height(8.dp))
-        IntervalRow(seconds = intervalSec, onChange = { vm.setInterval(it) })
+        IntervalRow(
+            title = "延迟调度间隔",
+            subtitle = "仅对设置了延迟阈值的策略生效",
+            seconds = intervalSec,
+            options = listOf(30 to "30 秒", 60 to "1 分钟", 300 to "5 分钟"),
+            onChange = { vm.setInterval(it) }
+        )
+        Spacer(Modifier.height(8.dp))
+        IntervalRow(
+            title = "IP 跟随检查",
+            subtitle = "设备 IP 变化后自动重建规则",
+            seconds = ipIntervalSec,
+            options = listOf(30 to "30 秒", 60 to "1 分钟", 120 to "2 分钟", 300 to "5 分钟"),
+            onChange = { vm.setIpInterval(it) }
+        )
         Spacer(Modifier.height(8.dp))
 
         message?.let {
@@ -471,9 +486,14 @@ private fun DevicePicker(
 }
 
 @Composable
-private fun IntervalRow(seconds: Int, onChange: (Int) -> Unit) {
+private fun IntervalRow(
+    title: String,
+    subtitle: String,
+    seconds: Int,
+    options: List<Pair<Int, String>>,
+    onChange: (Int) -> Unit
+) {
     var menu by remember { mutableStateOf(false) }
-    val options = listOf(30 to "30 秒", 60 to "1 分钟", 300 to "5 分钟")
     Box {
         Row(
             Modifier
@@ -485,9 +505,9 @@ private fun IntervalRow(seconds: Int, onChange: (Int) -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text("延迟调度间隔", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
-                    "仅对设置了延迟阈值的策略生效",
+                    subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
