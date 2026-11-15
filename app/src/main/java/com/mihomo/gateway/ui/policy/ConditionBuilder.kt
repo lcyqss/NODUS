@@ -442,6 +442,13 @@ private fun GroupBlock(
                                     }
                                 ))
                             },
+                            onChangeTag = { newTagId ->
+                                onChange(group.copy(
+                                    children = group.children.toMutableList().also {
+                                        it[index] = child.copy(tagId = newTagId)
+                                    }
+                                ))
+                            },
                             onDelete = {
                                 onChange(group.copy(children = group.children.filterIndexed { i, _ -> i != index }))
                             }
@@ -499,9 +506,11 @@ private fun TagRow(
     onMoveUp: (() -> Unit)?,
     onMoveDown: (() -> Unit)?,
     onToggleNegated: () -> Unit,
+    onChangeTag: (String) -> Unit,
     onDelete: () -> Unit
 ) {
     val name = tags.firstOrNull { it.id == tagId }?.name ?: "已删除标签"
+    var menu by remember { mutableStateOf(false) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -515,7 +524,43 @@ private fun TagRow(
             Text("¬", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.width(3.dp))
         }
-        Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+        Box {
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { menu = true }
+                    .padding(horizontal = 4.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    "▾",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            DropdownMenu(
+                expanded = menu,
+                onDismissRequest = { menu = false },
+                modifier = Modifier.height(320.dp)
+            ) {
+                tags.forEach { tag ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (tag.id == tagId) "✓ ${tag.name}" else tag.name,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        onClick = {
+                            menu = false
+                            if (tag.id != tagId) onChangeTag(tag.id)
+                        }
+                    )
+                }
+            }
+        }
         Spacer(Modifier.weight(1f))
         ArrowButton("↑", onMoveUp)
         ArrowButton("↓", onMoveDown)
