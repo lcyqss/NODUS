@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mihomo.gateway.data.catalog.NodeInfo
+import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.data.tags.TagExprParser
 import com.mihomo.gateway.model.ConditionTemplate
 import com.mihomo.gateway.model.NodeTag
@@ -206,7 +207,12 @@ fun ConditionSection(
                             Text(
                                 "• ${node.name}  (${node.type})",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { AppContainer.navigator.openProxyNode(node.name) }
+                                    .padding(vertical = 1.dp)
                             )
                         }
                         if (matched.size > 12) {

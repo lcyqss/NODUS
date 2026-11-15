@@ -15,13 +15,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.ui.connections.ConnectionsScreen
 import com.mihomo.gateway.ui.icons.GwIcon
 import com.mihomo.gateway.ui.rules.RulesScreen
@@ -41,10 +40,10 @@ private val items = listOf(
 
 @Composable
 fun AppNav() {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val tab by AppContainer.navigator.tab.collectAsState()
 
     // 次级 Tab 按返回先回首页；页面内部的 BackHandler（如设置二级页、订阅管理）在组合顺序上更靠后，优先处理
-    BackHandler(enabled = tab != 0) { tab = 0 }
+    BackHandler(enabled = tab != 0) { AppContainer.navigator.selectTab(0) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -61,7 +60,7 @@ fun AppNav() {
                     items.forEachIndexed { index, item ->
                         NavigationBarItem(
                             selected = tab == index,
-                            onClick = { tab = index },
+                            onClick = { AppContainer.navigator.selectTab(index) },
                             icon = { GwIcon(item.icon, modifier = Modifier.padding(2.dp)) },
                             label = { Text(item.label) }
                         )
@@ -78,7 +77,7 @@ fun AppNav() {
         }
         Box(Modifier.padding(padding).alpha(fade.value)) {
             when (tab) {
-                0 -> OverviewScreen(onOpenNodes = { tab = 1 })
+                0 -> OverviewScreen(onOpenNodes = { AppContainer.navigator.selectTab(1) })
                 1 -> ProxiesScreen()
                 2 -> RulesScreen()
                 3 -> ConnectionsScreen()

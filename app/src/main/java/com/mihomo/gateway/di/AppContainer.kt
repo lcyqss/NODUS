@@ -37,6 +37,8 @@ object AppContainer {
 
     lateinit var shell: ShellExecutor
         private set
+    lateinit var navigator: AppNavigator
+        private set
     lateinit var api: MihomoApi
         private set
     lateinit var gateway: GatewayController
@@ -67,6 +69,7 @@ object AppContainer {
         initialized = true
 
         val app = context.applicationContext
+        navigator = AppNavigator()
         shell = ShellExecutorImpl()
         api = MihomoApiImpl(secret = SECRET)
         gateway = GatewayControllerImpl(shell, api, base = BASE)

@@ -1,6 +1,7 @@
 package com.mihomo.gateway.ui.proxies
 
 import androidx.compose.foundation.background
+import com.mihomo.gateway.di.AppContainer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
@@ -102,6 +103,23 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     var sortMode by remember { mutableStateOf(SortMode.Default) }
     var hideUnavailable by remember { mutableStateOf(false) }
     var favoritesFirst by remember { mutableStateOf(true) }
+    val pendingNode by AppContainer.navigator.proxyNode.collectAsState()
+
+    // 设备策略点「命中节点」后跳到这里：选中包含该节点的组并过滤
+    LaunchedEffect(pendingNode, state.groups) {
+        val target = pendingNode ?: return@LaunchedEffect
+        if (state.groups.isEmpty()) return@LaunchedEffect
+        val candidates = state.groups.filter { g ->
+            g.name != "GLOBAL" && !g.name.startsWith("__dev_") &&
+                g.members.any { it.name == target }
+        }
+        val group = candidates.firstOrNull { it.type.equals("Selector", true) }
+            ?: candidates.firstOrNull()
+        if (group != null) vm.selectGroup(group.name)
+        query = target
+        searchOpen = false
+        AppContainer.navigator.consumeProxyNode()
+    }
 
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
