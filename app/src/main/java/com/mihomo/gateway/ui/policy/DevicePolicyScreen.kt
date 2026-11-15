@@ -281,8 +281,10 @@ private fun PolicyEditorDialog(
 ) {
     var mac by remember { mutableStateOf(draft.mac) }
     var label by remember { mutableStateOf(draft.label) }
-    var primaryText by remember { mutableStateOf(TagExprParser.toText(draft.primary.expr, tags)) }
-    var fallbackText by remember { mutableStateOf(TagExprParser.toText(draft.fallback.expr, tags)) }
+    var primaryExpr by remember { mutableStateOf(draft.primary.expr) }
+    var fallbackExpr by remember { mutableStateOf(draft.fallback.expr) }
+    var primaryInvalid by remember { mutableStateOf(false) }
+    var fallbackInvalid by remember { mutableStateOf(false) }
     var enabled by remember { mutableStateOf(draft.enabled) }
     var maxDelay by remember { mutableStateOf(if (draft.maxDelayMs > 0) draft.maxDelayMs.toString() else "") }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -312,20 +314,22 @@ private fun PolicyEditorDialog(
                     singleLine = true
                 )
 
-                ExprField(
+                ConditionSection(
                     title = "优先条件",
-                    text = primaryText,
-                    onTextChange = { primaryText = it },
+                    initial = draft.primary.expr,
                     tags = tags,
-                    matchCount = matchCount
+                    matchCount = matchCount,
+                    onExprChange = { primaryExpr = it },
+                    onInvalidChange = { primaryInvalid = it }
                 )
 
-                ExprField(
+                ConditionSection(
                     title = "回落条件",
-                    text = fallbackText,
-                    onTextChange = { fallbackText = it },
+                    initial = draft.fallback.expr,
                     tags = tags,
-                    matchCount = matchCount
+                    matchCount = matchCount,
+                    onExprChange = { fallbackExpr = it },
+                    onInvalidChange = { fallbackInvalid = it }
                 )
 
                 OutlinedTextField(
@@ -344,22 +348,18 @@ private fun PolicyEditorDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = !busy && mac.isNotBlank(),
+                enabled = !busy && mac.isNotBlank() && !primaryInvalid && !fallbackInvalid,
                 onClick = {
-                    val parsedPrimary = TagExprParser.parse(primaryText, tags)
-                    val parsedFallback = TagExprParser.parse(fallbackText, tags)
-                    if (parsedPrimary.isSuccess && parsedFallback.isSuccess) {
-                        onSave(
-                            draft.copy(
-                                mac = mac.lowercase(),
-                                label = label.trim(),
-                                primary = DeviceSelector(parsedPrimary.getOrNull()),
-                                fallback = DeviceSelector(parsedFallback.getOrNull()),
-                                maxDelayMs = maxDelay.toIntOrNull() ?: 0,
-                                enabled = enabled
-                            )
+                    onSave(
+                        draft.copy(
+                            mac = mac.lowercase(),
+                            label = label.trim(),
+                            primary = DeviceSelector(primaryExpr),
+                            fallback = DeviceSelector(fallbackExpr),
+                            maxDelayMs = maxDelay.toIntOrNull() ?: 0,
+                            enabled = enabled
                         )
-                    }
+                    )
                 }
             ) { Text("保存并应用") }
         },
@@ -390,57 +390,6 @@ private fun PolicyEditorDialog(
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("取消") }
             }
-        )
-    }
-}
-
-@Composable
-private fun ExprField(
-    title: String,
-    text: String,
-    onTextChange: (String) -> Unit,
-    tags: List<NodeTag>,
-    matchCount: (TagExpr?) -> Int
-) {
-    Column {
-        val parsed = TagExprParser.parse(text, tags)
-        val error = parsed.exceptionOrNull()?.message
-        val count = parsed.getOrNull()?.let { matchCount(it) } ?: 0
-        Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedTextField(
-            value = text,
-            onValueChange = onTextChange,
-            placeholder = { Text("例如 香港 ∧ vless，留空=任意") },
-            minLines = 2,
-            isError = error != null,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            tags.take(10).forEach { tag ->
-                Text(
-                    tag.name,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable {
-                            onTextChange(if (text.isBlank()) tag.name else "$text ∧ ${tag.name}")
-                        }
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
-                )
-            }
-        }
-        Text(
-            error ?: "命中 $count 个节点 · 支持 ∧ ∨ ¬ 与括号",
-            style = MaterialTheme.typography.labelSmall,
-            color = if (error != null) MaterialTheme.colorScheme.error
-            else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -532,9 +481,6 @@ private fun IntervalRow(
         }
     }
 }
-
-private fun parseOrNull(text: String, tags: List<NodeTag>): TagExpr? =
-    TagExprParser.parse(text, tags).getOrNull()
 
 private fun selectorText(selector: DeviceSelector, tags: List<NodeTag>): String {
     val text = TagExprParser.toText(selector.expr, tags)
