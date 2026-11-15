@@ -43,7 +43,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.ConnectionInfo
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.icons.GwIcon
-import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SearchBar
 import com.mihomo.gateway.ui.components.SegmentedControl
 
@@ -99,27 +98,29 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        ScreenHeader(title = "连接") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HeaderIcon(GwIcon.Logs, selected = mode == 0) { mode = 0 }
-                HeaderIcon(GwIcon.Tree, selected = mode == 1) { mode = 1 }
-                HeaderIcon(GwIcon.Chart, selected = mode == 2) { mode = 2 }
-                Spacer(Modifier.width(6.dp))
-                HeaderIcon(
-                    if (paused) GwIcon.Play else GwIcon.Pause,
-                    selected = paused
-                ) {
-                    paused = !paused
-                    if (!paused) frozen = emptyList()
-                }
-                HeaderIcon(
-                    GwIcon.Close,
-                    tint = MaterialTheme.colorScheme.error
-                ) { vm.closeAll() }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HeaderIcon(GwIcon.Logs, selected = mode == 0) { mode = 0 }
+            HeaderIcon(GwIcon.Tree, selected = mode == 1) { mode = 1 }
+            HeaderIcon(GwIcon.Chart, selected = mode == 2) { mode = 2 }
+            Spacer(Modifier.width(6.dp))
+            HeaderIcon(
+                if (paused) GwIcon.Play else GwIcon.Pause,
+                selected = paused
+            ) {
+                paused = !paused
+                if (!paused) frozen = emptyList()
             }
+            HeaderIcon(
+                GwIcon.Close,
+                tint = MaterialTheme.colorScheme.error
+            ) { vm.closeAll() }
         }
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
 
         Text(
             "${data.size} 条 · ↑${formatBytes(data.sumOf { it.upload })} ↓${formatBytes(data.sumOf { it.download })}",

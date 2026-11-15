@@ -63,7 +63,6 @@ import com.mihomo.gateway.model.CustomRule
 import com.mihomo.gateway.model.RuleInfo
 import com.mihomo.gateway.model.RuleKind
 import com.mihomo.gateway.ui.components.EmptyState
-import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SegmentedControl
 import com.mihomo.gateway.ui.components.SearchBar
 import com.mihomo.gateway.ui.icons.GwIcon
@@ -89,11 +88,6 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        ScreenHeader(
-            title = "分流"
-        )
-
-        Spacer(Modifier.height(10.dp))
         SummaryLine(state)
         if (state.mode != "rule") ModeWarning(state.mode)
 

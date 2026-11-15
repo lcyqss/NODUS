@@ -55,7 +55,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.ProxyNames
 import com.mihomo.gateway.model.ProxyNode
 import com.mihomo.gateway.ui.components.EmptyState
-import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.Tag
 import com.mihomo.gateway.ui.icons.GwIcon
 import com.mihomo.gateway.ui.subscription.SubscriptionManagementPage
@@ -177,7 +176,11 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
     val activeSub = subs.firstOrNull { it.id == subSettings.activeSubId }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        ScreenHeader(title = "代理") {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box {
                 IconButton(onClick = { pageMenuOpen = true }) {
                     GwIcon(GwIcon.More, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -194,7 +197,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(2.dp))
 
         SubscriptionRow(
             subsCount = subs.size,

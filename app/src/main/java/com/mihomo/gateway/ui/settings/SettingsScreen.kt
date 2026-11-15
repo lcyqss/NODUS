@@ -40,7 +40,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mihomo.gateway.model.IpMode
-import com.mihomo.gateway.ui.components.ScreenHeader
 import com.mihomo.gateway.ui.components.SettingsDivider
 import com.mihomo.gateway.ui.components.SettingsGroup
 import com.mihomo.gateway.ui.components.SettingsRow
@@ -106,8 +105,6 @@ private fun SettingsMain(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        ScreenHeader(title = "设置")
-
         message?.let {
             Spacer(Modifier.height(8.dp))
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
