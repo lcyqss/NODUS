@@ -22,6 +22,7 @@ interface GatewayController {
     suspend fun setIpMode(mode: IpMode): Result<Unit>
     suspend fun setBlockIpv6(enabled: Boolean): Result<Unit>
     suspend fun setIpv6Gateway(enabled: Boolean): Result<Unit>
+    suspend fun detectUpstreamRa(): Boolean
     suspend fun applyRules(): Result<Unit>
     suspend fun refresh()
 
@@ -93,7 +94,17 @@ class GatewayControllerImpl(
         Result.success(Unit)
     }
 
+    override suspend fun detectUpstreamRa(): Boolean {
+        val r = shell.run("sh $base/ipv6.sh detect", 10_000)
+        return r.code == 0 && r.stdout.contains("UPSTREAM_RA=1")
+    }
+
     override suspend fun setIpv6Gateway(enabled: Boolean): Result<Unit> = mutex.withLock {
+        if (enabled && detectUpstreamRa()) {
+            return Result.failure(
+                IllegalStateException("检测到主路由 IPv6 RA，旁路由下无法保证 IPv6 全部代理")
+            )
+        }
         val value = if (enabled) "1" else "0"
         val conf = shell.run("sh $base/conf.sh IPV6_GATEWAY $value")
         if (conf.code != 0) return Result.failure(IllegalStateException(conf.stdout.take(200)))

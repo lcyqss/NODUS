@@ -155,9 +155,23 @@ status() {
   pgrep -f "$BASE/v6ra" 2>/dev/null || true
 }
 
+detect() {
+  # 旁路由检测：wlan 上出现来自上游路由器的 IPv6 默认路由，说明主路由 RA 未关闭。
+  for IF in $(list_gateways); do
+    if ip -6 route show table all 2>/dev/null |
+      awk -v i="$IF" '$0 ~ ("dev " i " ") && /^default via fe80/ {found=1} END {exit !found}'; then
+      echo "UPSTREAM_RA=1"
+      echo "IFACE=$IF"
+      return 0
+    fi
+  done
+  echo "UPSTREAM_RA=0"
+}
+
 case "$1" in
   enable) with_lock enable ;;
   disable) with_lock disable ;;
   status) status ;;
-  *) echo "用法: $0 enable|disable|status"; exit 1 ;;
+  detect) detect ;;
+  *) echo "用法: $0 enable|disable|status|detect"; exit 1 ;;
 esac

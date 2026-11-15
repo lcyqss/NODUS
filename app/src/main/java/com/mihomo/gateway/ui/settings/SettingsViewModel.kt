@@ -35,6 +35,15 @@ class SettingsViewModel(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    private val _ipv6RaBlocked = MutableStateFlow(false)
+    val ipv6RaBlocked: StateFlow<Boolean> = _ipv6RaBlocked.asStateFlow()
+
+    fun refreshIpv6Capability() {
+        viewModelScope.launch {
+            _ipv6RaBlocked.value = gateway.detectUpstreamRa()
+        }
+    }
+
     fun clearMessage() {
         _message.value = null
     }
@@ -45,6 +54,9 @@ class SettingsViewModel(
     init {
         viewModelScope.launch {
             api.configs().onSuccess { _runtimeMode.value = it.mode }
+        }
+        viewModelScope.launch {
+            _ipv6RaBlocked.value = gateway.detectUpstreamRa()
         }
     }
 
@@ -74,6 +86,10 @@ class SettingsViewModel(
 
     fun setIpv6Gateway(enabled: Boolean) {
         viewModelScope.launch {
+            if (enabled && _ipv6RaBlocked.value) {
+                _message.value = "检测到主路由 RA，旁路由下不能开启 IPv6 代理"
+                return@launch
+            }
             _busy.value = true
             store.update {
                 it.copy(
@@ -87,6 +103,7 @@ class SettingsViewModel(
             } else {
                 "设置失败: ${result.exceptionOrNull()?.message}"
             }
+            _ipv6RaBlocked.value = gateway.detectUpstreamRa()
             _busy.value = false
         }
     }

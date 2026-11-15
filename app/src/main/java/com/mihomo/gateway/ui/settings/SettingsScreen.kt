@@ -78,6 +78,8 @@ private fun SettingsMain(
     val settings by vm.settings.collectAsState()
     val message by vm.message.collectAsState()
     val busy by vm.busy.collectAsState()
+    val ipv6RaBlocked by vm.ipv6RaBlocked.collectAsState()
+    LaunchedEffect(Unit) { vm.refreshIpv6Capability() }
     val runtimeMode by vm.runtimeMode.collectAsState()
     val context = LocalContext.current
     var showCleanup by remember { mutableStateOf(false) }
@@ -139,13 +141,13 @@ private fun SettingsMain(
             SettingsDivider()
             SettingsSwitchRow(
                 title = "局域网 IPv6 代理",
-                subtitle = if (settings.ipv6Gateway) {
-                    "客户端 ULA + IPv6 TPROXY，经节点转发"
-                } else {
-                    "让客户端 IPv6 字面量也走代理"
+                subtitle = when {
+                    ipv6RaBlocked -> "检测到主路由 RA，旁路由下不可用"
+                    settings.ipv6Gateway -> "客户端 ULA + IPv6 TPROXY，经节点转发"
+                    else -> "让客户端 IPv6 字面量也走代理"
                 },
                 checked = settings.ipv6Gateway,
-                enabled = !busy,
+                enabled = !busy && (!ipv6RaBlocked || settings.ipv6Gateway),
                 onChange = vm::setIpv6Gateway
             )
         }
