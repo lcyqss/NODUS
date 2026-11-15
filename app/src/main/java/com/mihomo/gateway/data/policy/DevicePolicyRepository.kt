@@ -51,6 +51,9 @@ interface DevicePolicyRepository : DevicePolicyApplier {
 
     /** 重新解析设备/节点并应用。 */
     suspend fun apply(): Result<String>
+
+    /** 按延迟阈值切换优先/回落组（仅 maxDelayMs > 0 的策略）。 */
+    suspend fun evaluateRouting(): Result<Int>
 }
 
 private val IPV4 = Regex("""^(\d{1,3}\.){3}\d{1,3}$""")
@@ -151,7 +154,31 @@ class DevicePolicyRepositoryImpl(
                 IllegalStateException("重载失败，已回滚: ${reload.exceptionOrNull()?.message}")
             )
         }
+        evaluateRouting()
         Result.success("设备策略已生效")
+    }
+
+    /**
+     * 延迟阈值调度：优先组最优延迟超过 maxDelayMs（或无可用节点）时，
+     * 把 __dev_ 根组（select）切到回落组；恢复后切回优先组。
+     */
+    override suspend fun evaluateRouting(): Result<Int> = withContext(Dispatchers.IO) {
+        if (!coreRunning()) return@withContext Result.success(0)
+        val plans = runtime().filter {
+            it.policy.enabled &&
+                it.policy.maxDelayMs > 0 &&
+                it.primaryNodes.isNotEmpty() &&
+                it.fallbackNodes.isNotEmpty()
+        }
+        var changed = 0
+        plans.forEach { plan ->
+            val baseName = groupName(plan.policy)
+            val delays = api.groupDelay("${baseName}_p").getOrNull().orEmpty()
+            val best = delays.values.filter { it > 0 }.minOrNull() ?: -1
+            val target = if (best in 1..plan.policy.maxDelayMs) "${baseName}_p" else "${baseName}_f"
+            api.select(baseName, target).onSuccess { changed++ }
+        }
+        Result.success(changed)
     }
 
     override suspend fun applyToConfig(): Result<Unit> = withContext(Dispatchers.IO) {
@@ -159,9 +186,18 @@ class DevicePolicyRepositoryImpl(
         if (original.isBlank()) return@withContext Result.failure(IllegalStateException("读取配置失败"))
 
         val plans = runtime()
+        val enabledPlans = plans.filter { it.policy.enabled }
+        val matchedPlans = enabledPlans.filter { it.targetGroup != null }
+        // 有策略能匹配到节点、但设备全部离线：保留现有配置，避免临时离线把策略块清空
+        if (matchedPlans.isNotEmpty() && matchedPlans.all { it.ip == null }) {
+            return@withContext Result.failure(
+                IllegalStateException("设备离线，已保留现有策略配置")
+            )
+        }
+        val validPlans = matchedPlans.filter { it.ip != null }
         val groups = mutableListOf<String>()
         val rules = mutableListOf<String>()
-        plans.filter { it.policy.enabled && it.targetGroup != null && it.ip != null }.forEach { plan ->
+        validPlans.forEach { plan ->
             groups += buildGroups(plan)
             rules += ruleLine(plan.ip ?: "", plan.targetGroup)
         }
@@ -195,7 +231,7 @@ class DevicePolicyRepositoryImpl(
         if (plan.primaryNodes.isNotEmpty() && plan.fallbackNodes.isNotEmpty()) {
             out += groupLine(
                 baseName,
-                "fallback",
+                if (plan.policy.maxDelayMs > 0) "select" else "fallback",
                 listOf("${baseName}_p", "${baseName}_f"),
                 60
             )

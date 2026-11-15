@@ -1,5 +1,6 @@
 package com.mihomo.gateway.ui.policy
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,6 +78,8 @@ fun DevicePolicyScreen(
             vm.clearMessage()
         }
     }
+
+    BackHandler(enabled = showTags) { showTags = false }
 
     if (showTags) {
         NodeTagManagerScreen(onBack = { showTags = false }, vm = vm)
@@ -236,6 +239,7 @@ private fun PolicyCard(
                 runtime?.let { rt ->
                     append(" · 主 ").append(rt.primaryNodes.size).append(" / 回落 ").append(rt.fallbackNodes.size).append(" 节点")
                 }
+                if (policy.maxDelayMs > 0) append(" · ≤").append(policy.maxDelayMs).append("ms")
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -263,6 +267,7 @@ private fun PolicyEditorDialog(
     var primary by remember { mutableStateOf(draft.primary.tags) }
     var fallback by remember { mutableStateOf(draft.fallback.tags) }
     var enabled by remember { mutableStateOf(draft.enabled) }
+    var maxDelay by remember { mutableStateOf(if (draft.maxDelayMs > 0) draft.maxDelayMs.toString() else "") }
     var confirmDelete by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -311,6 +316,13 @@ private fun PolicyEditorDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                OutlinedTextField(
+                    value = maxDelay,
+                    onValueChange = { maxDelay = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("延迟阈值（毫秒，0=只按存活回落）") },
+                    singleLine = true
+                )
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("启用", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.weight(1f))
@@ -328,6 +340,7 @@ private fun PolicyEditorDialog(
                             label = label.trim(),
                             primary = DeviceSelector(primary),
                             fallback = DeviceSelector(fallback),
+                            maxDelayMs = maxDelay.toIntOrNull() ?: 0,
                             enabled = enabled
                         )
                     )

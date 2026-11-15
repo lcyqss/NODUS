@@ -91,6 +91,15 @@ class GatewayService : Service() {
             }
         }
 
+        // 设备策略的延迟阈值调度：每分钟评估一次（仅 maxDelayMs > 0 的策略）
+        scope.launch {
+            while (isActive) {
+                runCatching { AppContainer.devicePolicies.evaluateRouting() }
+                    .onFailure { Log.w(TAG, "device policy routing: ${it.message}") }
+                delay(60_000L)
+            }
+        }
+
         return START_STICKY
     }
 
