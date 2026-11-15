@@ -37,7 +37,7 @@
 
 | 版本 | 内容 |
 |---|---|
-| v2.43.1 | IPv6 UDP/QUIC 实测通过；TPROXY 端口级看护 |`n| v2.43.0 | IPv6 UDP TPROXY、后台看护、设备策略多 IPv6 地址 |`n| v2.42.2 | 代码审查修复：开关失败状态、关闭清理、脚本 RA 保护 |`n| v2.42.0 | 对已连接客户端补发单播 RA，无需重连即可获得 ULA |`n| v2.41.0 | IPv6 DNS 中继：客户端 53 端口转发到 mihomo 1053 |`n| v2.40.2 | 客户端 RS 单播 RA；DNS 配置去重，修复 mihomo 解析失败 |`n| v2.39.0 | Windows DNS 兜底：DHCPv6 下发 IPv6 DNS |`n| v2.38.0 | IPv6 DNS：mihomo 双栈监听 + RA RDNSS |`n| v2.37.1 | 旁路由 IPv6 RA 检测，冲突时禁用 IPv6 代理 |`n| v2.36.1 | IPv6 设备策略：SRC-IP-CIDR v6 + 离线策略保护 |
+| v2.45.0 | MAC 级 IPv6 设备分流产品化：listener + MAC 规则 |`n| v2.43.1 | IPv6 UDP/QUIC 实测通过；TPROXY 端口级看护 |`n| v2.43.0 | IPv6 UDP TPROXY、后台看护、设备策略多 IPv6 地址 |`n| v2.42.2 | 代码审查修复：开关失败状态、关闭清理、脚本 RA 保护 |`n| v2.42.0 | 对已连接客户端补发单播 RA，无需重连即可获得 ULA |`n| v2.41.0 | IPv6 DNS 中继：客户端 53 端口转发到 mihomo 1053 |`n| v2.40.2 | 客户端 RS 单播 RA；DNS 配置去重，修复 mihomo 解析失败 |`n| v2.39.0 | Windows DNS 兜底：DHCPv6 下发 IPv6 DNS |`n| v2.38.0 | IPv6 DNS：mihomo 双栈监听 + RA RDNSS |`n| v2.37.1 | 旁路由 IPv6 RA 检测，冲突时禁用 IPv6 代理 |`n| v2.36.1 | IPv6 设备策略：SRC-IP-CIDR v6 + 离线策略保护 |
 | v2.36.0 | 设备策略同时生成 IPv4/IPv6 源规则 |
 | v2.35.2 | 局域网 IPv6 代理：ULA/RA、IPv6 TPROXY、关闭时撤回 RA |
 | v2.34.0 | 条件模板可套用到设备的优先或回落条件 |

@@ -243,19 +243,35 @@ class DevicePolicyRepositoryImpl(
         val validPlans = matchedPlans.filter { it.ip != null || it.ipv6 != null }
         val groups = mutableListOf<String>()
         val rules = mutableListOf<String>()
+        val listeners = mutableListOf<String>()
+        val macLines = StringBuilder()
         validPlans.forEach { plan ->
             groups += buildGroups(plan)
             rules += ruleLine(plan.ip ?: "", plan.targetGroup)
             rules += ruleLine(plan.ipv6 ?: "", plan.targetGroup)
             plan.ipv6s.drop(1).forEach { rules += ruleLine(it, plan.targetGroup) }
         }
+        // MAC listeners are limited to 80 devices; extra devices keep SRC-IP fallback.
+        validPlans.filter { it.targetGroup != null && it.policy.mac.isNotBlank() }
+            .take(80)
+            .forEachIndexed { index, plan ->
+                val port = 7910 + index
+                val name = "dev-" + plan.policy.id.replace("-", "").take(8)
+                val target = plan.targetGroup ?: return@forEachIndexed
+                listeners += "- { name: '$name', type: tproxy, port: $port, " +
+                    "listen: 0.0.0.0, proxy: '$target', udp: true }"
+                macLines.append(plan.policy.mac.lowercase()).append('\t')
+                    .append(port).append('\t').append(target).append('\n')
+            }
 
         var text = DevicePolicyConfig.strip(original)
         text = DevicePolicyConfig.injectGroups(text, groups)
         text = DevicePolicyConfig.injectRules(text, rules)
+        text = DevicePolicyConfig.injectListeners(text, listeners)
 
         // 内容没有变化就不要重写配置/备份，避免无意义的 IO 与 flash 写入
         if (text.trimEnd('\n') == original.trimEnd('\n')) {
+            writeMacRules(macLines.toString()).getOrElse { return@withContext Result.failure(it) }
             appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s) }
             return@withContext Result.success(Unit)
         }
@@ -270,6 +286,7 @@ class DevicePolicyRepositoryImpl(
             20_000
         )
         if (replace.code == 0) {
+            writeMacRules(macLines.toString()).getOrElse { return@withContext Result.failure(it) }
             appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s) }
             Result.success(Unit)
         } else Result.failure(IllegalStateException("写入配置失败"))
@@ -401,6 +418,17 @@ class DevicePolicyRepositoryImpl(
 
     private fun appliedKey(ip: String?, ipv6s: List<String>): String =
         "${ip.orEmpty()}|${ipv6s.sorted().joinToString(",")}"
+    private suspend fun writeMacRules(content: String): Result<Unit> {
+        val file = File(context.cacheDir, "mac-policy.tsv")
+        return runCatching { file.writeText(content) }
+            .mapCatching {
+                val copy = shell.run("cp -f ${file.absolutePath} $base/mac-policy.tsv", 10_000)
+                if (copy.code != 0) error("写入 MAC 策略失败")
+                shell.run("sh $base/ipv6.sh syncmac", 20_000)
+                Unit
+            }
+    }
+
     private suspend fun coreRunning(): Boolean =
         shell.run("pidof mihomo >/dev/null 2>&1 && echo yes || echo no").stdout.trim() == "yes"
 }

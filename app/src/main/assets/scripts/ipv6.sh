@@ -13,6 +13,7 @@ DNSRELAY=$BASE/v6dns
 LOG=$BASE/ipv6.log
 LOCK=$BASE/.ipv6.lock
 DNS_BAK=$BASE/.dns-listen.bak
+MACFILE=$BASE/mac-policy.tsv
 
 ULA_PREFIX=fd00:1234::/64
 ULA_ADDR=fd00:1234::1
@@ -80,6 +81,20 @@ setup_tproxy() {
   # Keep DNS (v6dns) and DHCPv6 (v6dhcp) on their local services.
   $IP6 -w -t mangle -A MIHOMO6_TPROXY -p udp --dport 53 -j RETURN
   $IP6 -w -t mangle -A MIHOMO6_TPROXY -p udp --dport 547 -j RETURN
+  if [ -f "$MACFILE" ]; then
+    TAB=$(printf '\t')
+    while IFS="$TAB" read -r MAC PORT GROUP; do
+      [ -z "$MAC" ] && continue
+      case "$MAC" in *:*) ;; *) continue ;; esac
+      case "$PORT" in ''|*[!0-9]*) continue ;; esac
+      for IF in $(list_gateways); do
+        $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -p tcp -m mac --mac-source "$MAC" \
+          -j TPROXY --on-port "$PORT" --tproxy-mark "$MARK/$MARK"
+        $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -p udp -m mac --mac-source "$MAC" \
+          -j TPROXY --on-port "$PORT" --tproxy-mark "$MARK/$MARK"
+      done
+    done < "$MACFILE"
+  fi
   for IF in $(list_gateways); do
     $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -p tcp \
       -j TPROXY --on-port "$TPROXY_PORT" --tproxy-mark "$MARK/$MARK"
@@ -90,6 +105,13 @@ setup_tproxy() {
     $IP6 -w -t mangle -I PREROUTING 1 -j MIHOMO6_TPROXY
   ip -6 rule add fwmark "$MARK/$MARK" table "$TABLE" priority 9999 2>/dev/null
   ip -6 route add local default dev lo table "$TABLE" 2>/dev/null
+}
+
+syncmac() {
+  read_conf
+  [ "$IPV6_GATEWAY" = "1" ] || return 0
+  setup_tproxy
+  log "mac policy rules synced"
 }
 
 start_ra() {
@@ -233,6 +255,15 @@ ensure() {
     ss -ltn 2>/dev/null | grep -q "\[$ULA_ADDR\]:53" || NEED=1
     ss -lun 2>/dev/null | grep -q ":547" || NEED=1
     ss -ltn 2>/dev/null | grep -q ":7895" || NEED=1
+    if [ -f "$MACFILE" ]; then
+      TAB=$(printf '\t')
+      while IFS="$TAB" read -r MAC PORT GROUP; do
+        [ -z "$MAC" ] && continue
+        case "$PORT" in ''|*[!0-9]*) continue ;; esac
+        grep -q "port: $PORT" "$CFG" 2>/dev/null &&
+          { ss -ltn 2>/dev/null | grep -q ":$PORT" || NEED=1; }
+      done < "$MACFILE"
+    fi
   fi
   if [ "$NEED" = "1" ]; then
     log "ensure: entry incomplete, restarting"
@@ -270,6 +301,7 @@ case "$1" in
   enable) with_lock enable ;;
   disable) with_lock disable ;;
   ensure) with_lock ensure ;;
+  syncmac) with_lock syncmac ;;
   status) status ;;
   detect) detect ;;
   *) echo "usage: $0 enable|disable|status|detect"; exit 1 ;;

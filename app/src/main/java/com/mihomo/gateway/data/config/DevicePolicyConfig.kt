@@ -11,10 +11,12 @@ object DevicePolicyConfig {
     const val GROUP_START = "# >>> device policy groups"
     const val GROUP_END = "# <<< device policy groups"
     const val RULE_START = "# >>> device policy rules"
+    const val LISTENER_START = "# >>> device policy listeners"
+    const val LISTENER_END = "# <<< device policy listeners"
     const val RULE_END = "# <<< device policy rules"
 
     fun strip(text: String): String =
-        stripBlock(stripBlock(text, GROUP_START, GROUP_END), RULE_START, RULE_END)
+        stripBlock(stripBlock(stripBlock(text, GROUP_START, GROUP_END), RULE_START, RULE_END), LISTENER_START, LISTENER_END)
 
     /** groupLines 是不带缩进的 YAML 列表项，例如 `- { name: __dev_x, ... }`。 */
     fun injectGroups(text: String, groupLines: List<String>): String {
@@ -64,6 +66,36 @@ object DevicePolicyConfig {
             add("$indent$RULE_END")
         }
         lines.addAll(index + 1, block)
+        return lines.joinToString("\n")
+    }
+
+    /** listenerLines 是不带缩进的 YAML 列表项，例如 `- { name: dev-x, ... }`。 */
+    fun injectListeners(text: String, listenerLines: List<String>): String {
+        val lines = text.lines().toMutableList()
+        val index = lines.indexOfFirst { it.trimEnd() == "listeners:" }
+        if (index < 0) {
+            if (listenerLines.isEmpty()) return text
+            val block = buildList {
+                add(LISTENER_START)
+                add("listeners:")
+                listenerLines.forEach { add("  $it") }
+                add(LISTENER_END)
+            }
+            return (lines + block).joinToString("\n")
+        }
+        var end = index + 1
+        while (end < lines.size) {
+            val line = lines[end]
+            if (line.isNotBlank() && !line.startsWith(" ") && !line.startsWith("#")) break
+            end++
+        }
+        val indent = blockIndent(lines, index + 1, end)
+        val block = buildList {
+            add("$indent$LISTENER_START")
+            listenerLines.forEach { add("$indent$it") }
+            add("$indent$LISTENER_END")
+        }
+        lines.addAll(end, block)
         return lines.joinToString("\n")
     }
 

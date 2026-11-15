@@ -473,3 +473,9 @@
 - QUIC UDP IPv6 已进入 mihomo
 - TPROXY 端口级看护
 - 记录临时 IPv6 地址导致策略 best-effort 的限制
+## 48. v2.45.0 MAC 级 IPv6 设备分流
+
+- 策略生成 per-device tproxy listener
+- MAC 规则优先于全局 7895
+- 保留 SRC-IP 兜底
+- 端口/规则由 mac-policy.tsv 同步
