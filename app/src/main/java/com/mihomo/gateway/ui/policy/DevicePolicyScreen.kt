@@ -268,8 +268,6 @@ private fun PolicyEditorDialog(
     var label by remember { mutableStateOf(draft.label) }
     var primaryText by remember { mutableStateOf(TagExprParser.toText(draft.primary.expr, tags)) }
     var fallbackText by remember { mutableStateOf(TagExprParser.toText(draft.fallback.expr, tags)) }
-    var primaryError by remember { mutableStateOf<String?>(null) }
-    var fallbackError by remember { mutableStateOf<String?>(null) }
     var enabled by remember { mutableStateOf(draft.enabled) }
     var maxDelay by remember { mutableStateOf(if (draft.maxDelayMs > 0) draft.maxDelayMs.toString() else "") }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -302,25 +300,17 @@ private fun PolicyEditorDialog(
                 ExprField(
                     title = "优先条件",
                     text = primaryText,
-                    onTextChange = {
-                        primaryText = it
-                        primaryError = null
-                    },
+                    onTextChange = { primaryText = it },
                     tags = tags,
-                    error = primaryError,
-                    count = matchCount(parseOrNull(primaryText, tags))
+                    matchCount = matchCount
                 )
 
                 ExprField(
                     title = "回落条件",
                     text = fallbackText,
-                    onTextChange = {
-                        fallbackText = it
-                        fallbackError = null
-                    },
+                    onTextChange = { fallbackText = it },
                     tags = tags,
-                    error = fallbackError,
-                    count = matchCount(parseOrNull(fallbackText, tags))
+                    matchCount = matchCount
                 )
 
                 OutlinedTextField(
@@ -343,8 +333,6 @@ private fun PolicyEditorDialog(
                 onClick = {
                     val parsedPrimary = TagExprParser.parse(primaryText, tags)
                     val parsedFallback = TagExprParser.parse(fallbackText, tags)
-                    primaryError = parsedPrimary.exceptionOrNull()?.message
-                    fallbackError = parsedFallback.exceptionOrNull()?.message
                     if (parsedPrimary.isSuccess && parsedFallback.isSuccess) {
                         onSave(
                             draft.copy(
@@ -397,10 +385,12 @@ private fun ExprField(
     text: String,
     onTextChange: (String) -> Unit,
     tags: List<NodeTag>,
-    error: String?,
-    count: Int
+    matchCount: (TagExpr?) -> Int
 ) {
     Column {
+        val parsed = TagExprParser.parse(text, tags)
+        val error = parsed.exceptionOrNull()?.message
+        val count = parsed.getOrNull()?.let { matchCount(it) } ?: 0
         Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(
             value = text,
