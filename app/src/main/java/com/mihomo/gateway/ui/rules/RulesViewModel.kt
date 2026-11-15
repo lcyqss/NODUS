@@ -150,6 +150,12 @@ class RulesViewModel(
         ruleRepository.update(rule.copy(enabled = enabled))
     }
 
+    fun update(rule: CustomRule) {
+        ruleRepository.update(rule)
+            .onSuccess { _state.value = _state.value.copy(message = "已修改，记得点右上角「应用」") }
+            .onFailure { _state.value = _state.value.copy(message = "修改失败: ${it.message}") }
+    }
+
     fun delete(id: String) {
         ruleRepository.delete(id)
         _state.value = _state.value.copy(message = "已删除，记得点右上角「应用」")

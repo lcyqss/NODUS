@@ -81,6 +81,7 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
     var tab by remember { mutableStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
     var showSheet by remember { mutableStateOf(false) }
+    var editingRule by remember { mutableStateOf<CustomRule?>(null) }
     var showPolicy by remember { mutableStateOf(false) }
     val policyVm: DevicePolicyViewModel = viewModel()
 
@@ -166,6 +167,7 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
                 onToggle = vm::setEnabled,
                 onMove = vm::move,
                 onDelete = vm::delete,
+                onEdit = { editingRule = it },
                 onAdd = { showSheet = true }
             )
         } else {
@@ -191,10 +193,30 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
     if (showAdd) {
         AddRuleDialog(
             targets = state.targets,
+            initial = null,
             onDismiss = { showAdd = false },
             onSave = { kind, value, target, noResolve ->
                 vm.add(kind, value, target, noResolve)
                 showAdd = false
+            }
+        )
+    }
+
+    editingRule?.let { rule ->
+        AddRuleDialog(
+            targets = state.targets,
+            initial = rule,
+            onDismiss = { editingRule = null },
+            onSave = { kind, value, target, noResolve ->
+                vm.update(
+                    rule.copy(
+                        kind = kind,
+                        value = value,
+                        target = target,
+                        noResolve = noResolve
+                    )
+                )
+                editingRule = null
             }
         )
     }
@@ -274,6 +296,7 @@ private fun CustomRulesList(
     onToggle: (CustomRule, Boolean) -> Unit,
     onMove: (String, Boolean) -> Unit,
     onDelete: (String) -> Unit,
+    onEdit: (CustomRule) -> Unit,
     onAdd: () -> Unit
 ) {
     if (rules.isEmpty()) {
@@ -369,6 +392,7 @@ private fun CustomRulesList(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                        RuleAction("✎", MaterialTheme.colorScheme.primary) { onEdit(rule) }
                         RuleAction("↑") { onMove(rule.id, true) }
                         RuleAction("↓") { onMove(rule.id, false) }
                         RuleAction("✕", MaterialTheme.colorScheme.error) { onDelete(rule.id) }
@@ -604,19 +628,22 @@ private fun SheetRow(title: String, subtitle: String, onClick: () -> Unit) {
 @Composable
 private fun AddRuleDialog(
     targets: List<String>,
+    initial: CustomRule?,
     onDismiss: () -> Unit,
     onSave: (RuleKind, String, String, Boolean) -> Unit
 ) {
-    var kind by remember { mutableStateOf(RuleKind.DOMAIN) }
-    var value by remember { mutableStateOf("") }
-    var target by remember { mutableStateOf(targets.firstOrNull() ?: "DIRECT") }
-    var noResolve by remember { mutableStateOf(kind.needsNoResolve) }
+    var kind by remember { mutableStateOf(initial?.kind ?: RuleKind.DOMAIN) }
+    var value by remember { mutableStateOf(initial?.value.orEmpty()) }
+    var target by remember {
+        mutableStateOf(initial?.target ?: targets.firstOrNull() ?: "DIRECT")
+    }
+    var noResolve by remember { mutableStateOf(initial?.noResolve ?: kind.needsNoResolve) }
     var kindMenu by remember { mutableStateOf(false) }
     var showTargetPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("添加自定义规则") },
+        title = { Text(if (initial == null) "添加自定义规则" else "编辑自定义规则") },
         text = {
             Column(
                 Modifier
