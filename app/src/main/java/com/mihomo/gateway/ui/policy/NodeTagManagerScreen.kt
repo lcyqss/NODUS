@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.mihomo.gateway.data.tags.TagExprParser
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.ui.components.SubPageHeader
 import com.mihomo.gateway.ui.icons.GwIcon
@@ -113,12 +114,13 @@ fun NodeTagManagerScreen(
                 TagRow(
                     tag = tag,
                     count = vm.countTag(tag),
-                    subtitle = buildString {
-                        append("包含：").append(tag.include.joinToString(" / ").ifBlank { "任意" })
-                        if (tag.exclude.isNotEmpty()) {
-                            append(" · 排除：").append(tag.exclude.joinToString(" / "))
-                        }
-                    },
+                    subtitle = tag.expr?.let { "表达式：" + TagExprParser.toText(it, tags) }
+                        ?: buildString {
+                            append("包含：").append(tag.include.joinToString(" / ").ifBlank { "任意" })
+                            if (tag.exclude.isNotEmpty()) {
+                                append(" · 排除：").append(tag.exclude.joinToString(" / "))
+                            }
+                        },
                     onClick = { editing = tag },
                     onDelete = { confirmDelete = tag }
                 )
@@ -146,6 +148,7 @@ fun NodeTagManagerScreen(
     editing?.let { tag ->
         TagEditorDialog(
             tag = tag,
+            tags = tags,
             onDismiss = { editing = null },
             onSave = {
                 editing = null
@@ -222,18 +225,26 @@ private fun TagRow(
 @Composable
 private fun TagEditorDialog(
     tag: NodeTag,
+    tags: List<NodeTag>,
     onDismiss: () -> Unit,
     onSave: (NodeTag) -> Unit
 ) {
     var name by remember { mutableStateOf(tag.name) }
     var include by remember { mutableStateOf(tag.include.joinToString(", ")) }
     var exclude by remember { mutableStateOf(tag.exclude.joinToString(", ")) }
+    var exprText by remember { mutableStateOf(TagExprParser.toText(tag.expr, tags)) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (tag.name.isBlank()) "新建标签" else "编辑标签") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier
+                    .height(420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -252,10 +263,22 @@ private fun TagEditorDialog(
                     label = { Text("排除关键词（逗号分隔，命中即排除）") },
                     minLines = 2
                 )
+                OutlinedTextField(
+                    value = exprText,
+                    onValueChange = {
+                        exprText = it
+                        error = null
+                    },
+                    label = { Text("组合表达式（可选，留空用关键词）") },
+                    placeholder = { Text("例：vless ∨ hysteria2") },
+                    minLines = 2,
+                    isError = error != null
+                )
                 Text(
-                    "示例：包含 HK, 香港, hongkong；排除 剩余流量",
+                    error ?: "表达式可引用其他标签；含空格的标签名用引号",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (error != null) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
@@ -263,13 +286,23 @@ private fun TagEditorDialog(
             TextButton(
                 enabled = name.isNotBlank(),
                 onClick = {
-                    onSave(
-                        tag.copy(
-                            name = name.trim(),
-                            include = splitKeywords(include),
-                            exclude = splitKeywords(exclude)
+                    val parsed = if (exprText.isBlank()) {
+                        null
+                    } else {
+                        TagExprParser.parse(exprText, tags)
+                    }
+                    if (parsed != null && parsed.isFailure) {
+                        error = parsed.exceptionOrNull()?.message
+                    } else {
+                        onSave(
+                            tag.copy(
+                                name = name.trim(),
+                                include = splitKeywords(include),
+                                exclude = splitKeywords(exclude),
+                                expr = parsed?.getOrNull()
+                            )
                         )
-                    )
+                    }
                 }
             ) { Text("保存") }
         },

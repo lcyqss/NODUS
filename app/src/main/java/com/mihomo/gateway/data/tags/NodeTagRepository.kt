@@ -26,8 +26,6 @@ interface NodeTagRepository {
     suspend fun save(tag: NodeTag): Result<Unit>
     suspend fun delete(id: String)
 
-    fun matches(tag: NodeTag, node: NodeInfo): Boolean
-
     /** 按布尔表达式求值；null 表示任意节点。 */
     fun matches(tags: List<NodeTag>, expr: TagExpr?, node: NodeInfo): Boolean
 }
@@ -77,6 +75,17 @@ class NodeTagRepositoryImpl(
         )
         val current = NodeTagCodec.decode(settings.settings.first().nodeTags)
         val list = current.filterNot { it.id == cleaned.id } + cleaned
+        val byId = list.associateBy { it.id }
+        fun cyclic(tag: NodeTag, stack: Set<String>): Boolean {
+            if (tag.id in stack) return true
+            val expr = tag.expr ?: return false
+            return TagExprParser.ids(expr).any { refId ->
+                byId[refId]?.let { cyclic(it, stack + tag.id) } ?: false
+            }
+        }
+        if (list.any { cyclic(it, emptySet()) }) {
+            return@withContext Result.failure(IllegalArgumentException("标签存在循环引用"))
+        }
         settings.update { it.copy(nodeTags = NodeTagCodec.encode(list)) }
         Result.success(Unit)
     }
@@ -90,7 +99,34 @@ class NodeTagRepositoryImpl(
         }
     }
 
-    override fun matches(tag: NodeTag, node: NodeInfo): Boolean {
+    override fun matches(tags: List<NodeTag>, expr: TagExpr?, node: NodeInfo): Boolean =
+        eval(tags, expr, node, emptySet())
+
+    private fun eval(
+        tags: List<NodeTag>,
+        expr: TagExpr?,
+        node: NodeInfo,
+        visiting: Set<String>
+    ): Boolean = when (expr) {
+        null -> true
+        is TagExpr.Ref -> {
+            val tag = tags.firstOrNull { it.id == expr.tagId }
+            val hit = tag != null && evalTag(tags, tag, node, visiting)
+            if (expr.negated) !hit else hit
+        }
+        is TagExpr.And -> expr.items.all { eval(tags, it, node, visiting) }
+        is TagExpr.Or -> expr.items.any { eval(tags, it, node, visiting) }
+        is TagExpr.Not -> !eval(tags, expr.item, node, visiting)
+    }
+
+    private fun evalTag(
+        tags: List<NodeTag>,
+        tag: NodeTag,
+        node: NodeInfo,
+        visiting: Set<String>
+    ): Boolean {
+        if (tag.id in visiting) return false
+        tag.expr?.let { return eval(tags, it, node, visiting + tag.id) }
         if (tag.builtin) {
             return when (tag.builtinKind) {
                 "type" -> node.type.equals(tag.id.removePrefix("__type_"), true)
@@ -103,17 +139,4 @@ class NodeTagRepositoryImpl(
         val excludeHit = tag.exclude.any { lower.contains(it.lowercase()) }
         return includeOk && !excludeHit
     }
-
-    override fun matches(tags: List<NodeTag>, expr: TagExpr?, node: NodeInfo): Boolean =
-        when (expr) {
-            null -> true
-            is TagExpr.Ref -> {
-                val tag = tags.firstOrNull { it.id == expr.tagId }
-                val hit = tag != null && matches(tag, node)
-                if (expr.negated) !hit else hit
-            }
-            is TagExpr.And -> expr.items.all { matches(tags, it, node) }
-            is TagExpr.Or -> expr.items.any { matches(tags, it, node) }
-            is TagExpr.Not -> !matches(tags, expr.item, node)
-        }
 }

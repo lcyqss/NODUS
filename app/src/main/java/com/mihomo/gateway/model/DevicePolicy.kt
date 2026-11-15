@@ -38,7 +38,8 @@ data class NodeTag(
     val include: List<String> = emptyList(),
     val exclude: List<String> = emptyList(),
     val builtin: Boolean = false,
-    val builtinKind: String? = null
+    val builtinKind: String? = null,
+    val expr: TagExpr? = null
 )
 
 object NodeTagCodec {
@@ -54,7 +55,8 @@ object NodeTagCodec {
                     id = id,
                     name = obj.optString("name").ifBlank { id },
                     include = obj.optJSONArray("include").toStringList(),
-                    exclude = obj.optJSONArray("exclude").toStringList()
+                    exclude = obj.optJSONArray("exclude").toStringList(),
+                    expr = obj.optJSONObject("expr")?.let { DevicePolicyCodec.decodeExpr(it) }
                 )
             }
         }.getOrDefault(emptyList())
@@ -69,6 +71,7 @@ object NodeTagCodec {
                     .put("name", tag.name)
                     .put("include", JSONArray(tag.include))
                     .put("exclude", JSONArray(tag.exclude))
+                    .put("expr", tag.expr?.let { DevicePolicyCodec.encodeExpr(it) })
             )
         }
         return array.toString()
@@ -147,7 +150,7 @@ object DevicePolicyCodec {
     private fun encodeSelector(selector: DeviceSelector): JSONObject =
         JSONObject().put("expr", selector.expr?.let { encodeExpr(it) })
 
-    private fun encodeExpr(expr: TagExpr): JSONObject = when (expr) {
+    fun encodeExpr(expr: TagExpr): JSONObject = when (expr) {
         is TagExpr.Ref -> JSONObject()
             .put("type", "ref")
             .put("tagId", expr.tagId)
@@ -166,7 +169,7 @@ object DevicePolicyCodec {
             .put("item", encodeExpr(expr.item))
     }
 
-    private fun decodeExpr(obj: JSONObject): TagExpr? = when (obj.optString("type")) {
+    fun decodeExpr(obj: JSONObject): TagExpr? = when (obj.optString("type")) {
         "ref" -> obj.optString("tagId")
             .takeIf { it.isNotBlank() }
             ?.let { TagExpr.Ref(it, obj.optBoolean("negated", false)) }

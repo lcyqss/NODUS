@@ -147,5 +147,5 @@ class DevicePolicyViewModel(
         _nodes.value.count { node -> tagRepo.matches(_tags.value, expr, node) }
 
     fun countTag(tag: NodeTag): Int =
-        _nodes.value.count { node -> tagRepo.matches(tag, node) }
+        _nodes.value.count { node -> tagRepo.matches(_tags.value, TagExpr.Ref(tag.id), node) }
 }
