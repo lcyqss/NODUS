@@ -26,6 +26,7 @@ import java.io.File
 data class PolicyRuntime(
     val policy: DevicePolicy,
     val ip: String?,
+    val ipv6: String? = null,
     val primaryNodes: List<NodeInfo>,
     val fallbackNodes: List<NodeInfo>,
     val targetGroup: String?,
@@ -94,7 +95,7 @@ class DevicePolicyRepositoryImpl(
             .filter { it.mac.isNotBlank() && it.ip.isNotBlank() }
             .groupBy { it.mac.lowercase() }
             .mapNotNull { (mac, list) ->
-                val ip = pickIp(list.map { it.ip }) ?: return@mapNotNull null
+                val ip = pickIp(list.map { it.ip }) ?: pickIpv6(list.map { it.ip }) ?: return@mapNotNull null
                 DeviceTarget(
                     ip = ip,
                     mac = mac,
@@ -125,17 +126,20 @@ class DevicePolicyRepositoryImpl(
             val fallback = allNodes.filter { node ->
                 tagRepository.matches(allTags, policy.fallback.expr, node)
             }
-            val ip = pickIp(neighborsByMac[policy.mac.lowercase()].orEmpty().map { it.ip })
+            val neighborIps = neighborsByMac[policy.mac.lowercase()].orEmpty().map { it.ip }
+            val ip = pickIp(neighborIps)
+            val ipv6 = pickIpv6(neighborIps)
             val error = when {
                 !policy.enabled -> null
                 missingTag -> "引用的标签已被删除"
                 primary.isEmpty() && fallback.isEmpty() -> "没有匹配的节点"
-                ip == null -> "设备未在线（未解析到 IP）"
+                ip == null && ipv6 == null -> "设备未在线（未解析到 IP）"
                 else -> null
             }
             PolicyRuntime(
                 policy = policy,
                 ip = ip,
+                ipv6 = ipv6,
                 primaryNodes = primary,
                 fallbackNodes = fallback,
                 targetGroup = if (error == null) groupTarget(policy, primary, fallback) else null,
@@ -228,17 +232,18 @@ class DevicePolicyRepositoryImpl(
         val enabledPlans = plans.filter { it.policy.enabled }
         val matchedPlans = enabledPlans.filter { it.targetGroup != null }
         // 有策略能匹配到节点、但设备全部离线：保留现有配置，避免临时离线把策略块清空
-        if (matchedPlans.isNotEmpty() && matchedPlans.all { it.ip == null }) {
+        if (matchedPlans.any { it.ip == null && it.ipv6 == null }) {
             return@withContext Result.failure(
-                IllegalStateException("设备离线，已保留现有策略配置")
+                IllegalStateException("有设备离线，已保留现有策略配置")
             )
         }
-        val validPlans = matchedPlans.filter { it.ip != null }
+        val validPlans = matchedPlans.filter { it.ip != null || it.ipv6 != null }
         val groups = mutableListOf<String>()
         val rules = mutableListOf<String>()
         validPlans.forEach { plan ->
             groups += buildGroups(plan)
             rules += ruleLine(plan.ip ?: "", plan.targetGroup)
+            rules += ruleLine(plan.ipv6 ?: "", plan.targetGroup)
         }
 
         var text = DevicePolicyConfig.strip(original)
@@ -247,9 +252,7 @@ class DevicePolicyRepositoryImpl(
 
         // 内容没有变化就不要重写配置/备份，避免无意义的 IO 与 flash 写入
         if (text.trimEnd('\n') == original.trimEnd('\n')) {
-            appliedIps = validPlans.mapNotNull { plan ->
-                plan.ip?.let { plan.policy.id to it }
-            }.toMap()
+            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6) }
             return@withContext Result.success(Unit)
         }
 
@@ -263,9 +266,7 @@ class DevicePolicyRepositoryImpl(
             20_000
         )
         if (replace.code == 0) {
-            appliedIps = validPlans.mapNotNull { plan ->
-                plan.ip?.let { plan.policy.id to it }
-            }.toMap()
+            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6) }
             Result.success(Unit)
         } else Result.failure(IllegalStateException("写入配置失败"))
     }
@@ -275,11 +276,11 @@ class DevicePolicyRepositoryImpl(
             return@withContext Result.success(false)
         }
         val plans = runtime().filter {
-            it.policy.enabled && it.targetGroup != null && it.ip != null
+            it.policy.enabled && it.targetGroup != null && (it.ip != null || it.ipv6 != null)
         }
         if (plans.isEmpty()) return@withContext Result.success(false)
         if (appliedIps == null) appliedIps = readAppliedIps()
-        val changed = plans.any { appliedIps?.get(it.policy.id) != it.ip }
+        val changed = plans.any { appliedIps?.get(it.policy.id) != appliedKey(it.ip, it.ipv6) }
         if (!changed) return@withContext Result.success(false)
 
         val applied = applyToConfig()
@@ -309,14 +310,19 @@ class DevicePolicyRepositoryImpl(
         DevicePolicyCodec.decode(settings.settings.first().devicePolicies).forEach { policy ->
             val base = groupName(policy)
             val regex = Regex("""^-\s*SRC-IP-CIDR6?,([^/]+)/\d+,($base(?:_[pf])?)$""")
+            var ip: String? = null
+            var ipv6: String? = null
             text.lineSequence().forEach { line ->
                 val match = regex.find(line.trim()) ?: return@forEach
-                result[policy.id] = match.groupValues[1]
+                val addr = match.groupValues[1]
+                if (addr.contains(":")) ipv6 = addr else ip = addr
+            }
+            if (ip != null || ipv6 != null) {
+                result[policy.id] = appliedKey(ip, ipv6)
             }
         }
         return result
     }
-
     private fun exprIds(expr: TagExpr?): Set<String> = when (expr) {
         null -> emptySet()
         is TagExpr.Ref -> setOf(expr.tagId)
@@ -369,20 +375,21 @@ class DevicePolicyRepositoryImpl(
             "url: 'https://www.gstatic.com/generate_204', interval: $interval }"
     }
 
-    private fun pickIp(ips: List<String>): String? {
-        if (ips.isEmpty()) return null
-        // 当前产品拦截客户端 IPv6；只有 link-local 时视为设备离线，
-        // 避免生成无法加载的 SRC-IP-CIDR6 规则。
-        return ips.firstOrNull { IPV4.matches(it) }
-    }
+    private fun pickIp(ips: List<String>): String? =
+        ips.firstOrNull { IPV4.matches(it) }
+
+    private fun pickIpv6(ips: List<String>): String? =
+        ips.firstOrNull { it.contains(":") && !it.startsWith("fe80", true) }
 
     private fun ruleLine(ip: String, target: String?): String {
         if (target.isNullOrBlank() || ip.isBlank()) return ""
-        return if (ip.contains(":")) "SRC-IP-CIDR6,$ip/128,$target"
+        // mihomo 不支持 SRC-IP-CIDR6；SRC-IP-CIDR 可接受 IPv6 CIDR
+        return if (ip.contains(":")) "SRC-IP-CIDR,$ip/128,$target"
         else "SRC-IP-CIDR,$ip/32,$target"
     }
 
-
+    private fun appliedKey(ip: String?, ipv6: String?): String =
+        "${ip.orEmpty()}|${ipv6.orEmpty()}"
     private suspend fun coreRunning(): Boolean =
         shell.run("pidof mihomo >/dev/null 2>&1 && echo yes || echo no").stdout.trim() == "yes"
 }

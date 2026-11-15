@@ -22,7 +22,7 @@ class NeighborResolver(private val shell: ShellExecutor) {
     }
 
     private suspend fun readNeighbors(): Map<String, String> {
-        val text = shell.run("ip neigh show 2>/dev/null").stdout
+        val text = shell.run("ip neigh show 2>/dev/null; ip -6 neigh show 2>/dev/null").stdout
         val map = mutableMapOf<String, String>()
         text.lineSequence().forEach { line ->
             val parts = line.trim().split(Regex("\\s+"))

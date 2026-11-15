@@ -526,7 +526,10 @@ private fun PolicyCard(
         Text(
             buildString {
                 append(if (policy.mac.isBlank()) "未绑定 MAC" else policy.mac)
-                runtime?.ip?.let { append(" · ").append(it) }
+                runtime?.let { rt ->
+                    if (rt.ip != null) append(" · ").append(rt.ip)
+                    if (rt.ipv6 != null) append(" · ").append(rt.ipv6)
+                }
                 runtime?.let { rt ->
                     append(" · 主 ").append(rt.primaryNodes.size).append(" / 回落 ").append(rt.fallbackNodes.size).append(" 节点")
                 }
