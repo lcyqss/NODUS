@@ -27,6 +27,13 @@ data class DevicePolicy(
     val enabled: Boolean = true
 )
 
+/** 可复用的条件模板。 */
+data class ConditionTemplate(
+    val id: String,
+    val name: String,
+    val expr: TagExpr
+)
+
 /**
  * 节点标签。
  * - 普通标签：名称包含 include 任一（OR）且不包含 exclude 任一（NOT）
@@ -82,6 +89,36 @@ object NodeTagCodec {
         return (0 until length()).mapNotNull { index ->
             optString(index).trim().takeIf { it.isNotBlank() }
         }
+    }
+}
+
+object ConditionTemplateCodec {
+    fun decode(raw: String): List<ConditionTemplate> {
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            (0 until array.length()).mapNotNull { index ->
+                val obj = array.optJSONObject(index) ?: return@mapNotNull null
+                val id = obj.optString("id")
+                val exprObj = obj.optJSONObject("expr") ?: return@mapNotNull null
+                val expr = DevicePolicyCodec.decodeExpr(exprObj) ?: return@mapNotNull null
+                if (id.isBlank()) return@mapNotNull null
+                ConditionTemplate(id, obj.optString("name").ifBlank { "未命名模板" }, expr)
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun encode(list: List<ConditionTemplate>): String {
+        val array = JSONArray()
+        list.forEach { item ->
+            array.put(
+                JSONObject()
+                    .put("id", item.id)
+                    .put("name", item.name)
+                    .put("expr", DevicePolicyCodec.encodeExpr(item.expr))
+            )
+        }
+        return array.toString()
     }
 }
 

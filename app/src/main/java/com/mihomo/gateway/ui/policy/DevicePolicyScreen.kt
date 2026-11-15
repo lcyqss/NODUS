@@ -45,6 +45,7 @@ import com.mihomo.gateway.data.catalog.DeviceTarget
 import com.mihomo.gateway.data.catalog.NodeInfo
 import com.mihomo.gateway.data.policy.PolicyRuntime
 import com.mihomo.gateway.data.tags.TagExprParser
+import com.mihomo.gateway.model.ConditionTemplate
 import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.DeviceSelector
 import com.mihomo.gateway.model.NodeTag
@@ -67,6 +68,7 @@ fun DevicePolicyScreen(
     val runtime by vm.runtime.collectAsState()
     val devices by vm.devices.collectAsState()
     val tags by vm.tags.collectAsState()
+    val templates by vm.templates.collectAsState()
     val intervalSec by vm.intervalSec.collectAsState()
     val ipIntervalSec by vm.ipIntervalSec.collectAsState()
     val busy by vm.busy.collectAsState()
@@ -204,6 +206,9 @@ fun DevicePolicyScreen(
             busy = busy,
             matchCount = { expr -> vm.matchCount(expr) },
             matchNodes = { expr -> vm.matchNodes(expr) },
+            templates = templates,
+            onSaveTemplate = { name, expr -> vm.saveTemplate(name, expr) },
+            onDeleteTemplate = { vm.deleteTemplate(it) },
             onDismiss = { editing = null },
             onSave = {
                 editing = null
@@ -278,6 +283,9 @@ private fun PolicyEditorDialog(
     busy: Boolean,
     matchCount: (TagExpr?) -> Int,
     matchNodes: (TagExpr?) -> List<NodeInfo>,
+    templates: List<ConditionTemplate>,
+    onSaveTemplate: (String, TagExpr) -> Unit,
+    onDeleteTemplate: (String) -> Unit,
     onDismiss: () -> Unit,
     onSave: (DevicePolicy) -> Unit,
     onDelete: () -> Unit
@@ -323,6 +331,9 @@ private fun PolicyEditorDialog(
                     tags = tags,
                     matchCount = matchCount,
                     matchNodes = matchNodes,
+                    templates = templates,
+                    onSaveTemplate = onSaveTemplate,
+                    onDeleteTemplate = onDeleteTemplate,
                     onExprChange = { primaryExpr = it },
                     onInvalidChange = { primaryInvalid = it }
                 )
@@ -333,6 +344,9 @@ private fun PolicyEditorDialog(
                     tags = tags,
                     matchCount = matchCount,
                     matchNodes = matchNodes,
+                    templates = templates,
+                    onSaveTemplate = onSaveTemplate,
+                    onDeleteTemplate = onDeleteTemplate,
                     onExprChange = { fallbackExpr = it },
                     onInvalidChange = { fallbackInvalid = it }
                 )

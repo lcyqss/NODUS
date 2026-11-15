@@ -6,8 +6,10 @@ import com.mihomo.gateway.data.catalog.DeviceTarget
 import com.mihomo.gateway.data.catalog.NodeInfo
 import com.mihomo.gateway.data.policy.DevicePolicyRepository
 import com.mihomo.gateway.data.policy.PolicyRuntime
+import com.mihomo.gateway.data.tags.ConditionTemplateRepository
 import com.mihomo.gateway.data.tags.NodeTagRepository
 import com.mihomo.gateway.di.AppContainer
+import com.mihomo.gateway.model.ConditionTemplate
 import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.TagExpr
@@ -21,7 +23,8 @@ import kotlinx.coroutines.launch
 
 class DevicePolicyViewModel(
     private val repo: DevicePolicyRepository = AppContainer.devicePolicies,
-    private val tagRepo: NodeTagRepository = AppContainer.nodeTags
+    private val tagRepo: NodeTagRepository = AppContainer.nodeTags,
+    private val templateRepo: ConditionTemplateRepository = AppContainer.conditionTemplates
 ) : ViewModel() {
 
     val policies: StateFlow<List<DevicePolicy>> = repo.policies
@@ -41,6 +44,9 @@ class DevicePolicyViewModel(
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
+    val templates: StateFlow<List<ConditionTemplate>> = templateRepo.templates
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
@@ -148,6 +154,18 @@ class DevicePolicyViewModel(
 
     fun countTag(tag: NodeTag): Int =
         _nodes.value.count { node -> tagRepo.matches(_tags.value, TagExpr.Ref(tag.id), node) }
+
+    fun saveTemplate(name: String, expr: TagExpr) {
+        viewModelScope.launch {
+            templateRepo.save(name, expr)
+                .onSuccess { _message.value = "模板已保存" }
+                .onFailure { _message.value = "模板保存失败: ${it.message}" }
+        }
+    }
+
+    fun deleteTemplate(id: String) {
+        viewModelScope.launch { templateRepo.delete(id) }
+    }
 
     fun matchNodes(expr: TagExpr?): List<NodeInfo> =
         _nodes.value.filter { node -> tagRepo.matches(_tags.value, expr, node) }

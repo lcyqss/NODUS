@@ -9,11 +9,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +38,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mihomo.gateway.data.catalog.NodeInfo
 import com.mihomo.gateway.data.tags.TagExprParser
+import com.mihomo.gateway.model.ConditionTemplate
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.TagExpr
 
@@ -103,6 +108,9 @@ fun ConditionSection(
     tags: List<NodeTag>,
     matchCount: (TagExpr?) -> Int,
     matchNodes: (TagExpr?) -> List<NodeInfo>,
+    templates: List<ConditionTemplate>,
+    onSaveTemplate: (String, TagExpr) -> Unit,
+    onDeleteTemplate: (String) -> Unit,
     onExprChange: (TagExpr?) -> Unit,
     onInvalidChange: (Boolean) -> Unit
 ) {
@@ -111,6 +119,9 @@ fun ConditionSection(
     var text by remember { mutableStateOf(TagExprParser.toText(initial, tags)) }
     var error by remember { mutableStateOf<String?>(null) }
     var expanded by remember { mutableStateOf(false) }
+    var showTemplates by remember { mutableStateOf(false) }
+    var showSaveTemplate by remember { mutableStateOf(false) }
+    var templateName by remember { mutableStateOf("") }
 
     val parsed = if (advanced) TagExprParser.parse(text, tags) else Result.success(CondCodec.toExpr(root))
     val current = parsed.getOrNull()
@@ -126,6 +137,9 @@ fun ConditionSection(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.weight(1f))
+            TextButton(onClick = { showTemplates = true }) {
+                Text("模板", style = MaterialTheme.typography.labelSmall)
+            }
             Text(
                 if (parsed.isFailure) "表达式有误" else "命中 $count 个节点 ▾",
                 style = MaterialTheme.typography.labelSmall,
@@ -196,7 +210,7 @@ fun ConditionSection(
                             )
                         }
                         if (matched.size > 12) {
-                            Text("还有  个…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                            Text("还有 ${matched.size - 12} 个…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                         }
                     }
                 }
@@ -207,6 +221,91 @@ fun ConditionSection(
                 depth = 0,
                 onChange = { root = it },
                 onDelete = null
+            )
+        }
+
+        if (showTemplates) {
+            AlertDialog(
+                onDismissRequest = { showTemplates = false },
+                title = { Text("条件模板") },
+                text = {
+                    Column(
+                        Modifier
+                            .heightIn(max = 360.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        if (templates.isEmpty()) {
+                            Text(
+                                "还没有模板，可把当前条件保存为模板复用。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        templates.forEach { template ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(template.name, style = MaterialTheme.typography.bodySmall)
+                                    Text(
+                                        TagExprParser.toText(template.expr, tags),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                TextButton(onClick = {
+                                    root = CondCodec.toRoot(template.expr)
+                                    expanded = false
+                                    showTemplates = false
+                                }) { Text("套用", style = MaterialTheme.typography.labelSmall) }
+                                TextButton(onClick = { onDeleteTemplate(template.id) }) {
+                                    Text(
+                                        "删除",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                        TextButton(
+                            enabled = parsed.isSuccess,
+                            onClick = {
+                                templateName = ""
+                                showSaveTemplate = true
+                            }
+                        ) { Text("保存当前条件为模板", style = MaterialTheme.typography.labelSmall) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showTemplates = false }) { Text("关闭") }
+                }
+            )
+        }
+
+        if (showSaveTemplate) {
+            AlertDialog(
+                onDismissRequest = { showSaveTemplate = false },
+                title = { Text("保存为模板") },
+                text = {
+                    OutlinedTextField(
+                        value = templateName,
+                        onValueChange = { templateName = it },
+                        label = { Text("模板名") },
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = templateName.isNotBlank() && parsed.isSuccess,
+                        onClick = {
+                            parsed.getOrNull()?.let { expr ->
+                                onSaveTemplate(templateName, expr)
+                                showSaveTemplate = false
+                            }
+                        }
+                    ) { Text("保存") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSaveTemplate = false }) { Text("取消") }
+                }
             )
         }
     }

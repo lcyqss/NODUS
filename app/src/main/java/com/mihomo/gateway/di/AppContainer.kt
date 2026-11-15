@@ -13,6 +13,8 @@ import com.mihomo.gateway.data.catalog.NodeCatalogRepositoryImpl
 import com.mihomo.gateway.data.policy.DevicePolicyRepository
 import com.mihomo.gateway.data.policy.DevicePolicyRepositoryImpl
 import com.mihomo.gateway.data.tags.NodeTagRepository
+import com.mihomo.gateway.data.tags.ConditionTemplateRepository
+import com.mihomo.gateway.data.tags.ConditionTemplateRepositoryImpl
 import com.mihomo.gateway.data.tags.NodeTagRepositoryImpl
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.GatewayControllerImpl
@@ -52,6 +54,8 @@ object AppContainer {
         private set
     lateinit var nodeTags: NodeTagRepository
         private set
+    lateinit var conditionTemplates: ConditionTemplateRepository
+        private set
 
     private var initialized = false
 
@@ -69,6 +73,7 @@ object AppContainer {
         rules = RuleRepositoryImpl(app, shell, api, RuleStore(app), base = BASE)
         val nodeCatalog: NodeCatalogRepository = NodeCatalogRepositoryImpl(app, settings)
         nodeTags = NodeTagRepositoryImpl(settings)
+        conditionTemplates = ConditionTemplateRepositoryImpl(settings)
         devicePolicies = DevicePolicyRepositoryImpl(
             context = app,
             settings = settings,

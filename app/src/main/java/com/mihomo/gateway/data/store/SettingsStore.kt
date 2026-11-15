@@ -48,6 +48,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putString(KEY_NODE_TAGS, next.nodeTags)
                 .putInt(KEY_POLICY_INTERVAL, next.policyIntervalSec)
                 .putInt(KEY_IP_FOLLOW_INTERVAL, next.ipFollowIntervalSec)
+                .putString(KEY_CONDITION_TEMPLATES, next.conditionTemplates)
                 .apply()
             _settings.value = next
         }
@@ -112,7 +113,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         devicePolicies = prefs.getString(KEY_DEVICE_POLICIES, "").orEmpty(),
         nodeTags = prefs.getString(KEY_NODE_TAGS, "").orEmpty(),
         policyIntervalSec = prefs.getInt(KEY_POLICY_INTERVAL, 60),
-        ipFollowIntervalSec = prefs.getInt(KEY_IP_FOLLOW_INTERVAL, 60)
+        ipFollowIntervalSec = prefs.getInt(KEY_IP_FOLLOW_INTERVAL, 60),
+        conditionTemplates = prefs.getString(KEY_CONDITION_TEMPLATES, "").orEmpty()
     )
 
     companion object {
@@ -135,5 +137,6 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_NODE_TAGS = "node_tags"
         private const val KEY_POLICY_INTERVAL = "policy_interval_sec"
         private const val KEY_IP_FOLLOW_INTERVAL = "ip_follow_interval_sec"
+        private const val KEY_CONDITION_TEMPLATES = "condition_templates"
     }
 }
