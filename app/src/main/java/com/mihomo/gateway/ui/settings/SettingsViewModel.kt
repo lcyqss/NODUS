@@ -182,13 +182,6 @@ class SettingsViewModel(
         }
     }
 
-    fun setUpdateInterval(hours: Int) {
-        viewModelScope.launch {
-            store.update { it.copy(updateIntervalHours = hours) }
-            _message.value = if (hours <= 0) "自动更新: 关闭" else "自动更新: 每 ${hours} 小时"
-        }
-    }
-
     fun installCore() {
         viewModelScope.launch {
             _busy.value = true

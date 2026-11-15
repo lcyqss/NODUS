@@ -3,6 +3,9 @@ package com.mihomo.gateway.data.store
 import android.content.Context
 import com.mihomo.gateway.model.AppSettings
 import com.mihomo.gateway.model.IpMode
+import com.mihomo.gateway.model.SubscriptionCodec
+import com.mihomo.gateway.model.SubscriptionProfile
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -14,6 +17,11 @@ interface SettingsStore {
 class SettingsStoreImpl(context: Context) : SettingsStore {
 
     private val prefs = context.getSharedPreferences("gateway_settings", Context.MODE_PRIVATE)
+
+    init {
+        migrateLegacySubscription()
+    }
+
     private val _settings = MutableStateFlow(read())
     override val settings: Flow<AppSettings> = _settings
 
@@ -39,6 +47,44 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .apply()
             _settings.value = next
         }
+    }
+
+    /** 旧版本只有单个订阅：迁移成订阅对象，自动更新间隔归属该订阅。 */
+    private fun migrateLegacySubscription() {
+        val raw = prefs.getString(KEY_SUBSCRIPTIONS, "").orEmpty()
+        if (raw.isNotBlank()) {
+            val list = SubscriptionCodec.decode(raw)
+            if (list.isEmpty()) return
+            val legacyInterval = prefs.getInt(KEY_UPDATE_INTERVAL, 0)
+            val active = prefs.getString(KEY_ACTIVE_SUB, "").orEmpty()
+                .ifBlank { list.first().id }
+            val migrated = if (legacyInterval > 0 && list.none { it.autoUpdateHours > 0 }) {
+                list.map { if (it.id == active) it.copy(autoUpdateHours = legacyInterval) else it }
+            } else {
+                list
+            }
+            prefs.edit()
+                .putString(KEY_SUBSCRIPTIONS, SubscriptionCodec.encode(migrated))
+                .putString(KEY_ACTIVE_SUB, active)
+                .putInt(KEY_UPDATE_INTERVAL, 0)
+                .apply()
+            return
+        }
+        val url = prefs.getString(KEY_SUB_URL, "").orEmpty()
+        if (url.isBlank()) return
+        val profile = SubscriptionProfile(
+            id = UUID.randomUUID().toString(),
+            name = prefs.getString(KEY_SUB_NAME, "").orEmpty().ifBlank { "订阅 1" },
+            url = url,
+            lastUpdateAt = prefs.getLong(KEY_LAST_UPDATE, 0L),
+            nodeCount = prefs.getInt(KEY_NODE_COUNT, 0),
+            autoUpdateHours = prefs.getInt(KEY_UPDATE_INTERVAL, 0)
+        )
+        prefs.edit()
+            .putString(KEY_SUBSCRIPTIONS, SubscriptionCodec.encode(listOf(profile)))
+            .putString(KEY_ACTIVE_SUB, profile.id)
+            .putInt(KEY_UPDATE_INTERVAL, 0)
+            .apply()
     }
 
     private fun read(): AppSettings = AppSettings(

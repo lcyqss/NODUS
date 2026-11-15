@@ -16,9 +16,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -211,33 +214,66 @@ private fun TopologyTable(
         }
     }
 
+    var sortMenu by remember { mutableStateOf(false) }
+    val sortLabels = listOf("流量 ↓", "设备", "规则")
+
     Row(
         Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(24.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text("设备", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("$devices", style = MaterialTheme.typography.titleMedium)
+        Row(
+            Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            Column {
+                Text("设备", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("$devices", style = MaterialTheme.typography.titleMedium)
+            }
+            Column {
+                Text("连接", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${all.size}", style = MaterialTheme.typography.titleMedium)
+            }
+            Column {
+                Text("流量", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(formatBytes(totalTraffic), style = MaterialTheme.typography.titleMedium)
+            }
         }
-        Column {
-            Text("连接", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("${all.size}", style = MaterialTheme.typography.titleMedium)
-        }
-        Column {
-            Text("流量", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(formatBytes(totalTraffic), style = MaterialTheme.typography.titleMedium)
+        Box {
+            TextButton(
+                onClick = { sortMenu = true },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    "排序 ${sortLabels[sort]}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    " ▾",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                sortLabels.forEachIndexed { index, label ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        trailingIcon = {
+                            if (sort == index) {
+                                Text("✓", color = MaterialTheme.colorScheme.primary)
+                            }
+                        },
+                        onClick = {
+                            sort = index
+                            sortMenu = false
+                        }
+                    )
+                }
+            }
         }
     }
 
-    Spacer(Modifier.height(6.dp))
-
-    SegmentedControl(
-        options = listOf("流量↓", "设备", "规则"),
-        selectedIndex = sort,
-        onSelect = { sort = it }
-    )
-
-    Spacer(Modifier.height(6.dp))
+    Spacer(Modifier.height(4.dp))
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

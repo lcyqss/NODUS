@@ -6,6 +6,7 @@ import com.mihomo.gateway.data.repo.ProfileRepository
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.model.AppSettings
+import com.mihomo.gateway.model.ProviderMeta
 import com.mihomo.gateway.model.SubscriptionCodec
 import com.mihomo.gateway.model.SubscriptionProfile
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
- * 订阅列表与切换逻辑。节点页（切换条 / 弹层）和订阅管理页共用同一个实例，
+ * 订阅列表与切换逻辑。节点页（切换条 / 弹层）和订阅管理页共用一个实例，
  * 避免两处各自维护 busy / message。
  */
 class SubscriptionViewModel(
@@ -64,18 +65,20 @@ class SubscriptionViewModel(
         }
         viewModelScope.launch {
             _busy.value = true
-            profiles.import(trimmed).onSuccess {
-                val current = settings.value
-                val list = SubscriptionCodec.decode(current.subscriptions).toMutableList()
-                val profile = SubscriptionProfile(
-                    id = UUID.randomUUID().toString(),
-                    name = name.ifBlank { "订阅 ${list.size + 1}" },
-                    url = trimmed,
-                    lastUpdateAt = current.lastUpdateAt,
-                    nodeCount = current.nodeCount
+            val draft = SubscriptionProfile(
+                id = UUID.randomUUID().toString(),
+                name = name.ifBlank { "订阅 ${subscriptions.value.size + 1}" },
+                url = trimmed
+            )
+            profiles.fetchToCache(draft).onSuccess { meta ->
+                val profile = draft.copy(
+                    lastUpdateAt = System.currentTimeMillis(),
+                    nodeCount = meta.nodeCount
                 )
-                list.removeAll { it.url == trimmed }
-                list.add(profile)
+                val list = subscriptions.value.toMutableList().apply {
+                    removeAll { it.url == trimmed }
+                    add(profile)
+                }
                 store.update {
                     it.copy(
                         subscriptions = SubscriptionCodec.encode(list),
@@ -83,34 +86,24 @@ class SubscriptionViewModel(
                         subName = profile.name
                     )
                 }
-                _message.value = "已添加并切换到「${profile.name}」"
-                _refreshTick.value += 1
+                profiles.installFromCache(profile).onSuccess {
+                    _message.value = "已添加并切换到「${profile.name}」"
+                    _refreshTick.value += 1
+                }.onFailure {
+                    _message.value = "已添加，但应用失败: ${it.message}"
+                }
             }.onFailure { _message.value = "添加失败: ${it.message}" }
             _busy.value = false
         }
     }
 
-    fun activate(profile: SubscriptionProfile) {
+    fun switchTo(profile: SubscriptionProfile) {
         if (profile.id == settings.value.activeSubId) return
         viewModelScope.launch {
             _busy.value = true
             _switchingId.value = profile.id
-            profiles.import(profile.url).onSuccess {
-                val current = settings.value
-                val list = SubscriptionCodec.decode(current.subscriptions).map {
-                    if (it.id == profile.id) {
-                        it.copy(lastUpdateAt = current.lastUpdateAt, nodeCount = current.nodeCount)
-                    } else {
-                        it
-                    }
-                }
-                store.update {
-                    it.copy(
-                        subscriptions = SubscriptionCodec.encode(list),
-                        activeSubId = profile.id,
-                        subName = profile.name
-                    )
-                }
+            profiles.switchTo(profile).onSuccess {
+                store.update { it.copy(activeSubId = profile.id, subName = profile.name) }
                 _message.value = "已切换到「${profile.name}」"
                 _refreshTick.value += 1
             }.onFailure { _message.value = "切换失败: ${it.message}" }
@@ -119,56 +112,108 @@ class SubscriptionViewModel(
         }
     }
 
-    /** 重新拉取当前订阅（多订阅下以 active profile 的 URL 为准）。 */
-    fun updateActive() {
-        val current = settings.value
-        val active = activeProfile()
-        val url = active?.url ?: current.subscriptionUrl
-        if (url.isBlank()) {
-            _message.value = "未设置订阅"
-            return
-        }
+    /** 更新单个订阅；当前订阅会热重载，非当前订阅只更新缓存。 */
+    fun update(profile: SubscriptionProfile) {
         viewModelScope.launch {
             _busy.value = true
-            _switchingId.value = active?.id
-            _message.value = "更新中…"
-            profiles.import(url).onSuccess {
-                val now = settings.value
-                val list = SubscriptionCodec.decode(now.subscriptions).map {
-                    if (it.id == active?.id) {
-                        it.copy(lastUpdateAt = now.lastUpdateAt, nodeCount = now.nodeCount)
-                    } else {
-                        it
-                    }
+            _switchingId.value = profile.id
+            profiles.fetchToCache(profile).onSuccess { meta ->
+                val updated = profile.copy(
+                    lastUpdateAt = System.currentTimeMillis(),
+                    nodeCount = meta.nodeCount
+                )
+                if (profile.id == settings.value.activeSubId) {
+                    profiles.installFromCache(updated).onSuccess {
+                        _message.value = "「${profile.name}」已更新并生效"
+                        _refreshTick.value += 1
+                    }.onFailure { _message.value = "更新失败: ${it.message}" }
+                } else {
+                    _message.value = "「${profile.name}」已更新缓存"
                 }
-                store.update { it.copy(subscriptions = SubscriptionCodec.encode(list)) }
-                _message.value = "订阅已更新"
-                _refreshTick.value += 1
             }.onFailure { _message.value = "更新失败: ${it.message}" }
             _switchingId.value = null
             _busy.value = false
         }
     }
 
+    fun setInterval(profile: SubscriptionProfile, hours: Int) {
+        viewModelScope.launch {
+            updateList { list ->
+                list.map { if (it.id == profile.id) it.copy(autoUpdateHours = hours) else it }
+            }
+            _message.value = if (hours <= 0) {
+                "已关闭「${profile.name}」的自动更新"
+            } else {
+                "「${profile.name}」每 $hours 小时自动更新"
+            }
+        }
+    }
+
+    /** 保存名称/链接；链接变化会让缓存失效并清空节点统计。 */
+    fun save(profile: SubscriptionProfile, name: String, url: String) {
+        val trimmed = url.trim()
+        if (trimmed.isBlank()) {
+            _message.value = "订阅链接不能为空"
+            return
+        }
+        val urlChanged = trimmed != profile.url
+        viewModelScope.launch {
+            if (urlChanged) profiles.deleteCache(profile)
+            updateList { list ->
+                list.map {
+                    if (it.id == profile.id) {
+                        it.copy(
+                            name = name.ifBlank { it.name },
+                            url = trimmed,
+                            lastUpdateAt = if (urlChanged) 0L else it.lastUpdateAt,
+                            nodeCount = if (urlChanged) 0 else it.nodeCount
+                        )
+                    } else {
+                        it
+                    }
+                }
+            }
+            _message.value = if (urlChanged) "已保存，链接已变更，请重新更新" else "已保存"
+        }
+    }
+
     fun delete(profile: SubscriptionProfile) {
         viewModelScope.launch {
-            val current = settings.value
-            val wasActive = current.activeSubId == profile.id
-            val list = SubscriptionCodec.decode(current.subscriptions).filterNot { it.id == profile.id }
-            store.update {
-                it.copy(
-                    subscriptions = SubscriptionCodec.encode(list),
-                    activeSubId = if (wasActive) "" else it.activeSubId,
-                    subscriptionUrl = if (wasActive) "" else it.subscriptionUrl,
-                    lastUpdateAt = if (wasActive) 0L else it.lastUpdateAt,
-                    nodeCount = if (wasActive) 0 else it.nodeCount
+            val wasActive = profile.id == settings.value.activeSubId
+            val remaining = subscriptions.value.filterNot { it.id == profile.id }
+            updateList { remaining }
+            profiles.deleteCache(profile)
+            if (!wasActive) {
+                _message.value = "已删除「${profile.name}」"
+                return@launch
+            }
+            if (remaining.isEmpty()) {
+                store.update { it.copy(activeSubId = "", subName = "") }
+                _message.value = "已删除当前订阅；节点仍是旧配置，导入新订阅后才会改变"
+                return@launch
+            }
+            val fallback = remaining.first()
+            profiles.switchTo(fallback).onSuccess {
+                store.update { it.copy(activeSubId = fallback.id, subName = fallback.name) }
+                _message.value = "已删除当前订阅，并切换到「${fallback.name}」"
+                _refreshTick.value += 1
+            }.onFailure {
+                store.update { it.copy(activeSubId = "", subName = "") }
+                _message.value = "已删除当前订阅；切换「${fallback.name}」失败: ${it.message}"
+            }
+        }
+    }
+
+    suspend fun providers(profile: SubscriptionProfile): List<ProviderMeta> =
+        profiles.readProviders(profile)
+
+    private suspend fun updateList(block: (List<SubscriptionProfile>) -> List<SubscriptionProfile>) {
+        store.update { current ->
+            current.copy(
+                subscriptions = SubscriptionCodec.encode(
+                    block(SubscriptionCodec.decode(current.subscriptions))
                 )
-            }
-            _message.value = if (wasActive) {
-                "已删除当前订阅；节点仍是旧配置，切换或更新后生效"
-            } else {
-                "已删除「${profile.name}」"
-            }
+            )
         }
     }
 }

@@ -80,20 +80,12 @@ class GatewayService : Service() {
             }
         }
 
-        // 自动更新订阅：启动时检查一次，之后每 30 分钟检查
+        // 自动更新订阅：启动时检查一次，之后每 30 分钟检查；每个订阅按自己的间隔
         scope.launch {
             while (isActive) {
                 runCatching {
-                    val current = AppContainer.settings.settings.first()
-                    val interval = current.updateIntervalHours
-                    if (interval > 0 && current.subscriptionUrl.isNotBlank()) {
-                        val due = System.currentTimeMillis() - current.lastUpdateAt >= interval * 3600_000L
-                        if (due) {
-                            Log.i(TAG, "auto update subscription, interval=${interval}h")
-                            AppContainer.profiles.autoUpdate()
-                                .onFailure { Log.w(TAG, "auto update failed: ${it.message}") }
-                        }
-                    }
+                    val updated = AppContainer.profiles.autoUpdateDue().getOrThrow()
+                    if (updated > 0) Log.i(TAG, "auto updated $updated subscription(s)")
                 }.onFailure { Log.w(TAG, "auto update loop: ${it.message}") }
                 delay(30 * 60_000L)
             }

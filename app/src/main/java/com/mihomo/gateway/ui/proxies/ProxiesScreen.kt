@@ -209,6 +209,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
         SubscriptionRow(
             name = activeSub?.name ?: subSettings.subName.ifBlank { "未设置订阅" },
             nodeCount = activeSub?.nodeCount ?: subSettings.nodeCount,
+            subsCount = subs.size,
             busy = subBusy,
             onClick = { showSubSheet = true }
         )
@@ -396,8 +397,13 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
             busy = subBusy,
             switchingId = subSwitching,
             message = subMessage,
-            onSelect = { subVm.activate(it) },
-            onUpdate = { subVm.updateActive() },
+            onSelect = { subVm.switchTo(it) },
+            onUpdate = { subVm.update(it) },
+            onInterval = { profile, hours -> subVm.setInterval(profile, hours) },
+            onManage = {
+                showSubSheet = false
+                showSubPage = true
+            },
             onDismiss = { showSubSheet = false }
         )
     }
@@ -407,6 +413,7 @@ fun ProxiesScreen(vm: ProxiesViewModel = viewModel()) {
 private fun SubscriptionRow(
     name: String,
     nodeCount: Int,
+    subsCount: Int,
     busy: Boolean,
     onClick: () -> Unit
 ) {
@@ -440,12 +447,21 @@ private fun SubscriptionRow(
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.width(8.dp))
-        } else if (nodeCount > 0) {
-            Text(
-                "$nodeCount 节点",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        } else {
+            Column(horizontalAlignment = Alignment.End) {
+                if (nodeCount > 0) {
+                    Text(
+                        "$nodeCount 节点",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    if (subsCount > 1) "$subsCount 个订阅 ›" else "切换 ›",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
         Text(
             "›",

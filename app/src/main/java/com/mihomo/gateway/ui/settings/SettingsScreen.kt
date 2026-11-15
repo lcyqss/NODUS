@@ -48,10 +48,9 @@ import com.mihomo.gateway.ui.components.SettingsSwitchRow
 import com.mihomo.gateway.ui.components.SubPageHeader
 import com.mihomo.gateway.ui.diagnostics.DiagnosticsScreen
 import com.mihomo.gateway.ui.logs.LogsScreen
-import com.mihomo.gateway.ui.providers.ProvidersScreen
 import kotlinx.coroutines.delay
 
-private enum class SettingsPage { MAIN, PROVIDERS, DIAGNOSTICS, LOGS }
+private enum class SettingsPage { MAIN, DIAGNOSTICS, LOGS }
 
 @Composable
 fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
@@ -62,12 +61,10 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
     when (page) {
         SettingsPage.MAIN -> SettingsMain(
             vm = vm,
-            onProviders = { page = SettingsPage.PROVIDERS },
             onDiagnostics = { page = SettingsPage.DIAGNOSTICS },
             onLogs = { page = SettingsPage.LOGS }
         )
 
-        SettingsPage.PROVIDERS -> ProvidersScreen(onBack = { page = SettingsPage.MAIN })
         SettingsPage.DIAGNOSTICS -> DiagnosticsScreen(onBack = { page = SettingsPage.MAIN })
         SettingsPage.LOGS -> LogsScreen(onBack = { page = SettingsPage.MAIN })
     }
@@ -76,7 +73,6 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
 @Composable
 private fun SettingsMain(
     vm: SettingsViewModel,
-    onProviders: () -> Unit,
     onDiagnostics: () -> Unit,
     onLogs: () -> Unit
 ) {
@@ -90,7 +86,6 @@ private fun SettingsMain(
     var restoreJson by remember { mutableStateOf("") }
     var showIpMode by remember { mutableStateOf(false) }
     var showRuntimeMode by remember { mutableStateOf(false) }
-    var showInterval by remember { mutableStateOf(false) }
     val versionName = remember {
         runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
@@ -143,23 +138,6 @@ private fun SettingsMain(
                 checked = settings.blockIpv6,
                 enabled = !busy,
                 onChange = vm::setBlockIpv6
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        SettingsGroup("订阅") {
-            SettingsRow(
-                title = "自动更新",
-                value = intervalLabel(settings.updateIntervalHours),
-                enabled = !busy,
-                onClick = { showInterval = true }
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = "节点来源（Provider）",
-                subtitle = "节点数 / 健康检查",
-                onClick = onProviders
             )
         }
 
@@ -267,24 +245,6 @@ private fun SettingsMain(
                 vm.setRuntimeMode(it)
             },
             onDismiss = { showRuntimeMode = false }
-        )
-    }
-
-    if (showInterval) {
-        OptionDialog(
-            title = "自动更新订阅",
-            options = listOf(
-                "0" to "关闭",
-                "6" to "每 6 小时",
-                "24" to "每 24 小时",
-                "72" to "每 72 小时"
-            ),
-            selectedKey = settings.updateIntervalHours.toString(),
-            onSelect = {
-                showInterval = false
-                vm.setUpdateInterval(it.toIntOrNull() ?: 0)
-            },
-            onDismiss = { showInterval = false }
         )
     }
 
@@ -417,10 +377,3 @@ private fun runtimeHint(mode: String): String = when (mode) {
     else -> "按分流规则决定走向"
 }
 
-private fun intervalLabel(hours: Int): String = when (hours) {
-    0 -> "关闭"
-    6 -> "每 6 小时"
-    24 -> "每 24 小时"
-    72 -> "每 72 小时"
-    else -> "每 $hours 小时"
-}
