@@ -512,3 +512,9 @@
 - 规则模式在 MATCH 前插入设备兜底组
 - 直连模式置顶 DIRECT，不创建 listener
 - 全局模式保留 MAC listener
+## 55. v2.55.1 设备独立入口
+
+- 每台设备独立 IPv4 redir / IPv6 tproxy listener
+- 规则模式生成设备子规则，代理目标替换为设备组
+- 首页 global/direct 不再影响设备策略
+- 直连模式 MAC 直接绕过

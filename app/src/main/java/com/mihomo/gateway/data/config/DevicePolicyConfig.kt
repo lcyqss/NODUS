@@ -11,6 +11,8 @@ object DevicePolicyConfig {
     const val GROUP_START = "# >>> device policy groups"
     const val GROUP_END = "# <<< device policy groups"
     const val RULE_START = "# >>> device policy rules"
+    const val SUB_RULE_START = "# >>> device policy sub rules"
+    const val SUB_RULE_END = "# <<< device policy sub rules"
     const val RULE_TAIL_START = "# >>> device policy tail rules"
     const val RULE_TAIL_END = "# <<< device policy tail rules"
     const val LISTENER_START = "# >>> device policy listeners"
@@ -18,7 +20,19 @@ object DevicePolicyConfig {
     const val RULE_END = "# <<< device policy rules"
 
     fun strip(text: String): String =
-        stripBlock(stripBlock(stripBlock(stripBlock(text, GROUP_START, GROUP_END), RULE_START, RULE_END), RULE_TAIL_START, RULE_TAIL_END), LISTENER_START, LISTENER_END)
+        stripBlock(stripBlock(stripBlock(stripBlock(stripBlock(text, GROUP_START, GROUP_END), RULE_START, RULE_END), RULE_TAIL_START, RULE_TAIL_END), SUB_RULE_START, SUB_RULE_END), LISTENER_START, LISTENER_END)
+
+    /** 去掉重复的 dns.listen，避免 policy 写入时把无效配置交给 mihomo。 */
+    fun normalizeDnsListen(text: String): String {
+        var seen = false
+        return text.lineSequence().filterNot { line ->
+            if (!line.startsWith("    listen:")) return@filterNot false
+            if (seen) true else {
+                seen = true
+                false
+            }
+        }.joinToString("\n")
+    }
 
     /** groupLines 是不带缩进的 YAML 列表项，例如 `- { name: __dev_x, ... }`。 */
     fun injectGroups(text: String, groupLines: List<String>): String {
@@ -120,6 +134,41 @@ object DevicePolicyConfig {
             add("$indent$RULE_TAIL_END")
         }
         lines.addAll(index, block)
+        return lines.joinToString("\n")
+    }
+
+    /** blocks: 子规则名 -> 规则文本列表（不带 `- `）。 */
+    fun injectSubRules(text: String, blocks: List<Pair<String, List<String>>>): String {
+        if (blocks.isEmpty()) return text
+        val lines = text.lines().toMutableList()
+        val index = lines.indexOfFirst { it.trimEnd() == "sub-rules:" }
+        if (index < 0) {
+            val block = buildList {
+                add(SUB_RULE_START)
+                add("sub-rules:")
+                blocks.forEach { (name, rules) ->
+                    add("  $name:")
+                    rules.forEach { add("    - '${it.replace("'", "''")}'") }
+                }
+                add(SUB_RULE_END)
+            }
+            return (lines + block).joinToString("\n")
+        }
+        var end = index + 1
+        while (end < lines.size) {
+            val line = lines[end]
+            if (line.isNotBlank() && !line.startsWith(" ") && !line.startsWith("#")) break
+            end++
+        }
+        val block = buildList {
+            add("  $SUB_RULE_START")
+            blocks.forEach { (name, rules) ->
+                add("  $name:")
+                rules.forEach { add("    - '${it.replace("'", "''")}'") }
+            }
+            add("  $SUB_RULE_END")
+        }
+        lines.addAll(end, block)
         return lines.joinToString("\n")
     }
 

@@ -83,15 +83,19 @@ setup_tproxy() {
   $IP6 -w -t mangle -A MIHOMO6_TPROXY -p udp --dport 547 -j RETURN
   if [ -f "$MACFILE" ]; then
     TAB=$(printf '\t')
-    while IFS="$TAB" read -r MAC PORT GROUP; do
+    while IFS="$TAB" read -r MAC MODE P4 P6 IP4; do
       [ -z "$MAC" ] && continue
       case "$MAC" in *:*) ;; *) continue ;; esac
-      case "$PORT" in ''|*[!0-9]*) continue ;; esac
       for IF in $(list_gateways); do
-        $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -p tcp -m mac --mac-source "$MAC" \
-          -j TPROXY --on-port "$PORT" --tproxy-mark "$MARK/$MARK"
-        $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -p udp -m mac --mac-source "$MAC" \
-          -j TPROXY --on-port "$PORT" --tproxy-mark "$MARK/$MARK"
+        if [ "$MODE" = "direct" ]; then
+          $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -m mac --mac-source "$MAC" -j RETURN
+        else
+          case "$P6" in ''|*[!0-9]*) continue ;; esac
+          $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -p tcp -m mac --mac-source "$MAC" \
+            -j TPROXY --on-port "$P6" --tproxy-mark "$MARK/$MARK"
+          $IP6 -w -t mangle -A MIHOMO6_TPROXY -i "$IF" -p udp -m mac --mac-source "$MAC" \
+            -j TPROXY --on-port "$P6" --tproxy-mark "$MARK/$MARK"
+        fi
       done
     done < "$MACFILE"
   fi
@@ -257,11 +261,12 @@ ensure() {
     ss -ltn 2>/dev/null | grep -q ":7895" || NEED=1
     if [ -f "$MACFILE" ]; then
       TAB=$(printf '\t')
-      while IFS="$TAB" read -r MAC PORT GROUP; do
+      while IFS="$TAB" read -r MAC MODE P4 P6 IP4; do
         [ -z "$MAC" ] && continue
-        case "$PORT" in ''|*[!0-9]*) continue ;; esac
-        grep -q "port: $PORT" "$CFG" 2>/dev/null &&
-          { ss -ltn 2>/dev/null | grep -q ":$PORT" || NEED=1; }
+        [ "$MODE" = "direct" ] && continue
+        case "$P6" in ''|*[!0-9]*) continue ;; esac
+        grep -q "port: $P6" "$CFG" 2>/dev/null &&
+          { ss -ltn 2>/dev/null | grep -q ":$P6" || NEED=1; }
       done < "$MACFILE"
     fi
   fi

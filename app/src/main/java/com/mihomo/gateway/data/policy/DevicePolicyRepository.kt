@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.SafeConstructor
 import java.io.File
 
 /** 运行期解析结果：策略 + 实际 IP + 命中的节点 + 生成的目标组。 */
@@ -137,7 +139,6 @@ class DevicePolicyRepositoryImpl(
                 missingTag -> "引用的标签已被删除"
                 policy.mode != DeviceRoutingMode.DIRECT &&
                     primary.isEmpty() && fallback.isEmpty() -> "没有匹配的节点"
-                ip == null && ipv6 == null -> "设备未在线（未解析到 IP）"
                 else -> null
             }
             PolicyRuntime(
@@ -238,73 +239,57 @@ class DevicePolicyRepositoryImpl(
 
         val plans = runtime()
         val enabledPlans = plans.filter { it.policy.enabled }
-        val matchedPlans = enabledPlans.filter {
+        val validPlans = enabledPlans.filter {
             it.policy.mode == DeviceRoutingMode.DIRECT || it.targetGroup != null
         }
-        // 有策略能匹配到节点、但设备全部离线：保留现有配置，避免临时离线把策略块清空
-        if (matchedPlans.any { it.ip == null && it.ipv6 == null }) {
-            return@withContext Result.failure(
-                IllegalStateException("有设备离线，已保留现有策略配置")
-            )
-        }
-        val validPlans = matchedPlans.filter { it.ip != null || it.ipv6 != null }
         val groups = mutableListOf<String>()
-        val rules = mutableListOf<String>()
-        val tailRules = mutableListOf<String>()
+        val subRules = mutableListOf<Pair<String, List<String>>>()
         val listeners = mutableListOf<String>()
         val macLines = StringBuilder()
+        val baseText = DevicePolicyConfig.normalizeDnsListen(DevicePolicyConfig.strip(original))
+        val globalRules = parseGlobalRules(baseText)
+
+        var portIndex = 0
         validPlans.forEach { plan ->
             val mode = plan.policy.mode
-            if (mode != DeviceRoutingMode.DIRECT) {
-                groups += buildGroups(plan)
+            val mac = plan.policy.mac.lowercase()
+            if (mode == DeviceRoutingMode.DIRECT) {
+                macLines.append(mac).append('\t').append("direct")
+                    .append('\t').append(0).append('\t').append(0)
+                    .append('\t').append(plan.ip.orEmpty()).append('\n')
+                return@forEach
             }
-            val targets = if (mode == DeviceRoutingMode.DIRECT) {
-                listOf("DIRECT")
-            } else {
-                listOf(plan.targetGroup ?: return@forEach)
+            val target = plan.targetGroup ?: return@forEach
+            if (portIndex >= 40) return@forEach
+            groups += buildGroups(plan)
+            val base = 7910 + portIndex * 2
+            portIndex++
+            val name = plan.policy.id.replace("-", "").take(8)
+            val ruleName = "devrule_$name"
+            val ruleMode = mode == DeviceRoutingMode.RULE
+            if (ruleMode) {
+                subRules += ruleName to globalRules.mapNotNull { rewriteRule(it, target) }
             }
-            val target = targets.first()
-            val destination = when (mode) {
-                DeviceRoutingMode.DIRECT -> "DIRECT"
-                DeviceRoutingMode.GLOBAL -> target
-                DeviceRoutingMode.RULE -> target
-            }
-            val lines = mutableListOf<String>()
-            lines += ruleLine(plan.ip ?: "", destination)
-            lines += ruleLine(plan.ipv6 ?: "", destination)
-            plan.ipv6s.drop(1).forEach { lines += ruleLine(it, destination) }
-            if (mode == DeviceRoutingMode.RULE) {
-                tailRules += lines
-            } else {
-                rules += lines
-            }
+            val targetClause = if (ruleMode) "rule: '$ruleName'" else "proxy: '$target'"
+            listeners += "- { name: 'dev4-$name', type: redir, port: $base, " +
+                "listen: 0.0.0.0, $targetClause }"
+            listeners += "- { name: 'dev6-$name', type: tproxy, port: ${base + 1}, " +
+                "listen: 0.0.0.0, $targetClause, udp: true }"
+            macLines.append(mac).append('\t')
+                .append(if (ruleMode) "rule" else "global").append('\t')
+                .append(base).append('\t').append(base + 1)
+                .append('\t').append(plan.ip.orEmpty()).append('\n')
         }
-        // MAC listeners only for full-proxy mode; rule/direct use SRC-IP rules.
-        validPlans.filter {
-            it.policy.mode == DeviceRoutingMode.GLOBAL &&
-                it.targetGroup != null && it.policy.mac.isNotBlank()
-        }
-            .take(80)
-            .forEachIndexed { index, plan ->
-                val port = 7910 + index
-                val name = "dev-" + plan.policy.id.replace("-", "").take(8)
-                val target = plan.targetGroup ?: return@forEachIndexed
-                listeners += "- { name: '$name', type: tproxy, port: $port, " +
-                    "listen: 0.0.0.0, proxy: '$target', udp: true }"
-                macLines.append(plan.policy.mac.lowercase()).append('\t')
-                    .append(port).append('\t').append(target).append('\n')
-            }
 
-        var text = DevicePolicyConfig.strip(original)
+        var text = baseText
         text = DevicePolicyConfig.injectGroups(text, groups)
-        text = DevicePolicyConfig.injectRules(text, rules)
-        text = DevicePolicyConfig.injectTailRules(text, tailRules)
+        text = DevicePolicyConfig.injectSubRules(text, subRules)
         text = DevicePolicyConfig.injectListeners(text, listeners)
 
         // 内容没有变化就不要重写配置/备份，避免无意义的 IO 与 flash 写入
         if (text.trimEnd('\n') == original.trimEnd('\n')) {
             writeMacRules(macLines.toString()).getOrElse { return@withContext Result.failure(it) }
-            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s, it.policy.mode) }
+            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s, it.policy.mode, it.targetGroup) }
             return@withContext Result.success(Unit)
         }
 
@@ -319,7 +304,7 @@ class DevicePolicyRepositoryImpl(
         )
         if (replace.code == 0) {
             writeMacRules(macLines.toString()).getOrElse { return@withContext Result.failure(it) }
-            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s, it.policy.mode) }
+            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s, it.policy.mode, it.targetGroup) }
             Result.success(Unit)
         } else Result.failure(IllegalStateException("写入配置失败"))
     }
@@ -330,12 +315,11 @@ class DevicePolicyRepositoryImpl(
         }
         val plans = runtime().filter {
             it.policy.enabled &&
-                (it.policy.mode == DeviceRoutingMode.DIRECT || it.targetGroup != null) &&
-                (it.ip != null || it.ipv6 != null)
+                (it.policy.mode == DeviceRoutingMode.DIRECT || it.targetGroup != null)
         }
         if (plans.isEmpty()) return@withContext Result.success(false)
         if (appliedIps == null) appliedIps = readAppliedIps()
-        val changed = plans.any { appliedIps?.get(it.policy.id) != appliedKey(it.ip, it.ipv6s, it.policy.mode) }
+        val changed = plans.any { appliedIps?.get(it.policy.id) != appliedKey(it.ip, it.ipv6s, it.policy.mode, it.targetGroup) }
         if (!changed) return@withContext Result.success(false)
 
         val applied = applyToConfig()
@@ -377,7 +361,7 @@ class DevicePolicyRepositoryImpl(
                 }
             }
             if (ip != null || ipv6s.isNotEmpty()) {
-                result[policy.id] = appliedKey(ip, ipv6s, policy.mode)
+                result[policy.id] = appliedKey(ip, ipv6s, policy.mode, null)
             }
         }
         return result
@@ -443,6 +427,33 @@ class DevicePolicyRepositoryImpl(
     private fun pickIpv6(ips: List<String>): String? =
         pickIpv6All(ips).firstOrNull()
 
+    private fun parseGlobalRules(text: String): List<String> = runCatching {
+        val root = Yaml(SafeConstructor()).load<Any?>(text) as? Map<*, *> ?: return emptyList()
+        (root["rules"] as? List<*>)?.mapNotNull { it?.toString()?.trim()?.takeIf(String::isNotBlank) }
+            ?: emptyList()
+    }.getOrDefault(emptyList())
+
+    private fun rewriteRule(rule: String, target: String): String? {
+        val parts = rule.split(',').map { it.trim() }.toMutableList()
+        if (parts.isEmpty()) return null
+        val type = parts[0].uppercase()
+        if (type == "SUB-RULE") return null
+        if (type == "MATCH") {
+            if (parts.size >= 2) parts[1] = target
+            return parts.joinToString(",")
+        }
+        if (type == "AND" || type == "OR" || type == "NOT") return rule
+        if (parts.size < 3) return rule
+        val oldTarget = parts[2].uppercase()
+        if (oldTarget == "DIRECT" || oldTarget == "REJECT" || oldTarget == "PASS" ||
+            oldTarget == "REJECT-DROP"
+        ) {
+            return rule
+        }
+        parts[2] = target
+        return parts.joinToString(",")
+    }
+
     private fun ruleLine(ip: String, target: String?): String {
         if (target.isNullOrBlank() || ip.isBlank()) return ""
         // mihomo 不支持 SRC-IP-CIDR6；SRC-IP-CIDR 可接受 IPv6 CIDR
@@ -450,15 +461,19 @@ class DevicePolicyRepositoryImpl(
         else "SRC-IP-CIDR,$ip/32,$target"
     }
 
-    private fun appliedKey(ip: String?, ipv6s: List<String>, mode: DeviceRoutingMode): String =
-        "${mode.name}|${ip.orEmpty()}|${ipv6s.sorted().joinToString(",")}"
+    private fun appliedKey(
+        ip: String?,
+        ipv6s: List<String>,
+        mode: DeviceRoutingMode,
+        target: String?
+    ): String = "${mode.name}|${target.orEmpty()}|${ip.orEmpty()}|${ipv6s.sorted().joinToString(",")}"
     private suspend fun writeMacRules(content: String): Result<Unit> {
         val file = File(context.cacheDir, "mac-policy.tsv")
         return runCatching { file.writeText(content) }
             .mapCatching {
                 val copy = shell.run("cp -f ${file.absolutePath} $base/mac-policy.tsv", 10_000)
                 if (copy.code != 0) error("写入 MAC 策略失败")
-                shell.run("sh $base/ipv6.sh syncmac", 20_000)
+                shell.run("sh $base/apply.sh", 30_000)
                 Unit
             }
     }

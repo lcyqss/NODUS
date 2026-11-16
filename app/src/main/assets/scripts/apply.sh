@@ -6,6 +6,7 @@ CFG=$BASE/config.yaml
 LOG=$BASE/mihomo.log
 IPT=/system/bin/iptables
 IP6=/system/bin/ip6tables
+MACFILE=$BASE/mac-policy.tsv
 
 if ! pidof mihomo >/dev/null 2>&1; then
   echo "$(date '+%F %T') starting mihomo" >> "$LOG"
@@ -41,6 +42,23 @@ for IF in $(list_gateways); do
   [ -z "$NET" ] && continue
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p udp --dport 53 -j REDIRECT --to-ports 1053
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp --dport 53 -j REDIRECT --to-ports 1053
+  if [ -f "$MACFILE" ]; then
+    TAB=$(printf '\t')
+    while IFS="$TAB" read -r MAC MODE P4 P6 IP4; do
+      [ -z "$MAC" ] && continue
+      case "$MODE" in
+        direct)
+          $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp -m mac --mac-source "$MAC" -j RETURN
+          $IPT -w -A MIHOMO_FWD -i "$IF" -m mac --mac-source "$MAC" -p udp --dport 443 -j RETURN
+          ;;
+        global|rule)
+          case "$P4" in ''|*[!0-9]*) continue ;; esac
+          $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp -m mac --mac-source "$MAC" \
+            -j REDIRECT --to-ports "$P4"
+          ;;
+      esac
+    done < "$MACFILE"
+  fi
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -s "$NET" ! -d "$NET" -p tcp -j REDIRECT --to-ports 7892
   $IPT -w -A MIHOMO_FWD -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 -j DROP
   $IPT -w -A MIHOMO_IN -i "$IF" -p tcp --dport 9090 -j DROP
