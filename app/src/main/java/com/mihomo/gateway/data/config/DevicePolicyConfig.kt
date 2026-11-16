@@ -25,7 +25,14 @@ object DevicePolicyConfig {
     /** 去掉重复的 dns.listen，避免 policy 写入时把无效配置交给 mihomo。 */
     fun normalizeDnsListen(text: String): String {
         var seen = false
+        var seenIpv6 = false
         return text.lineSequence().filterNot { line ->
+            // Old builds inserted dns ipv6 with 2 spaces; it is invalid next to 4-space keys.
+            if (line.startsWith("  ipv6:") && !line.startsWith("    ipv6:")) return@filterNot true
+            if (line.startsWith("    ipv6:")) {
+                if (seenIpv6) return@filterNot true
+                seenIpv6 = true
+            }
             if (!line.startsWith("    listen:")) return@filterNot false
             if (seen) true else {
                 seen = true

@@ -74,7 +74,7 @@ class GatewayHealthChecker(
         if (!addr.contains("fd00:1234::1")) return false
         val relay = shell.run("pidof v6dns >/dev/null 2>&1 && echo yes", 5_000).stdout.trim()
         if (relay != "yes") return false
-        return checkDns("www.gstatic.com", AAAA, host = "fd00:1234::1")
+        return checkDns("www.gstatic.com", A, host = "fd00:1234::1")
     }
 
     private suspend fun checkDomains(): Boolean {
