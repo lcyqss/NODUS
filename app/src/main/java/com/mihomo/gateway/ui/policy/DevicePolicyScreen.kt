@@ -23,8 +23,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -43,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
@@ -100,6 +103,7 @@ fun DevicePolicyScreen(
 
     BackHandler(enabled = showTags) { showTags = false }
     BackHandler(enabled = showTemplates) { showTemplates = false }
+    BackHandler(enabled = showSettings) { showSettings = false }
 
     if (showTags) {
         NodeTagManagerScreen(onBack = { showTags = false }, vm = vm)
@@ -191,10 +195,11 @@ fun DevicePolicyScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        "${policies.size} 条策略 · ${policies.count { it.enabled }} 条启用",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CountChip("${policies.size} 条策略")
+                        CountChip("${policies.count { it.enabled }} 条启用", highlighted = true)
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         "按设备 MAC 选择节点标签",
                         style = MaterialTheme.typography.bodySmall,
@@ -214,7 +219,6 @@ fun DevicePolicyScreen(
 
         Spacer(Modifier.height(8.dp))
 
-        SectionLabel("策略")
         message?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(8.dp))
@@ -225,14 +229,24 @@ fun DevicePolicyScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surface)
-                    .padding(16.dp)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("还没有设备策略", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
-                    "点右上角 ＋ 选择一台局域网设备，指定它优先使用哪些节点标签",
+                    "给局域网设备指定优先使用的节点标签，条件不满足时自动回落。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Button(onClick = {
+                    editing = DevicePolicy(
+                        id = UUID.randomUUID().toString(),
+                        mac = "",
+                        label = ""
+                    )
+                }) {
+                    Text("新增设备策略")
+                }
             }
         } else {
             val macCounts = policies.groupingBy { it.mac.lowercase() }.eachCount()
@@ -279,13 +293,21 @@ private fun DevicePolicySettingsScreen(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        SubPageHeader(
-            title = "策略设置",
-            subtitle = "条件、调度与数据",
-            onBack = onBack
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                GwIcon(GwIcon.Back, tint = MaterialTheme.colorScheme.onSurface)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("策略设置", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "条件、调度与数据",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         SectionLabel("条件与标签")
         Row(
             Modifier
@@ -370,6 +392,23 @@ private fun DevicePolicySettingsScreen(
         }
         Spacer(Modifier.height(12.dp))
     }
+}
+
+@Composable
+private fun CountChip(text: String, highlighted: Boolean = false) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (highlighted) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(
+                if (highlighted) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    )
 }
 
 @Composable
@@ -577,12 +616,23 @@ private fun PolicyCard(
     Column(
         Modifier
             .fillMaxWidth()
+            .alpha(if (policy.enabled) 1f else 0.55f)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (policy.enabled) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outline
+                    )
+            )
+            Spacer(Modifier.width(7.dp))
             Text(
                 policy.label.ifBlank { policy.mac.ifBlank { "未选择设备" } },
                 style = MaterialTheme.typography.bodyMedium,
