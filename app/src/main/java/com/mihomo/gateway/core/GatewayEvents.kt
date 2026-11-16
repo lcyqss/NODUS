@@ -22,6 +22,7 @@ class GatewayEvents(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val handler = Handler(Looper.getMainLooper())
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var startedAt = 0L
 
     private val applyTask = Runnable {
         scope.launch {
@@ -37,6 +38,7 @@ class GatewayEvents(private val context: Context) {
     }
 
     fun start() {
+        startedAt = android.os.SystemClock.elapsedRealtime()
         handler.post {
             runCatching {
                 val connectivity = context.getSystemService(ConnectivityManager::class.java)
@@ -53,6 +55,7 @@ class GatewayEvents(private val context: Context) {
     }
 
     private fun schedule() {
+        if (android.os.SystemClock.elapsedRealtime() - startedAt < 5_000L) return
         handler.removeCallbacks(applyTask)
         handler.postDelayed(applyTask, 2000)
     }
