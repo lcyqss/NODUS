@@ -13,16 +13,26 @@ data class NeighborInfo(
 class NeighborResolver(private val shell: ShellExecutor) {
 
     suspend fun resolve(): Map<String, NeighborInfo> {
-        val neighbors = runCatching { readNeighbors() }.getOrDefault(emptyMap())
+        val paths = listOf(
+            "/data/misc/dhcp/dnsmasq.leases",
+            "/data/misc/dnsmasq/dnsmasq.leases",
+            "/data/vendor/dhcp/dnsmasq.leases"
+        )
+        val leases = paths.joinToString("; ") { "cat $it 2>/dev/null" }
+        val text = shell.run(
+            "ip neigh show 2>/dev/null; ip -6 neigh show 2>/dev/null; " +
+                "echo '@@'; $leases"
+        ).stdout
+        val sections = text.split("@@")
+        val neighbors = parseNeighbors(sections.getOrNull(0).orEmpty())
         if (neighbors.isEmpty()) return emptyMap()
-        val hostnames = runCatching { readLeases() }.getOrDefault(emptyMap())
+        val hostnames = parseLeases(sections.getOrNull(1).orEmpty())
         return neighbors.mapValues { (ip, mac) ->
             NeighborInfo(ip = ip, mac = mac, hostname = hostnames[ip])
         }
     }
 
-    private suspend fun readNeighbors(): Map<String, String> {
-        val text = shell.run("ip neigh show 2>/dev/null; ip -6 neigh show 2>/dev/null").stdout
+    private fun parseNeighbors(text: String): Map<String, String> {
         val map = mutableMapOf<String, String>()
         text.lineSequence().forEach { line ->
             val parts = line.trim().split(Regex("\\s+"))
@@ -39,15 +49,7 @@ class NeighborResolver(private val shell: ShellExecutor) {
         return map
     }
 
-    /** dnsmasq 租约格式：<expiry> <mac> <ip> <hostname> <client-id> */
-    private suspend fun readLeases(): Map<String, String> {
-        val paths = listOf(
-            "/data/misc/dhcp/dnsmasq.leases",
-            "/data/misc/dnsmasq/dnsmasq.leases",
-            "/data/vendor/dhcp/dnsmasq.leases"
-        )
-        val command = paths.joinToString("; ") { "cat $it 2>/dev/null" }
-        val text = shell.run(command).stdout
+    private fun parseLeases(text: String): Map<String, String> {
         val map = mutableMapOf<String, String>()
         text.lineSequence().forEach { line ->
             val parts = line.trim().split(Regex("\\s+"))

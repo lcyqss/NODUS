@@ -92,7 +92,6 @@ private fun SettingsMain(
     LaunchedEffect(Unit) {
         vm.refreshIpv6Capability()
         vm.refreshComponentVersions()
-        vm.refreshHealth()
     }
     val runtimeMode by vm.runtimeMode.collectAsState()
     val context = LocalContext.current

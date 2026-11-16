@@ -45,6 +45,7 @@ class GatewayControllerImpl(
     private val mutex = Mutex()
 
     override suspend fun start(): Result<Unit> = mutex.withLock {
+        if (_state.value.running) return@withLock Result.success(Unit)
         Log.i(TAG, "start")
         val result = shell.run("sh $base/start.sh")
         if (result.code != 0) {

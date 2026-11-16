@@ -35,9 +35,16 @@ class AssetInstaller(
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: "0"
 
-        val marker = shell.run("cat $base/.app_version 2>/dev/null").stdout.trim()
-        val binaryOk = shell.run("test -x $base/mihomo && echo ok 2>/dev/null").stdout.trim() == "ok"
-        val geoMarker = shell.run("cat $base/.geo_version 2>/dev/null").stdout.trim()
+        val probe = shell.run(
+            "cat $base/.app_version 2>/dev/null; echo '@@'; " +
+                "test -x $base/mihomo && echo ok 2>/dev/null; echo '@@'; " +
+                "cat $base/.geo_version 2>/dev/null",
+            10_000
+        ).stdout
+        val probeParts = probe.split("@@")
+        val marker = probeParts.getOrNull(0)?.trim().orEmpty()
+        val binaryOk = probeParts.getOrNull(1)?.trim() == "ok"
+        val geoMarker = probeParts.getOrNull(2)?.trim().orEmpty()
         if (!force && marker == version && geoMarker == version && binaryOk) {
             return Result.success("核心已是 $version")
         }

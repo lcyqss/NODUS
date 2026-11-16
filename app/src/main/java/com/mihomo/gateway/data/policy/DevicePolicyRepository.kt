@@ -20,6 +20,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.SafeConstructor
@@ -198,13 +200,19 @@ class DevicePolicyRepositoryImpl(
      * 把 __dev_ 根组（select）切到回落组；恢复后切回优先组。
      */
     override suspend fun evaluateRouting(): Result<Int> = withContext(Dispatchers.IO) {
-        if (!coreRunning()) return@withContext Result.success(0)
         val current = DevicePolicyCodec.decode(settings.settings.first().devicePolicies)
         if (current.none { it.enabled && it.maxDelayMs > 0 }) {
             return@withContext Result.success(0)
         }
         val now = System.currentTimeMillis()
         val defaultSec = settings.settings.first().policyIntervalSec.coerceIn(30, 300)
+        val hasDue = current.any { policy ->
+            if (!policy.enabled || policy.maxDelayMs <= 0) return@any false
+            val interval = policy.scheduleIntervalSec.takeIf { it > 0 } ?: defaultSec
+            now - (lastEvaluatedAt[policy.id] ?: 0L) >= interval * 1000L
+        }
+        if (!hasDue) return@withContext Result.success(0)
+        if (!coreRunning()) return@withContext Result.success(0)
         val plans = runtime().filter {
             it.policy.enabled &&
                 it.policy.mode != DeviceRoutingMode.DIRECT &&
@@ -311,7 +319,16 @@ class DevicePolicyRepositoryImpl(
         } else Result.failure(IllegalStateException("写入配置失败"))
     }
 
-    override suspend fun syncIfNeeded(): Result<Boolean> = withContext(Dispatchers.IO) {
+    private val syncMutex = Mutex()
+
+    override suspend fun syncIfNeeded(): Result<Boolean> = syncMutex.withLock {
+        syncIfNeededLocked()
+    }
+
+    private suspend fun syncIfNeededLocked(): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (!settings.settings.first().ipv6Gateway) {
+            return@withContext Result.success(false)
+        }
         if (DevicePolicyCodec.decode(settings.settings.first().devicePolicies).none { it.enabled }) {
             return@withContext Result.success(false)
         }

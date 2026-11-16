@@ -83,14 +83,19 @@ class SettingsViewModel(
 
     fun refreshComponentVersions() {
         viewModelScope.launch {
-            val coreLine = shell.run("/data/adb/mihomo/mihomo -v 2>/dev/null", 10_000)
-                .stdout.lineSequence().firstOrNull { it.isNotBlank() }
+            val probe = shell.run(
+                "/data/adb/mihomo/mihomo -v 2>/dev/null; echo '@@'; " +
+                    "cat /data/adb/mihomo/.geo_version 2>/dev/null",
+                10_000
+            ).stdout
+            val parts = probe.split("@@")
+            val coreLine = parts.getOrNull(0).orEmpty()
+                .lineSequence().firstOrNull { it.isNotBlank() }
                 .orEmpty().trim()
             val coreName = coreLine.split(' ')
                 .firstOrNull { it.startsWith("v") && it.getOrNull(1)?.isDigit() == true }
                 ?: coreLine
-            val geo = shell.run("cat /data/adb/mihomo/.geo_version 2>/dev/null", 10_000)
-                .stdout.trim()
+            val geo = parts.getOrNull(1).orEmpty().trim()
             _corePrevious.value = runCatching { core.previousVersion() }.getOrDefault("")
             _coreVersion.value = coreName.ifBlank { "未知" }
             _geoVersion.value = geo.ifBlank { "未知" }

@@ -25,6 +25,7 @@ class GatewayService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var events: GatewayEvents? = null
     private var auxiliaryLoopsStarted = false
+    private var startedOnce = false
 
     override fun onCreate() {
         super.onCreate()
@@ -57,17 +58,13 @@ class GatewayService : Service() {
         }
 
         startForeground(NOTIFICATION_ID, buildNotification("网关服务运行中", true))
+        if (startedOnce) return START_STICKY
+        startedOnce = true
 
         scope.launch {
             val install = AppContainer.core.ensure()
             val installed = install.getOrNull()?.contains("installed") == true
             install.onFailure { Log.w(TAG, "install failed: ${it.message}") }
-
-            // 把 gateway.conf 中真实生效的配置同步回设置，避免界面与实际不一致
-            runCatching {
-                val conf = AppContainer.gateway.readConf()
-                AppContainer.settings.update { it.copy(ipMode = conf.mode, blockIpv6 = conf.blockIpv6) }
-            }.onFailure { Log.w(TAG, "sync conf failed: ${it.message}") }
 
             val desired = runCatching {
                 AppContainer.settings.settings.first().desiredRunning
@@ -87,20 +84,15 @@ class GatewayService : Service() {
                     }
                 }
                 started.onFailure { Log.w(TAG, "start failed: ${it.message}") }
-                if (AppContainer.gateway.state.value.running) {
-                    runCatching {
-                        val report = AppContainer.health.check(AppContainer.settings.settings.first().ipv6Gateway)
-                        Log.i(
-                            TAG,
-                            "health dns=${report.dns} ports=${report.ports} proxy=${report.proxy} ${report.detail}"
-                        )
-                    }.onFailure { Log.w(TAG, "health check failed: ${it.message}") }
-                }
                 if (events == null) {
                     events = GatewayEvents(applicationContext).also { it.start() }
                 }
             } else {
                 AppContainer.gateway.refresh()
+            }
+            val current = AppContainer.gateway.state.value
+            AppContainer.settings.update {
+                it.copy(ipMode = current.mode, blockIpv6 = current.blockIpv6)
             }
         }
 
@@ -119,12 +111,15 @@ class GatewayService : Service() {
 
         // 设备策略：IP 跟随（DHCP 变化时重建 SRC-IP 规则），间隔可设置
         scope.launch {
+            delay(60_000L)
             while (isActive) {
-                runCatching { AppContainer.devicePolicies.syncIfNeeded() }
-                    .onFailure { Log.w(TAG, "device policy ip sync: ${it.message}") }
+                if (AppContainer.gateway.state.value.ipv6Gateway) {
+                    runCatching { AppContainer.devicePolicies.syncIfNeeded() }
+                        .onFailure { Log.w(TAG, "device policy ip sync: ${it.message}") }
+                }
                 val seconds = runCatching {
                     AppContainer.settings.settings.first().ipFollowIntervalSec
-                }.getOrDefault(60).coerceIn(30, 300)
+                }.getOrDefault(60).coerceAtLeast(300)
                 delay(seconds * 1000L)
             }
         }
