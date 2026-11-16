@@ -48,6 +48,16 @@ jobs:
           keyPassword=$KEYSTORE_KEY_PASSWORD
           EOF
 
+      - name: Fetch mihomo core
+        run: |
+          set -euo pipefail
+          curl -L --retry 3 --fail \
+            -o /tmp/mihomo.gz \
+            https://github.com/MetaCubeX/mihomo/releases/download/v1.19.34/mihomo-android-arm64-v8-v1.19.34.gz
+          gzip -dc /tmp/mihomo.gz > app/src/main/assets/mihomo
+          chmod +x app/src/main/assets/mihomo
+          test "$(stat -c%s app/src/main/assets/mihomo)" -gt 10000000
+
       - name: Build release APK
         run: |
           chmod +x gradlew
