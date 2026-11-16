@@ -28,7 +28,7 @@ class GatewayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        val channel = NotificationChannel(CHANNEL, "Mihomo 网关", NotificationManager.IMPORTANCE_LOW)
+        val channel = NotificationChannel(CHANNEL, "NODUS 网关", NotificationManager.IMPORTANCE_LOW)
         channel.description = "root 透明代理网关常驻通知"
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
@@ -202,9 +202,9 @@ class GatewayService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         val builder = Notification.Builder(this, CHANNEL)
-            .setContentTitle("Mihomo Gateway")
+            .setContentTitle("NODUS")
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
+            .setSmallIcon(com.mihomo.gateway.R.drawable.ic_notification)
             .setContentIntent(openIntent)
             .setOngoing(true)
         if (running) {

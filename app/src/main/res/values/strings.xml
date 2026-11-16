@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NODUS</string>
+    <string name="notification_channel">NODUS 网关</string>
+    <string name="notification_title">NODUS</string>
+</resources>

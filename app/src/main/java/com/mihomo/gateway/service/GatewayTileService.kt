@@ -55,7 +55,7 @@ class GatewayTileService : TileService() {
         } else {
             Tile.STATE_INACTIVE
         }
-        tile.label = "Mihomo 网关"
+        tile.label = "NODUS"
         tile.icon = Icon.createWithResource(this, android.R.drawable.stat_sys_upload_done)
         tile.updateTile()
     }

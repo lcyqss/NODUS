@@ -127,7 +127,7 @@ class DiagnosticsViewModel(
     fun buildReport(): String {
         val s = _state.value
         return buildString {
-            appendLine("Mihomo Gateway 诊断报告")
+            appendLine("NODUS 诊断报告")
             appendLine("时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
             appendLine("内核: ${s.version.ifBlank { "-" }}  运行: ${if (s.running) "是" else "否"}")
             appendLine("API 延迟: ${if (s.latencyMs >= 0) "${s.latencyMs}ms" else "-"}")
