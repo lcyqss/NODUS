@@ -3,6 +3,8 @@ package com.mihomo.gateway.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.core.CoreInstaller
+import com.mihomo.gateway.data.repo.CoreUpdateInfo
+import com.mihomo.gateway.data.repo.CoreUpdateRepository
 import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.data.repo.GeoDataRepository
@@ -29,6 +31,7 @@ class SettingsViewModel(
     private val api: MihomoApi = AppContainer.api,
     private val ruleRepository: RuleRepository = AppContainer.rules,
     private val core: CoreInstaller = AppContainer.core,
+    private val coreUpdates: CoreUpdateRepository = AppContainer.coreUpdates,
     private val shell: ShellExecutor = AppContainer.shell
 ) : ViewModel() {
 
@@ -44,8 +47,12 @@ class SettingsViewModel(
     private val _ipv6RaBlocked = MutableStateFlow(false)
     private val _coreVersion = MutableStateFlow("")
     private val _corePrevious = MutableStateFlow("")
+    private val _coreUpdate = MutableStateFlow<CoreUpdateInfo?>(null)
+    private val _coreProgress = MutableStateFlow<Int?>(null)
     val coreVersion: StateFlow<String> = _coreVersion.asStateFlow()
     val corePrevious: StateFlow<String> = _corePrevious.asStateFlow()
+    val coreUpdate: StateFlow<CoreUpdateInfo?> = _coreUpdate.asStateFlow()
+    val coreProgress: StateFlow<Int?> = _coreProgress.asStateFlow()
     private val _geoVersion = MutableStateFlow("")
     private val _geoProgress = MutableStateFlow<Int?>(null)
     val geoVersion: StateFlow<String> = _geoVersion.asStateFlow()
@@ -321,6 +328,84 @@ class SettingsViewModel(
                 onSuccess = { "已回退到 $it" },
                 onFailure = { "回退失败: ${it.message}" }
             )
+            refreshComponentVersions()
+            _busy.value = false
+        }
+    }
+
+    fun checkCoreUpdate() {
+        if (_busy.value) return
+        viewModelScope.launch {
+            _busy.value = true
+            _message.value = "正在检查内核更新…"
+            val result = coreUpdates.check(useProxy = gateway.state.value.running)
+            result.onSuccess { info ->
+                val current = _coreVersion.value.trim()
+                if (info.latest.trim() == current) {
+                    _message.value = "内核已是最新：${info.latest}"
+                } else {
+                    _coreUpdate.value = info
+                }
+            }.onFailure {
+                _message.value = "检查内核更新失败: ${it.message}"
+            }
+            _busy.value = false
+        }
+    }
+
+    fun dismissCoreUpdate() {
+        _coreUpdate.value = null
+    }
+
+    fun installCoreUpdate() {
+        val info = _coreUpdate.value ?: return
+        if (_busy.value) return
+        viewModelScope.launch {
+            _busy.value = true
+            _coreUpdate.value = null
+            _message.value = "正在下载内核 ${info.latest}…"
+            val wasRunning = gateway.state.value.running
+            _coreProgress.value = 0
+            val download = coreUpdates.download(info, useProxy = wasRunning) { done, total ->
+                _coreProgress.value = if (total > 0) {
+                    ((done * 100) / total).toInt().coerceIn(0, 100)
+                } else {
+                    -1
+                }
+            }
+            _coreProgress.value = null
+            val file = download.getOrNull()
+            if (file == null) {
+                _message.value = "内核下载失败: ${download.exceptionOrNull()?.message}"
+                _busy.value = false
+                return@launch
+            }
+            if (wasRunning) gateway.stop()
+            val installed = core.installBinary(file)
+            if (installed.isFailure) {
+                if (wasRunning) gateway.start()
+                _message.value = "内核安装失败: ${installed.exceptionOrNull()?.message}"
+            } else if (!wasRunning) {
+                _message.value = "内核已安装: ${installed.getOrNull()}"
+            } else {
+                val started = gateway.start()
+                if (started.isSuccess) {
+                    _message.value = "内核已更新: ${info.latest}"
+                } else {
+                    val previous = core.previousVersion()
+                    if (previous.isBlank()) {
+                        _message.value = "新内核启动失败，且没有可回退版本"
+                    } else {
+                        val rolledBack = core.rollbackToPrevious()
+                        if (rolledBack.isSuccess) {
+                            gateway.start()
+                            _message.value = "新内核启动失败，已回退到 $previous"
+                        } else {
+                            _message.value = "新内核启动失败，回退失败: ${rolledBack.exceptionOrNull()?.message}"
+                        }
+                    }
+                }
+            }
             refreshComponentVersions()
             _busy.value = false
         }

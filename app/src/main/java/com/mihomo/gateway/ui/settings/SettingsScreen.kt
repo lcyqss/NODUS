@@ -84,6 +84,8 @@ private fun SettingsMain(
     val ipv6RaBlocked by vm.ipv6RaBlocked.collectAsState()
     val coreVersion by vm.coreVersion.collectAsState()
     val corePrevious by vm.corePrevious.collectAsState()
+    val coreUpdate by vm.coreUpdate.collectAsState()
+    val coreProgress by vm.coreProgress.collectAsState()
     val geoVersion by vm.geoVersion.collectAsState()
     val geoProgress by vm.geoProgress.collectAsState()
     LaunchedEffect(Unit) {
@@ -186,6 +188,17 @@ private fun SettingsMain(
                 subtitle = if (corePrevious.isBlank()) "暂无可回退版本" else "恢复到上一可用内核",
                 enabled = corePrevious.isNotBlank() && !busy,
                 onClick = { showCoreRollback = true }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "检查内核更新",
+                subtitle = when {
+                    coreProgress == -1 -> "下载中…"
+                    coreProgress != null -> "下载中 ${coreProgress}%"
+                    else -> "从官方 release 检查 Android arm64 内核"
+                },
+                enabled = !busy,
+                onClick = { vm.checkCoreUpdate() }
             )
             SettingsDivider()
             SettingsRow(
@@ -352,6 +365,25 @@ private fun SettingsMain(
             },
             dismissButton = {
                 TextButton(onClick = { showRestore = false }) { Text("取消") }
+            }
+        )
+    }
+
+    coreUpdate?.let { info ->
+        AlertDialog(
+            onDismissRequest = { vm.dismissCoreUpdate() },
+            title = { Text("内核更新") },
+            text = {
+                Text(
+                    "当前：$coreVersion\n最新：${info.latest}\n资源：${info.assetName}\n\n" +
+                        "更新会短暂中断网关，失败时会尝试回退上一内核。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { vm.installCoreUpdate() }) { Text("更新") }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.dismissCoreUpdate() }) { Text("取消") }
             }
         )
     }

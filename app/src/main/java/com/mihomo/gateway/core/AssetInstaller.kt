@@ -14,6 +14,8 @@ interface CoreInstaller {
     suspend fun previousVersion(): String
 
     suspend fun rollbackToPrevious(): Result<String>
+
+    suspend fun installBinary(source: File): Result<String>
 }
 
 class AssetInstaller(
@@ -147,6 +149,36 @@ class AssetInstaller(
             rm -f $base/.core_prev_version
             rm -f $base/mihomo.prev
             echo "${'$'}PREV_VER"
+        """.trimIndent()
+        val result = shell.run(command, 120_000)
+        if (result.code == 0) Result.success(result.stdout.trim())
+        else Result.failure(IllegalStateException(result.stdout.take(300)))
+    }
+
+    override suspend fun installBinary(source: File): Result<String> = installMutex.withLock {
+        val command = """
+            cp -f ${source.absolutePath} $base/mihomo.new
+            chmod 755 $base/mihomo.new
+            NEW_VER=$($base/mihomo.new -v 2>/dev/null | head -n1 | cut -d' ' -f3)
+            [ -n "${'$'}NEW_VER" ] || { rm -f $base/mihomo.new; echo "bad core"; exit 1; }
+            if [ -f $base/config.yaml ]; then
+              $base/mihomo.new -t -d $base -f $base/config.yaml >/dev/null 2>&1 || {
+                rm -f $base/mihomo.new
+                echo "bad config"
+                exit 1
+              }
+            fi
+            if [ -x $base/mihomo ]; then
+              CUR_VER=$($base/mihomo -v 2>/dev/null | head -n1 | cut -d' ' -f3)
+              if [ -n "${'$'}CUR_VER" ] && [ "${'$'}CUR_VER" != "${'$'}NEW_VER" ]; then
+                cp -f $base/mihomo $base/mihomo.prev
+                echo "${'$'}CUR_VER" > $base/.core_prev_version
+              fi
+              cp -f $base/mihomo $base/mihomo.bak
+            fi
+            mv -f $base/mihomo.new $base/mihomo
+            echo "${'$'}NEW_VER" > $base/.core_version
+            echo "${'$'}NEW_VER"
         """.trimIndent()
         val result = shell.run(command, 120_000)
         if (result.code == 0) Result.success(result.stdout.trim())
