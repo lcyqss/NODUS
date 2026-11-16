@@ -85,7 +85,7 @@ object AppContainer {
         gateway = GatewayControllerImpl(shell, api, base = BASE)
         settings = SettingsStoreImpl(app)
         core = AssetInstaller(app, shell, base = BASE)
-        health = GatewayHealthChecker(shell)
+        health = GatewayHealthChecker(shell, api)
         neighbors = NeighborResolver(shell)
         rules = RuleRepositoryImpl(app, shell, api, RuleStore(app), base = BASE)
         val nodeCatalog: NodeCatalogRepository = NodeCatalogRepositoryImpl(app, settings)

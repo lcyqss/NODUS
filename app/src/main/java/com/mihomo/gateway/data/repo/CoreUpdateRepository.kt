@@ -5,17 +5,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
 import java.net.InetSocketAddress
 import java.net.Proxy
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
 
 data class CoreUpdateInfo(
     val latest: String,
     val assetName: String,
-    val downloadUrl: String
+    val downloadUrl: String,
+    val sha256: String?
 )
 
 interface CoreUpdateRepository {
@@ -68,10 +71,34 @@ class CoreUpdateRepositoryImpl(
                 ?: error("未找到 Android arm64 内核")
             val url = if (href.startsWith("http")) href else "https://github.com$href"
             val name = href.substringAfterLast('/')
-            Result.success(CoreUpdateInfo(tag, name, url))
+            Result.success(CoreUpdateInfo(tag, name, url, fetchDigest(client, tag, name)))
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun fetchDigest(client: OkHttpClient, tag: String, assetName: String): String? {
+        return runCatching {
+            val request = Request.Builder()
+                .url("https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/$tag")
+                .header("User-Agent", "Mihomo-Gateway")
+                .header("Accept", "application/vnd.github+json")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val root = JSONObject(response.body?.string().orEmpty())
+                val assets = root.optJSONArray("assets") ?: return null
+                for (i in 0 until assets.length()) {
+                    val asset = assets.optJSONObject(i) ?: continue
+                    if (asset.optString("name") == assetName) {
+                        return asset.optString("digest")
+                            .removePrefix("sha256:")
+                            .ifBlank { null }
+                    }
+                }
+                null
+            }
+        }.getOrNull()
     }
 
     override suspend fun download(
@@ -107,6 +134,8 @@ class CoreUpdateRepositoryImpl(
                     }
                 }
             }
+            if (info.sha256.isNullOrBlank()) error("官方未提供 SHA256")
+            if (!sha256(gz).equals(info.sha256, ignoreCase = true)) error("SHA256 校验失败")
             val out = File(cache, "mihomo")
             GZIPInputStream(FileInputStream(gz)).use { input ->
                 out.outputStream().use { output -> input.copyTo(output) }
@@ -116,6 +145,19 @@ class CoreUpdateRepositoryImpl(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n <= 0) break
+                digest.update(buf, 0, n)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun client(useProxy: Boolean): OkHttpClient = if (useProxy) proxyClient else directClient

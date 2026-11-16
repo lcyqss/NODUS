@@ -119,10 +119,19 @@ class SettingsViewModel(
     fun refreshHealth() {
         viewModelScope.launch {
             if (!gateway.state.value.running) {
-                _health.value = HealthReport(false, false, false, "网关未运行")
+                _health.value = HealthReport(
+                    dns = false,
+                    ports = false,
+                    proxy = false,
+                    ipv6 = false,
+                    tproxy = false,
+                    dnsDomains = false,
+                    rules = false,
+                    detail = "网关未运行"
+                )
                 return@launch
             }
-            _health.value = healthChecker.check()
+            _health.value = healthChecker.check(settings.value.ipv6Gateway)
         }
     }
 
@@ -375,6 +384,11 @@ class SettingsViewModel(
     fun installCoreUpdate() {
         val info = _coreUpdate.value ?: return
         if (_busy.value) return
+        if (info.sha256.isNullOrBlank()) {
+            _message.value = "官方未提供 SHA256，已拒绝安装"
+            _coreUpdate.value = null
+            return
+        }
         viewModelScope.launch {
             _busy.value = true
             _coreUpdate.value = null

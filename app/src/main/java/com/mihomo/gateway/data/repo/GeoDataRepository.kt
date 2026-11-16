@@ -87,10 +87,20 @@ class GeoDataRepositoryImpl(
             if (geoIP.length() < MIN_SIZE || geoSite.length() < MIN_SIZE) {
                 return@withContext Result.failure(IllegalStateException("Geo 文件大小异常"))
             }
+            val expectedIP = fetchChecksum(client, "$GEOIP_URL.sha256sum")
+            val expectedSite = fetchChecksum(client, "$GEOSITE_URL.sha256sum")
+            if (expectedIP.isBlank() || expectedSite.isBlank()) {
+                return@withContext Result.failure(IllegalStateException("官方未提供 SHA256"))
+            }
+            if (!sha256(geoIP).equals(expectedIP, ignoreCase = true) ||
+                !sha256(geoSite).equals(expectedSite, ignoreCase = true)
+            ) {
+                return@withContext Result.failure(IllegalStateException("SHA256 校验失败"))
+            }
 
             val version = "manual " + SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             File(cache, ".geo_etag").writeText(newEtags.joinToString("\n"))
-            File(cache, ".geo_sha256").writeText(sha256(geoIP) + "\n" + sha256(geoSite))
+            File(cache, ".geo_sha256").writeText(expectedIP + "\n" + expectedSite)
 
             val c = cache.absolutePath
             val command = """
@@ -182,6 +192,20 @@ class GeoDataRepositoryImpl(
         }
         if (out.length() < MIN_SIZE) error("文件过小: ${out.name}")
         return out
+    }
+
+    private fun fetchChecksum(client: OkHttpClient, url: String): String {
+        return runCatching {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mihomo-Gateway")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return ""
+                Regex("[0-9a-fA-F]{64}").find(response.body?.string().orEmpty())
+                    ?.value.orEmpty()
+            }
+        }.getOrDefault("")
     }
 
     private fun sha256(file: File): String {

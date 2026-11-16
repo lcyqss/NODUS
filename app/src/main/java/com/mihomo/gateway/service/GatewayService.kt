@@ -89,7 +89,7 @@ class GatewayService : Service() {
                 started.onFailure { Log.w(TAG, "start failed: ${it.message}") }
                 if (AppContainer.gateway.state.value.running) {
                     runCatching {
-                        val report = AppContainer.health.check()
+                        val report = AppContainer.health.check(AppContainer.settings.settings.first().ipv6Gateway)
                         Log.i(
                             TAG,
                             "health dns=${report.dns} ports=${report.ports} proxy=${report.proxy} ${report.detail}"

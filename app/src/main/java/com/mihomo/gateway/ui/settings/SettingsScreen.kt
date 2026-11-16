@@ -399,6 +399,16 @@ private fun SettingsMain(
                             appendLine("DNS 1053：${if (h.dns) "正常" else "异常"}")
                             appendLine("网关端口：${if (h.ports) "正常" else "异常"}")
                             appendLine("代理 204：${if (h.proxy) "正常" else "异常"}")
+                            appendLine("TPROXY：${if (h.tproxy) "正常" else "异常"}")
+                            appendLine(
+                                "IPv6：" + when {
+                                    !settings.ipv6Gateway -> "未启用"
+                                    h.ipv6 -> "正常"
+                                    else -> "异常"
+                                }
+                            )
+                            appendLine("DNS 域名：${if (h.dnsDomains) "正常" else "异常"}")
+                            appendLine("规则加载：${if (h.rules) "正常" else "异常"}")
                             append(h.detail)
                         }
                     }
@@ -416,7 +426,8 @@ private fun SettingsMain(
             title = { Text("内核更新") },
             text = {
                 Text(
-                    "当前：$coreVersion\n最新：${info.latest}\n资源：${info.assetName}\n\n" +
+                    "当前：$coreVersion\n最新：${info.latest}\n资源：${info.assetName}\n" +
+                        "校验：${if (info.sha256.isNullOrBlank()) "官方未提供（不可安装）" else "SHA256 已提供"}\n\n" +
                         "更新会短暂中断网关，失败时会尝试回退上一内核。"
                 )
             },
