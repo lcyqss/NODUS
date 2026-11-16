@@ -34,6 +34,53 @@
 - 应用内更新：每日检查 GitHub Release，手动下载并安装
 - 日志、连接拓扑、诊断信息导出
 
+### 功能边界
+
+| 模块 | 已实现 | 备注 |
+|---|---|---|
+| 热点网关 | IPv4 REDIRECT / IPv6 TPROXY | 真机验证 |
+| 旁路由网关 | 基础脚本入口 | **未完整验证** |
+| DNS | mihomo 1053 + v6dns | 热点场景验证 |
+| 设备策略 | MAC、标签表达式、延迟、IP 跟随 | 真机验证 |
+| 分流规则 | 自定义 / 订阅 | 真机验证 |
+| 内核更新 | mihomo release + 回滚 | 真机验证 |
+| Geo 更新 | GeoIP / GeoSite + SHA256 | 真机验证 |
+| 应用更新 | GitHub Release + APK 校验 | 代码完成，待首次 Release 验证 |
+| 诊断 | 日志、健康检查、规则快照 | 真机验证 |
+
+## 依赖
+
+### 运行时依赖
+
+- Android 9+（minSdk 29），arm64
+- root：Magisk / KernelSU 等
+- mihomo Android arm64 二进制（从 MetaCubeX release 获取，首次安装解压到 `/data/adb/mihomo`）
+- GeoIP.dat / GeoSite.dat（随 APK 打包，可从官方源更新）
+- 热点或局域网网络环境
+
+### 构建依赖
+
+| 依赖 | 版本 | 用途 |
+|---|---|---|
+| JDK | 17 | 编译 |
+| Android SDK | 35 | 编译 / 目标版本 |
+| Gradle | 8.9 | 构建（wrapper 已包含） |
+| AndroidX Core KTX | 1.13.1 | Android 基础 |
+| Activity Compose | 1.9.0 | Compose 宿主 |
+| Lifecycle | 2.8.3 | ViewModel / 生命周期 |
+| Compose BOM | 2024.06.00 | UI |
+| Material3 | BOM 管理 | UI 组件 |
+| Kotlin Coroutines | 1.8.1 | 异步 |
+| OkHttp | 4.12.0 | GitHub / 内核 / Geo 网络请求 |
+| SnakeYAML | 1.33 | 配置处理 |
+
+### 外部项目
+
+| 项目 | 用途 | 许可证 |
+|---|---|---|
+| [mihomo](https://github.com/MetaCubeX/mihomo) | 代理内核 | GPL-3.0 |
+| [meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat) | GeoIP / GeoSite 数据 | 按其仓库声明 |
+
 ## 环境要求
 
 - Android 9+（minSdk 29），arm64 设备
@@ -134,6 +181,18 @@ KEYSTORE_KEY_PASSWORD
 - GitHub API 可能被限流或网络不可达；更新失败时请直接访问 Release 页面。
 - 当前更新检查要求仓库和 Release 可匿名访问。
 - 真机行为受 ROM、热点实现和运营商网络影响，不能只依据模拟器或单台设备判断。
+
+## 许可证
+
+本项目使用 **GNU General Public License v3.0**（GPL-3.0）。
+
+原因：
+
+- 项目分发/集成 GPL-3.0 的 mihomo 内核
+- 选择 GPL-3.0 可以避免应用代码与内核组合分发时的许可证冲突
+- 源码公开后，任何分发修改版的人都应继续提供对应源码
+
+完整文本见 [LICENSE](LICENSE)。
 
 ## 文档
 
