@@ -1,6 +1,7 @@
 package com.mihomo.gateway.ui.policy
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -113,6 +114,7 @@ fun NodeTagManagerScreen(
         }
 
         if (regionExpanded) {
+        Spacer(Modifier.height(8.dp))
         if (region.isEmpty()) {
             Text(
                 "地区预设已全部删除；可新建自定义标签替代。",
@@ -142,6 +144,7 @@ fun NodeTagManagerScreen(
         )
 
         if (customExpanded) {
+        Spacer(Modifier.height(8.dp))
         if (custom.isEmpty()) {
             Column(
                 Modifier
@@ -185,6 +188,7 @@ fun NodeTagManagerScreen(
             onToggle = { builtinExpanded = !builtinExpanded }
         )
         if (builtinExpanded) {
+            Spacer(Modifier.height(8.dp))
             Text(
                 "由当前订阅节点自动生成；切换订阅后自动更新",
                 style = MaterialTheme.typography.bodySmall,
@@ -247,8 +251,15 @@ private fun TagSectionHeader(
     Row(
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.14f),
+                RoundedCornerShape(10.dp)
+            )
             .clickable(onClick = onToggle)
-            .padding(vertical = 2.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
