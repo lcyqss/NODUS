@@ -8,6 +8,12 @@ import java.io.File
 interface CoreInstaller {
     /** 首次或版本变化时把 assets 中的内核/脚本/模板解压到 /data/adb/mihomo。 */
     suspend fun ensure(force: Boolean = false): Result<String>
+
+    suspend fun currentVersion(): String
+
+    suspend fun previousVersion(): String
+
+    suspend fun rollbackToPrevious(): Result<String>
 }
 
 class AssetInstaller(
@@ -58,8 +64,23 @@ class AssetInstaller(
             mkdir -p $base
             cp -f $c/mihomo $base/mihomo.new
             chmod 755 $base/mihomo.new
-            $base/mihomo.new -v >/dev/null 2>&1 || { rm -f $base/mihomo.new; echo "bad core"; exit 1; }
-            [ -f $base/mihomo ] && cp -f $base/mihomo $base/mihomo.bak
+            NEW_VER=$($base/mihomo.new -v 2>/dev/null | head -n1 | cut -d' ' -f3)
+            [ -n "${'$'}NEW_VER" ] || { rm -f $base/mihomo.new; echo "bad core"; exit 1; }
+            if [ -f $base/config.yaml ]; then
+              $base/mihomo.new -t -d $base -f $base/config.yaml >/dev/null 2>&1 || {
+                rm -f $base/mihomo.new
+                echo "bad config"
+                exit 1
+              }
+            fi
+            if [ -x $base/mihomo ]; then
+              CUR_VER=$($base/mihomo -v 2>/dev/null | head -n1 | cut -d' ' -f3)
+              if [ -n "${'$'}CUR_VER" ] && [ "${'$'}CUR_VER" != "${'$'}NEW_VER" ]; then
+                cp -f $base/mihomo $base/mihomo.prev
+                echo "${'$'}CUR_VER" > $base/.core_prev_version
+              fi
+              cp -f $base/mihomo $base/mihomo.bak
+            fi
             mv -f $base/mihomo.new $base/mihomo
             cp -f $c/scripts/*.sh $base/
             cp -f $c/v6ra $base/v6ra.new
@@ -81,6 +102,7 @@ class AssetInstaller(
             cp -f $c/GeoIP.dat $base/GeoIP.dat.new && mv -f $base/GeoIP.dat.new $base/GeoIP.dat
             cp -f $c/GeoSite.dat $base/GeoSite.dat.new && mv -f $base/GeoSite.dat.new $base/GeoSite.dat
             chmod 644 $base/GeoIP.dat $base/GeoSite.dat
+            echo "${'$'}NEW_VER" > $base/.core_version
             echo "$version" > $base/.app_version
             echo "$version" > $base/.geo_version
             echo installed
@@ -92,6 +114,48 @@ class AssetInstaller(
         return if (result.code == 0) Result.success(result.stdout.trim())
         else Result.failure(IllegalStateException(result.stdout.take(300)))
     }
+
+    override suspend fun currentVersion(): String = readVersion("$base/mihomo")
+
+    override suspend fun previousVersion(): String {
+        val marked = shell.run("cat $base/.core_prev_version 2>/dev/null").stdout.trim()
+        if (marked.isNotBlank()) return marked
+        val exists = shell.run("test -x $base/mihomo.prev && echo ok 2>/dev/null").stdout.trim()
+        if (exists != "ok") return ""
+        return readVersion("$base/mihomo.prev")
+    }
+
+    override suspend fun rollbackToPrevious(): Result<String> = installMutex.withLock {
+        val exists = shell.run("test -x $base/mihomo.prev && echo ok 2>/dev/null").stdout.trim()
+        if (exists != "ok") {
+            return@withLock Result.failure(IllegalStateException("没有可回退的内核"))
+        }
+        val command = """
+            PREV_VER=$($base/mihomo.prev -v 2>/dev/null | head -n1 | cut -d' ' -f3)
+            [ -n "${'$'}PREV_VER" ] || { echo "bad previous core"; exit 1; }
+            if [ -f $base/config.yaml ]; then
+              $base/mihomo.prev -t -d $base -f $base/config.yaml >/dev/null 2>&1 || {
+                echo "bad config"
+                exit 1
+              }
+            fi
+            [ -x $base/mihomo ] && cp -f $base/mihomo $base/mihomo.failed
+            cp -f $base/mihomo.prev $base/mihomo.new
+            chmod 755 $base/mihomo.new
+            mv -f $base/mihomo.new $base/mihomo
+            echo "${'$'}PREV_VER" > $base/.core_version
+            rm -f $base/.core_prev_version
+            rm -f $base/mihomo.prev
+            echo "${'$'}PREV_VER"
+        """.trimIndent()
+        val result = shell.run(command, 120_000)
+        if (result.code == 0) Result.success(result.stdout.trim())
+        else Result.failure(IllegalStateException(result.stdout.take(300)))
+    }
+
+    private suspend fun readVersion(binary: String): String =
+        shell.run("$binary -v 2>/dev/null | head -n1 | cut -d' ' -f3", 10_000)
+            .stdout.trim()
 
     private fun copyAsset(name: String, out: File) {
         out.parentFile?.mkdirs()

@@ -83,6 +83,7 @@ private fun SettingsMain(
     val busy by vm.busy.collectAsState()
     val ipv6RaBlocked by vm.ipv6RaBlocked.collectAsState()
     val coreVersion by vm.coreVersion.collectAsState()
+    val corePrevious by vm.corePrevious.collectAsState()
     val geoVersion by vm.geoVersion.collectAsState()
     val geoProgress by vm.geoProgress.collectAsState()
     LaunchedEffect(Unit) {
@@ -95,6 +96,7 @@ private fun SettingsMain(
     var showGeoUpdate by remember { mutableStateOf(false) }
     var showGeoInterval by remember { mutableStateOf(false) }
     var showGeoHistory by remember { mutableStateOf(false) }
+    var showCoreRollback by remember { mutableStateOf(false) }
     var showRestore by remember { mutableStateOf(false) }
     var restoreJson by remember { mutableStateOf("") }
     var showIpMode by remember { mutableStateOf(false) }
@@ -171,6 +173,19 @@ private fun SettingsMain(
                 title = "内核版本",
                 value = coreVersion.ifBlank { "未知" },
                 showChevron = false
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "上一内核",
+                value = corePrevious.ifBlank { "无" },
+                showChevron = false
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "回退上一内核",
+                subtitle = if (corePrevious.isBlank()) "暂无可回退版本" else "恢复到上一可用内核",
+                enabled = corePrevious.isNotBlank() && !busy,
+                onClick = { showCoreRollback = true }
             )
             SettingsDivider()
             SettingsRow(
@@ -337,6 +352,25 @@ private fun SettingsMain(
             },
             dismissButton = {
                 TextButton(onClick = { showRestore = false }) { Text("取消") }
+            }
+        )
+    }
+
+    if (showCoreRollback) {
+        AlertDialog(
+            onDismissRequest = { showCoreRollback = false },
+            title = { Text("回退内核") },
+            text = {
+                Text("将从 $coreVersion 回退到 $corePrevious，网关会短暂中断，配置和数据不会丢失。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCoreRollback = false
+                    vm.rollbackCore()
+                }) { Text("回退") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCoreRollback = false }) { Text("取消") }
             }
         )
     }

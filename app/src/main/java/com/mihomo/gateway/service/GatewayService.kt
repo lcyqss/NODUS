@@ -59,7 +59,9 @@ class GatewayService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification("网关服务运行中", true))
 
         scope.launch {
-            AppContainer.core.ensure().onFailure { Log.w(TAG, "install failed: ${it.message}") }
+            val install = AppContainer.core.ensure()
+            val installed = install.getOrNull()?.contains("installed") == true
+            install.onFailure { Log.w(TAG, "install failed: ${it.message}") }
 
             // 把 gateway.conf 中真实生效的配置同步回设置，避免界面与实际不一致
             runCatching {
@@ -72,7 +74,19 @@ class GatewayService : Service() {
             }.getOrDefault(true)
 
             if (desired) {
-                AppContainer.gateway.start().onFailure { Log.w(TAG, "start failed: ${it.message}") }
+                val started = AppContainer.gateway.start()
+                if (started.isFailure && installed) {
+                    val previous = AppContainer.core.previousVersion()
+                    if (previous.isNotBlank()) {
+                        Log.w(TAG, "new core failed, rollback to $previous")
+                        AppContainer.core.rollbackToPrevious().onSuccess {
+                            AppContainer.gateway.start()
+                        }.onFailure {
+                            Log.w(TAG, "core rollback failed: ${it.message}")
+                        }
+                    }
+                }
+                started.onFailure { Log.w(TAG, "start failed: ${it.message}") }
                 if (events == null) {
                     events = GatewayEvents(applicationContext).also { it.start() }
                 }

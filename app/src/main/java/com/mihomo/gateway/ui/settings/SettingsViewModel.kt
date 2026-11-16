@@ -2,6 +2,7 @@ package com.mihomo.gateway.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mihomo.gateway.core.CoreInstaller
 import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.data.repo.GeoDataRepository
@@ -27,6 +28,7 @@ class SettingsViewModel(
     private val geoData: GeoDataRepository = AppContainer.geoData,
     private val api: MihomoApi = AppContainer.api,
     private val ruleRepository: RuleRepository = AppContainer.rules,
+    private val core: CoreInstaller = AppContainer.core,
     private val shell: ShellExecutor = AppContainer.shell
 ) : ViewModel() {
 
@@ -41,7 +43,9 @@ class SettingsViewModel(
 
     private val _ipv6RaBlocked = MutableStateFlow(false)
     private val _coreVersion = MutableStateFlow("")
+    private val _corePrevious = MutableStateFlow("")
     val coreVersion: StateFlow<String> = _coreVersion.asStateFlow()
+    val corePrevious: StateFlow<String> = _corePrevious.asStateFlow()
     private val _geoVersion = MutableStateFlow("")
     private val _geoProgress = MutableStateFlow<Int?>(null)
     val geoVersion: StateFlow<String> = _geoVersion.asStateFlow()
@@ -70,12 +74,13 @@ class SettingsViewModel(
             val coreLine = shell.run("/data/adb/mihomo/mihomo -v 2>/dev/null", 10_000)
                 .stdout.lineSequence().firstOrNull { it.isNotBlank() }
                 .orEmpty().trim()
-            val core = coreLine.split(' ')
+            val coreName = coreLine.split(' ')
                 .firstOrNull { it.startsWith("v") && it.getOrNull(1)?.isDigit() == true }
                 ?: coreLine
             val geo = shell.run("cat /data/adb/mihomo/.geo_version 2>/dev/null", 10_000)
                 .stdout.trim()
-            _coreVersion.value = core.ifBlank { "未知" }
+            _corePrevious.value = runCatching { core.previousVersion() }.getOrDefault("")
+            _coreVersion.value = coreName.ifBlank { "未知" }
             _geoVersion.value = geo.ifBlank { "未知" }
         }
     }
@@ -268,10 +273,53 @@ class SettingsViewModel(
             val wasRunning = gateway.state.value.running
             if (wasRunning) gateway.stop()
             val result = profiles.installCore(force = true)
+            if (result.isFailure) {
+                if (wasRunning) gateway.start()
+                _message.value = "安装失败: ${result.exceptionOrNull()?.message}"
+            } else if (!wasRunning) {
+                _message.value = "核心已强制重装: ${result.getOrNull()}"
+            } else {
+                val started = gateway.start()
+                if (started.isSuccess) {
+                    _message.value = "核心已强制重装: ${result.getOrNull()}"
+                } else {
+                    val previous = core.previousVersion()
+                    if (previous.isBlank()) {
+                        _message.value = "新内核启动失败，且没有可回退版本"
+                    } else {
+                        val rolledBack = core.rollbackToPrevious()
+                        if (rolledBack.isSuccess) {
+                            gateway.start()
+                            _message.value = "新内核启动失败，已回退到 $previous"
+                        } else {
+                            _message.value = "新内核启动失败，回退也失败: ${rolledBack.exceptionOrNull()?.message}"
+                        }
+                    }
+                }
+            }
+            refreshComponentVersions()
+            _busy.value = false
+        }
+    }
+
+    fun rollbackCore() {
+        if (_busy.value) return
+        viewModelScope.launch {
+            _busy.value = true
+            _message.value = "正在回退内核…"
+            val previous = core.previousVersion()
+            if (previous.isBlank()) {
+                _message.value = "没有可回退的内核"
+                _busy.value = false
+                return@launch
+            }
+            val wasRunning = gateway.state.value.running
+            if (wasRunning) gateway.stop()
+            val result = core.rollbackToPrevious()
             if (wasRunning) gateway.start()
             _message.value = result.fold(
-                onSuccess = { "核心已强制重装: $it" },
-                onFailure = { "安装失败: ${it.message}" }
+                onSuccess = { "已回退到 $it" },
+                onFailure = { "回退失败: ${it.message}" }
             )
             refreshComponentVersions()
             _busy.value = false
