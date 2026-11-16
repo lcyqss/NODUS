@@ -67,30 +67,37 @@ class ProfileRepositoryImpl(
     /** 串行化配置写入：手动切换与后台自动更新可能同时触发。 */
     private val installMutex = Mutex()
 
+    private val fetchLocks = Array(16) { Mutex() }
+
     override suspend fun fetchToCache(profile: SubscriptionProfile): Result<ProfileFetch> =
         withContext(Dispatchers.IO) {
-            val url = profile.url.trim()
-            if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                return@withContext Result.failure(IllegalArgumentException("请输入 http(s) 订阅链接"))
-            }
-            val body = download(url).getOrElse { return@withContext Result.failure(it) }
-            val meta = runCatching { parseMeta(body) }.getOrElse { ProfileFetch(0, emptyList()) }
-            val cache = cacheFile(profile)
-            runCatching {
-                cache.parentFile?.mkdirs()
-                val tmp = File(cache.parentFile, "${cache.name}.tmp")
-                tmp.writeText(body)
-                if (cache.exists()) cache.delete()
-                if (!tmp.renameTo(cache)) {
-                    tmp.copyTo(cache, overwrite = true)
-                    tmp.delete()
-                }
-            }.onFailure { return@withContext Result.failure(it) }
-            updateProfileMeta(profile.id) {
-                it.copy(lastUpdateAt = System.currentTimeMillis(), nodeCount = meta.nodeCount)
-            }
-            Result.success(meta)
+            val lock = fetchLocks[Math.floorMod(profile.id.hashCode(), fetchLocks.size)]
+            lock.withLock { fetchToCacheLocked(profile) }
         }
+
+    private suspend fun fetchToCacheLocked(profile: SubscriptionProfile): Result<ProfileFetch> {
+        val url = profile.url.trim()
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return Result.failure(IllegalArgumentException("请输入 http(s) 订阅链接"))
+        }
+        val body = download(url).getOrElse { return Result.failure(it) }
+        val meta = runCatching { parseMeta(body) }.getOrElse { ProfileFetch(0, emptyList()) }
+        val cache = cacheFile(profile)
+        runCatching {
+            cache.parentFile?.mkdirs()
+            val tmp = File(cache.parentFile, "${cache.name}.tmp")
+            tmp.writeText(body)
+            if (cache.exists()) cache.delete()
+            if (!tmp.renameTo(cache)) {
+                tmp.copyTo(cache, overwrite = true)
+                tmp.delete()
+            }
+        }.onFailure { return Result.failure(it) }
+        updateProfileMeta(profile.id) {
+            it.copy(lastUpdateAt = System.currentTimeMillis(), nodeCount = meta.nodeCount)
+        }
+        return Result.success(meta)
+    }
 
     override suspend fun installFromCache(profile: SubscriptionProfile): Result<Unit> =
         withContext(Dispatchers.IO) {
