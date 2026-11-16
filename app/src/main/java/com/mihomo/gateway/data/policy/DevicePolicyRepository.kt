@@ -246,6 +246,7 @@ class DevicePolicyRepositoryImpl(
         val subRules = mutableListOf<Pair<String, List<String>>>()
         val listeners = mutableListOf<String>()
         val macLines = StringBuilder()
+        val directDns = StringBuilder()
         val baseText = DevicePolicyConfig.normalizeDnsListen(DevicePolicyConfig.strip(original))
         val globalRules = parseGlobalRules(baseText)
 
@@ -254,6 +255,7 @@ class DevicePolicyRepositoryImpl(
             val mode = plan.policy.mode
             val mac = plan.policy.mac.lowercase()
             if (mode == DeviceRoutingMode.DIRECT) {
+                plan.ipv6s.forEach { directDns.append(it).append('\n') }
                 macLines.append(mac).append('\t').append("direct")
                     .append('\t').append(0).append('\t').append(0)
                     .append('\t').append(plan.ip.orEmpty()).append('\n')
@@ -288,7 +290,7 @@ class DevicePolicyRepositoryImpl(
 
         // 内容没有变化就不要重写配置/备份，避免无意义的 IO 与 flash 写入
         if (text.trimEnd('\n') == original.trimEnd('\n')) {
-            writeMacRules(macLines.toString()).getOrElse { return@withContext Result.failure(it) }
+            writeMacRules(macLines.toString(), directDns.toString()).getOrElse { return@withContext Result.failure(it) }
             appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s, it.policy.mode, it.targetGroup) }
             return@withContext Result.success(Unit)
         }
@@ -303,7 +305,7 @@ class DevicePolicyRepositoryImpl(
             20_000
         )
         if (replace.code == 0) {
-            writeMacRules(macLines.toString()).getOrElse { return@withContext Result.failure(it) }
+            writeMacRules(macLines.toString(), directDns.toString()).getOrElse { return@withContext Result.failure(it) }
             appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s, it.policy.mode, it.targetGroup) }
             Result.success(Unit)
         } else Result.failure(IllegalStateException("写入配置失败"))
@@ -467,15 +469,22 @@ class DevicePolicyRepositoryImpl(
         mode: DeviceRoutingMode,
         target: String?
     ): String = "${mode.name}|${target.orEmpty()}|${ip.orEmpty()}|${ipv6s.sorted().joinToString(",")}"
-    private suspend fun writeMacRules(content: String): Result<Unit> {
+    private suspend fun writeMacRules(content: String, directDns: String): Result<Unit> {
         val file = File(context.cacheDir, "mac-policy.tsv")
-        return runCatching { file.writeText(content) }
-            .mapCatching {
-                val copy = shell.run("cp -f ${file.absolutePath} $base/mac-policy.tsv", 10_000)
-                if (copy.code != 0) error("写入 MAC 策略失败")
-                shell.run("sh $base/apply.sh", 30_000)
-                Unit
-            }
+        val dnsFile = File(context.cacheDir, "direct-dns.txt")
+        return runCatching {
+            file.writeText(content)
+            dnsFile.writeText(directDns)
+        }.mapCatching {
+            val copy = shell.run(
+                "cp -f ${file.absolutePath} $base/mac-policy.tsv && " +
+                    "cp -f ${dnsFile.absolutePath} $base/direct-dns.txt",
+                10_000
+            )
+            if (copy.code != 0) error("写入 MAC 策略失败")
+            shell.run("sh $base/apply.sh", 30_000)
+            Unit
+        }
     }
 
     private suspend fun coreRunning(): Boolean =

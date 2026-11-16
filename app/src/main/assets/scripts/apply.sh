@@ -40,6 +40,15 @@ $IP6 -w -F MIHOMO6_FWD
 for IF in $(list_gateways); do
   NET=$(iface_net "$IF")
   [ -z "$NET" ] && continue
+  if [ -f "$MACFILE" ]; then
+    TAB=$(printf '\t')
+    while IFS="$TAB" read -r MAC MODE P4 P6 IP4; do
+      [ -z "$MAC" ] && continue
+      [ "$MODE" = "direct" ] || continue
+      $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp -m mac --mac-source "$MAC" -j RETURN
+      $IPT -w -A MIHOMO_FWD -i "$IF" -m mac --mac-source "$MAC" -p udp --dport 443 -j RETURN
+    done < "$MACFILE"
+  fi
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p udp --dport 53 -j REDIRECT --to-ports 1053
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp --dport 53 -j REDIRECT --to-ports 1053
   if [ -f "$MACFILE" ]; then

@@ -13,6 +13,7 @@ DNSRELAY=$BASE/v6dns
 LOG=$BASE/ipv6.log
 LOCK=$BASE/.ipv6.lock
 DNS_BAK=$BASE/.dns-listen.bak
+DIRECT_DNS=$BASE/direct-dns.txt
 MACFILE=$BASE/mac-policy.tsv
 
 ULA_PREFIX=fd00:1234::/64
@@ -133,7 +134,7 @@ start_dnsrelay() {
   [ -x "$DNSRELAY" ] || return 0
   PIDFILE="$BASE/v6dns.pid"
   [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null
-  setsid "$DNSRELAY" -l "$ULA_ADDR" -u 127.0.0.1:1053 \
+  setsid "$DNSRELAY" -l "$ULA_ADDR" -u 127.0.0.1:1053 -b "$DIRECT_DNS" -r 127.0.0.1:53 \
     >"$BASE/v6dns.log" 2>&1 &
   echo $! > "$PIDFILE"
   log "dns relay started pid=$(cat "$PIDFILE")"
