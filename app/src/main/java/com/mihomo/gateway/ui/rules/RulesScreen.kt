@@ -1,6 +1,5 @@
 package com.mihomo.gateway.ui.rules
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -67,7 +66,6 @@ import com.mihomo.gateway.model.RuleKind
 import com.mihomo.gateway.ui.components.EmptyState
 import com.mihomo.gateway.ui.components.SegmentedControl
 import com.mihomo.gateway.ui.components.SearchBar
-import com.mihomo.gateway.ui.components.SectionCard
 import com.mihomo.gateway.ui.icons.GwIcon
 import com.mihomo.gateway.ui.policy.DevicePolicyScreen
 import com.mihomo.gateway.ui.policy.DevicePolicyViewModel
@@ -85,16 +83,7 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
     var showAdd by remember { mutableStateOf(false) }
     var showSheet by remember { mutableStateOf(false) }
     var editingRule by remember { mutableStateOf<CustomRule?>(null) }
-    var showPolicy by remember { mutableStateOf(false) }
     val policyVm: DevicePolicyViewModel = viewModel()
-    val policies by policyVm.policies.collectAsState()
-
-    BackHandler(enabled = showPolicy) { showPolicy = false }
-
-    if (showPolicy) {
-        DevicePolicyScreen(onBack = { showPolicy = false }, vm = policyVm)
-        return
-    }
 
     // 操作提示几秒后自动消失，避免“记得应用”之类文案一直挂着
     LaunchedEffect(state.message) {
@@ -114,33 +103,11 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
         Spacer(Modifier.height(12.dp))
 
         if (section == 0) {
-            val enabled = policies.count { it.enabled }
-            SectionCard {
-                Text("设备策略", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "按设备 MAC 选择节点标签，条件不满足时回落。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "$enabled / ${policies.size} 条已启用",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            "设备策略与分流规则相互独立",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Button(onClick = { showPolicy = true }) { Text("管理") }
-                }
-                Text(
-                    "设备策略决定某台设备的出口节点；规则决定流量如何匹配。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            Box(Modifier.weight(1f)) {
+                DevicePolicyScreen(
+                    onBack = {},
+                    vm = policyVm,
+                    embedded = true
                 )
             }
         } else {

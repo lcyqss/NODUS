@@ -68,7 +68,8 @@ import java.util.UUID
 @Composable
 fun DevicePolicyScreen(
     onBack: () -> Unit,
-    vm: DevicePolicyViewModel
+    vm: DevicePolicyViewModel,
+    embedded: Boolean = false
 ) {
     val policies by vm.policies.collectAsState()
     val runtime by vm.runtime.collectAsState()
@@ -131,34 +132,56 @@ fun DevicePolicyScreen(
     }
 
     val runtimeById = runtime.associateBy { it.policy.id }
+    val headerActions: @Composable () -> Unit = {
+        if (busy) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+            IconButton(onClick = { vm.reapply() }) {
+                GwIcon(GwIcon.Refresh, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = {
+                editing = DevicePolicy(
+                    id = UUID.randomUUID().toString(),
+                    mac = "",
+                    label = ""
+                )
+            }) {
+                GwIcon(GwIcon.Plus, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(if (embedded) 0.dp else 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        SubPageHeader(
-            title = "设备策略",
-            subtitle = "按设备选择标签表达式，主条件不满足时回落",
-            onBack = onBack
-        ) {
-            if (busy) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-            } else {
-                IconButton(onClick = { vm.reapply() }) {
-                    GwIcon(GwIcon.Refresh, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                IconButton(onClick = {
-                    editing = DevicePolicy(
-                        id = UUID.randomUUID().toString(),
-                        mac = "",
-                        label = ""
+        if (embedded) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "${policies.size} 条策略 · ${policies.count { it.enabled }} 条启用",
+                        style = MaterialTheme.typography.titleMedium
                     )
-                }) {
-                    GwIcon(GwIcon.Plus, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text(
+                        "按设备 MAC 选择节点标签，条件不满足时回落",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+                headerActions()
             }
+        } else {
+            SubPageHeader(
+                title = "设备策略",
+                subtitle = "按设备选择标签表达式，主条件不满足时回落",
+                onBack = onBack,
+                actions = { headerActions() }
+            )
         }
 
         Spacer(Modifier.height(8.dp))
