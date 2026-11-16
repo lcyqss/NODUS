@@ -86,11 +86,13 @@ private fun SettingsMain(
     val corePrevious by vm.corePrevious.collectAsState()
     val coreUpdate by vm.coreUpdate.collectAsState()
     val coreProgress by vm.coreProgress.collectAsState()
+    val health by vm.health.collectAsState()
     val geoVersion by vm.geoVersion.collectAsState()
     val geoProgress by vm.geoProgress.collectAsState()
     LaunchedEffect(Unit) {
         vm.refreshIpv6Capability()
         vm.refreshComponentVersions()
+        vm.refreshHealth()
     }
     val runtimeMode by vm.runtimeMode.collectAsState()
     val context = LocalContext.current
@@ -99,6 +101,7 @@ private fun SettingsMain(
     var showGeoInterval by remember { mutableStateOf(false) }
     var showGeoHistory by remember { mutableStateOf(false) }
     var showCoreRollback by remember { mutableStateOf(false) }
+    var showHealth by remember { mutableStateOf(false) }
     var showRestore by remember { mutableStateOf(false) }
     var restoreJson by remember { mutableStateOf("") }
     var showIpMode by remember { mutableStateOf(false) }
@@ -294,6 +297,19 @@ private fun SettingsMain(
                 subtitle = "root 命令与内核状态",
                 onClick = onDiagnostics
             )
+            SettingsDivider()
+            SettingsRow(
+                title = "运行健康",
+                value = when {
+                    health == null -> "未检查"
+                    health!!.ok -> "正常"
+                    else -> "异常"
+                },
+                onClick = {
+                    showHealth = true
+                    vm.refreshHealth()
+                }
+            )
         }
 
         Spacer(Modifier.height(24.dp))
@@ -365,6 +381,31 @@ private fun SettingsMain(
             },
             dismissButton = {
                 TextButton(onClick = { showRestore = false }) { Text("取消") }
+            }
+        )
+    }
+
+    if (showHealth) {
+        AlertDialog(
+            onDismissRequest = { showHealth = false },
+            title = { Text("运行健康") },
+            text = {
+                val h = health
+                Text(
+                    if (h == null) {
+                        "尚未检查"
+                    } else {
+                        buildString {
+                            appendLine("DNS 1053：${if (h.dns) "正常" else "异常"}")
+                            appendLine("网关端口：${if (h.ports) "正常" else "异常"}")
+                            appendLine("代理 204：${if (h.proxy) "正常" else "异常"}")
+                            append(h.detail)
+                        }
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showHealth = false }) { Text("关闭") }
             }
         )
     }

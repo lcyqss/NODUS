@@ -87,6 +87,15 @@ class GatewayService : Service() {
                     }
                 }
                 started.onFailure { Log.w(TAG, "start failed: ${it.message}") }
+                if (AppContainer.gateway.state.value.running) {
+                    runCatching {
+                        val report = AppContainer.health.check()
+                        Log.i(
+                            TAG,
+                            "health dns=${report.dns} ports=${report.ports} proxy=${report.proxy} ${report.detail}"
+                        )
+                    }.onFailure { Log.w(TAG, "health check failed: ${it.message}") }
+                }
                 if (events == null) {
                     events = GatewayEvents(applicationContext).also { it.start() }
                 }

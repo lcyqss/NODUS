@@ -3,6 +3,8 @@ package com.mihomo.gateway.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.core.CoreInstaller
+import com.mihomo.gateway.core.GatewayHealthChecker
+import com.mihomo.gateway.core.HealthReport
 import com.mihomo.gateway.data.repo.CoreUpdateInfo
 import com.mihomo.gateway.data.repo.CoreUpdateRepository
 import com.mihomo.gateway.core.ShellExecutor
@@ -32,6 +34,7 @@ class SettingsViewModel(
     private val ruleRepository: RuleRepository = AppContainer.rules,
     private val core: CoreInstaller = AppContainer.core,
     private val coreUpdates: CoreUpdateRepository = AppContainer.coreUpdates,
+    private val healthChecker: GatewayHealthChecker = AppContainer.health,
     private val shell: ShellExecutor = AppContainer.shell
 ) : ViewModel() {
 
@@ -49,10 +52,12 @@ class SettingsViewModel(
     private val _corePrevious = MutableStateFlow("")
     private val _coreUpdate = MutableStateFlow<CoreUpdateInfo?>(null)
     private val _coreProgress = MutableStateFlow<Int?>(null)
+    private val _health = MutableStateFlow<HealthReport?>(null)
     val coreVersion: StateFlow<String> = _coreVersion.asStateFlow()
     val corePrevious: StateFlow<String> = _corePrevious.asStateFlow()
     val coreUpdate: StateFlow<CoreUpdateInfo?> = _coreUpdate.asStateFlow()
     val coreProgress: StateFlow<Int?> = _coreProgress.asStateFlow()
+    val health: StateFlow<HealthReport?> = _health.asStateFlow()
     private val _geoVersion = MutableStateFlow("")
     private val _geoProgress = MutableStateFlow<Int?>(null)
     val geoVersion: StateFlow<String> = _geoVersion.asStateFlow()
@@ -108,6 +113,16 @@ class SettingsViewModel(
                 if (it.ipv6Gateway == conf.ipv6Gateway && it.blockIpv6 == conf.blockIpv6) it
                 else it.copy(ipv6Gateway = conf.ipv6Gateway, blockIpv6 = conf.blockIpv6)
             }
+        }
+    }
+
+    fun refreshHealth() {
+        viewModelScope.launch {
+            if (!gateway.state.value.running) {
+                _health.value = HealthReport(false, false, false, "网关未运行")
+                return@launch
+            }
+            _health.value = healthChecker.check()
         }
     }
 

@@ -3,6 +3,7 @@ package com.mihomo.gateway.di
 import android.content.Context
 import com.mihomo.gateway.core.AssetInstaller
 import com.mihomo.gateway.core.CoreInstaller
+import com.mihomo.gateway.core.GatewayHealthChecker
 import com.mihomo.gateway.core.NeighborResolver
 import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.core.ShellExecutorImpl
@@ -56,6 +57,8 @@ object AppContainer {
         private set
     lateinit var core: CoreInstaller
         private set
+    lateinit var health: GatewayHealthChecker
+        private set
     lateinit var neighbors: NeighborResolver
         private set
     lateinit var rules: RuleRepository
@@ -82,6 +85,7 @@ object AppContainer {
         gateway = GatewayControllerImpl(shell, api, base = BASE)
         settings = SettingsStoreImpl(app)
         core = AssetInstaller(app, shell, base = BASE)
+        health = GatewayHealthChecker(shell)
         neighbors = NeighborResolver(shell)
         rules = RuleRepositoryImpl(app, shell, api, RuleStore(app), base = BASE)
         val nodeCatalog: NodeCatalogRepository = NodeCatalogRepositoryImpl(app, settings)
