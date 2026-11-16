@@ -79,10 +79,16 @@ private fun SettingsMain(
     val message by vm.message.collectAsState()
     val busy by vm.busy.collectAsState()
     val ipv6RaBlocked by vm.ipv6RaBlocked.collectAsState()
-    LaunchedEffect(Unit) { vm.refreshIpv6Capability() }
+    val coreVersion by vm.coreVersion.collectAsState()
+    val geoVersion by vm.geoVersion.collectAsState()
+    LaunchedEffect(Unit) {
+        vm.refreshIpv6Capability()
+        vm.refreshComponentVersions()
+    }
     val runtimeMode by vm.runtimeMode.collectAsState()
     val context = LocalContext.current
     var showCleanup by remember { mutableStateOf(false) }
+    var showGeoUpdate by remember { mutableStateOf(false) }
     var showRestore by remember { mutableStateOf(false) }
     var restoreJson by remember { mutableStateOf("") }
     var showIpMode by remember { mutableStateOf(false) }
@@ -201,8 +207,27 @@ private fun SettingsMain(
             )
             SettingsDivider()
             SettingsRow(
+                title = "内核版本",
+                value = coreVersion.ifBlank { "未知" },
+                showChevron = false
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "Geo 数据",
+                value = geoVersion.ifBlank { "未知" },
+                showChevron = false
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "更新 Geo 数据",
+                subtitle = "从官方源下载最新 GeoIP / GeoSite",
+                enabled = !busy,
+                onClick = { showGeoUpdate = true }
+            )
+            SettingsDivider()
+            SettingsRow(
                 title = "重新安装内核",
-                subtitle = "从 APK 资源重新解压内核与脚本",
+                subtitle = "强制从 APK 重装内核、脚本和 Geo 数据",
                 enabled = !busy,
                 onClick = { vm.installCore() }
             )
@@ -279,6 +304,25 @@ private fun SettingsMain(
             },
             dismissButton = {
                 TextButton(onClick = { showRestore = false }) { Text("取消") }
+            }
+        )
+    }
+
+    if (showGeoUpdate) {
+        AlertDialog(
+            onDismissRequest = { showGeoUpdate = false },
+            title = { Text("更新 Geo 数据") },
+            text = {
+                Text("将从官方源下载 GeoIP / GeoSite，更新期间会短暂重启内核。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showGeoUpdate = false
+                    vm.updateGeo()
+                }) { Text("开始更新") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGeoUpdate = false }) { Text("取消") }
             }
         )
     }

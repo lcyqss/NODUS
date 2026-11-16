@@ -1,11 +1,13 @@
 package com.mihomo.gateway.core
 
 import android.content.Context
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 interface CoreInstaller {
     /** 首次或版本变化时把 assets 中的内核/脚本/模板解压到 /data/adb/mihomo。 */
-    suspend fun ensure(): Result<String>
+    suspend fun ensure(force: Boolean = false): Result<String>
 }
 
 class AssetInstaller(
@@ -14,14 +16,21 @@ class AssetInstaller(
     private val base: String = "/data/adb/mihomo"
 ) : CoreInstaller {
 
-    override suspend fun ensure(): Result<String> {
+    private val installMutex = Mutex()
+
+    override suspend fun ensure(force: Boolean): Result<String> = installMutex.withLock {
+        ensureLocked(force)
+    }
+
+    private suspend fun ensureLocked(force: Boolean): Result<String> {
         val version = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: "0"
 
         val marker = shell.run("cat $base/.app_version 2>/dev/null").stdout.trim()
         val binaryOk = shell.run("test -x $base/mihomo && echo ok 2>/dev/null").stdout.trim() == "ok"
-        if (marker == version && binaryOk) {
+        val geoMarker = shell.run("cat $base/.geo_version 2>/dev/null").stdout.trim()
+        if (!force && marker == version && geoMarker == version && binaryOk) {
             return Result.success("核心已是 $version")
         }
 
@@ -49,6 +58,8 @@ class AssetInstaller(
             mkdir -p $base
             cp -f $c/mihomo $base/mihomo.new
             chmod 755 $base/mihomo.new
+            $base/mihomo.new -v >/dev/null 2>&1 || { rm -f $base/mihomo.new; echo "bad core"; exit 1; }
+            [ -f $base/mihomo ] && cp -f $base/mihomo $base/mihomo.bak
             mv -f $base/mihomo.new $base/mihomo
             cp -f $c/scripts/*.sh $base/
             cp -f $c/v6ra $base/v6ra.new
@@ -63,9 +74,15 @@ class AssetInstaller(
             chmod 755 $base/mihomo $base/*.sh $base/v6ra $base/v6dhcp $base/v6dns
             [ -f $base/config.yaml ] || cp -f $c/config.template.yaml $base/config.yaml
             [ -f $base/gateway.conf ] || cp -f $c/gateway.conf $base/gateway.conf
-            [ -f $base/GeoSite.dat ] || cp -f $c/GeoSite.dat $base/GeoSite.dat
-            [ -f $base/GeoIP.dat ] || cp -f $c/GeoIP.dat $base/GeoIP.dat
+            [ -s $c/GeoIP.dat ] || { echo "bad geoip"; exit 1; }
+            [ -s $c/GeoSite.dat ] || { echo "bad geosite"; exit 1; }
+            [ -f $base/GeoIP.dat ] && cp -f $base/GeoIP.dat $base/GeoIP.dat.bak
+            [ -f $base/GeoSite.dat ] && cp -f $base/GeoSite.dat $base/GeoSite.dat.bak
+            cp -f $c/GeoIP.dat $base/GeoIP.dat.new && mv -f $base/GeoIP.dat.new $base/GeoIP.dat
+            cp -f $c/GeoSite.dat $base/GeoSite.dat.new && mv -f $base/GeoSite.dat.new $base/GeoSite.dat
+            chmod 644 $base/GeoIP.dat $base/GeoSite.dat
             echo "$version" > $base/.app_version
+            echo "$version" > $base/.geo_version
             echo installed
         """.trimIndent()
 

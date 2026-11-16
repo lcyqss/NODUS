@@ -2,7 +2,9 @@ package com.mihomo.gateway.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.data.api.MihomoApi
+import com.mihomo.gateway.data.repo.GeoDataRepository
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.ProfileRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,8 +24,10 @@ class SettingsViewModel(
     private val store: SettingsStore = AppContainer.settings,
     private val gateway: GatewayController = AppContainer.gateway,
     private val profiles: ProfileRepository = AppContainer.profiles,
+    private val geoData: GeoDataRepository = AppContainer.geoData,
     private val api: MihomoApi = AppContainer.api,
-    private val ruleRepository: RuleRepository = AppContainer.rules
+    private val ruleRepository: RuleRepository = AppContainer.rules,
+    private val shell: ShellExecutor = AppContainer.shell
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = store.settings
@@ -36,6 +40,10 @@ class SettingsViewModel(
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
     private val _ipv6RaBlocked = MutableStateFlow(false)
+    private val _coreVersion = MutableStateFlow("")
+    val coreVersion: StateFlow<String> = _coreVersion.asStateFlow()
+    private val _geoVersion = MutableStateFlow("")
+    val geoVersion: StateFlow<String> = _geoVersion.asStateFlow()
     val ipv6RaBlocked: StateFlow<Boolean> = _ipv6RaBlocked.asStateFlow()
 
     fun refreshIpv6Capability() {
@@ -53,6 +61,21 @@ class SettingsViewModel(
 
     fun clearMessage() {
         _message.value = null
+    }
+
+    fun refreshComponentVersions() {
+        viewModelScope.launch {
+            val coreLine = shell.run("/data/adb/mihomo/mihomo -v 2>/dev/null", 10_000)
+                .stdout.lineSequence().firstOrNull { it.isNotBlank() }
+                .orEmpty().trim()
+            val core = coreLine.split(' ')
+                .firstOrNull { it.startsWith("v") && it.getOrNull(1)?.isDigit() == true }
+                ?: coreLine
+            val geo = shell.run("cat /data/adb/mihomo/.geo_version 2>/dev/null", 10_000)
+                .stdout.trim()
+            _coreVersion.value = core.ifBlank { "未知" }
+            _geoVersion.value = geo.ifBlank { "未知" }
+        }
     }
 
     private val _runtimeMode = MutableStateFlow("rule")
@@ -240,10 +263,32 @@ class SettingsViewModel(
         viewModelScope.launch {
             _busy.value = true
             _message.value = "安装中…"
-            val result = profiles.installCore()
+            val wasRunning = gateway.state.value.running
+            if (wasRunning) gateway.stop()
+            val result = profiles.installCore(force = true)
+            if (wasRunning) gateway.start()
             _message.value = result.fold(
-                onSuccess = { "核心: $it" },
+                onSuccess = { "核心已强制重装: $it" },
                 onFailure = { "安装失败: ${it.message}" }
+            )
+            refreshComponentVersions()
+            _busy.value = false
+        }
+    }
+
+    fun updateGeo() {
+        if (_busy.value) return
+        viewModelScope.launch {
+            _busy.value = true
+            _message.value = "正在更新 Geo 数据…"
+            val wasRunning = gateway.state.value.running
+            if (wasRunning) gateway.stop()
+            val result = geoData.update()
+            if (wasRunning) gateway.start()
+            refreshComponentVersions()
+            _message.value = result.fold(
+                onSuccess = { "Geo 数据已更新: ${it.version}" },
+                onFailure = { "Geo 更新失败: ${it.message}" }
             )
             _busy.value = false
         }

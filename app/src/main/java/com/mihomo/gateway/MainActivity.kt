@@ -7,9 +7,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.service.GatewayService
 import com.mihomo.gateway.ui.nav.AppNav
 import com.mihomo.gateway.ui.theme.GatewayTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,7 +24,10 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
         )
-        startForegroundService(Intent(this, GatewayService::class.java))
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { AppContainer.core.ensure() }
+            startForegroundService(Intent(this@MainActivity, GatewayService::class.java))
+        }
         setContent {
             GatewayTheme {
                 AppNav()

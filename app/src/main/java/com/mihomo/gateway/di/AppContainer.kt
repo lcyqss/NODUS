@@ -17,6 +17,8 @@ import com.mihomo.gateway.data.tags.NodeTagRepository
 import com.mihomo.gateway.data.tags.ConditionTemplateRepository
 import com.mihomo.gateway.data.tags.ConditionTemplateRepositoryImpl
 import com.mihomo.gateway.data.tags.NodeTagRepositoryImpl
+import com.mihomo.gateway.data.repo.GeoDataRepository
+import com.mihomo.gateway.data.repo.GeoDataRepositoryImpl
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.GatewayControllerImpl
 import com.mihomo.gateway.data.repo.ProfileRepository
@@ -43,6 +45,7 @@ object AppContainer {
         private set
     lateinit var gateway: GatewayController
         private set
+    lateinit var geoData: GeoDataRepository
     lateinit var profiles: ProfileRepository
         private set
     lateinit var settings: SettingsStore
@@ -91,6 +94,7 @@ object AppContainer {
             api = api,
             base = BASE
         )
+        geoData = GeoDataRepositoryImpl(app, shell, base = BASE)
         profiles = ProfileRepositoryImpl(
             context = app,
             shell = shell,

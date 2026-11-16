@@ -45,7 +45,7 @@ interface ProfileRepository {
     suspend fun deleteCache(profile: SubscriptionProfile)
 
     suspend fun reload(): Result<Unit>
-    suspend fun installCore(): Result<String>
+    suspend fun installCore(force: Boolean = false): Result<String>
 }
 
 class ProfileRepositoryImpl(
@@ -171,7 +171,7 @@ class ProfileRepositoryImpl(
         }
     }
 
-    override suspend fun installCore(): Result<String> = coreInstaller.ensure()
+    override suspend fun installCore(force: Boolean): Result<String> = coreInstaller.ensure(force)
 
     // ---------- 内部 ----------
 
