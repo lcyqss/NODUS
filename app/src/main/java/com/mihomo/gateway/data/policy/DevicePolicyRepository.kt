@@ -14,6 +14,7 @@ import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.TagExpr
 import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.DevicePolicyCodec
+import com.mihomo.gateway.model.DeviceRoutingMode
 import com.mihomo.gateway.model.DeviceSelector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -134,7 +135,8 @@ class DevicePolicyRepositoryImpl(
             val error = when {
                 !policy.enabled -> null
                 missingTag -> "引用的标签已被删除"
-                primary.isEmpty() && fallback.isEmpty() -> "没有匹配的节点"
+                policy.mode != DeviceRoutingMode.DIRECT &&
+                    primary.isEmpty() && fallback.isEmpty() -> "没有匹配的节点"
                 ip == null && ipv6 == null -> "设备未在线（未解析到 IP）"
                 else -> null
             }
@@ -145,7 +147,9 @@ class DevicePolicyRepositoryImpl(
                 ipv6s = ipv6s,
                 primaryNodes = primary,
                 fallbackNodes = fallback,
-                targetGroup = if (error == null) groupTarget(policy, primary, fallback) else null,
+                targetGroup = if (error == null && policy.mode != DeviceRoutingMode.DIRECT) {
+                    groupTarget(policy, primary, fallback)
+                } else null,
                 error = error
             )
         }
@@ -202,6 +206,7 @@ class DevicePolicyRepositoryImpl(
         val defaultSec = settings.settings.first().policyIntervalSec.coerceIn(30, 300)
         val plans = runtime().filter {
             it.policy.enabled &&
+                it.policy.mode != DeviceRoutingMode.DIRECT &&
                 it.policy.maxDelayMs > 0 &&
                 it.primaryNodes.isNotEmpty() &&
                 it.fallbackNodes.isNotEmpty()
@@ -233,7 +238,9 @@ class DevicePolicyRepositoryImpl(
 
         val plans = runtime()
         val enabledPlans = plans.filter { it.policy.enabled }
-        val matchedPlans = enabledPlans.filter { it.targetGroup != null }
+        val matchedPlans = enabledPlans.filter {
+            it.policy.mode == DeviceRoutingMode.DIRECT || it.targetGroup != null
+        }
         // 有策略能匹配到节点、但设备全部离线：保留现有配置，避免临时离线把策略块清空
         if (matchedPlans.any { it.ip == null && it.ipv6 == null }) {
             return@withContext Result.failure(
@@ -243,16 +250,40 @@ class DevicePolicyRepositoryImpl(
         val validPlans = matchedPlans.filter { it.ip != null || it.ipv6 != null }
         val groups = mutableListOf<String>()
         val rules = mutableListOf<String>()
+        val tailRules = mutableListOf<String>()
         val listeners = mutableListOf<String>()
         val macLines = StringBuilder()
         validPlans.forEach { plan ->
-            groups += buildGroups(plan)
-            rules += ruleLine(plan.ip ?: "", plan.targetGroup)
-            rules += ruleLine(plan.ipv6 ?: "", plan.targetGroup)
-            plan.ipv6s.drop(1).forEach { rules += ruleLine(it, plan.targetGroup) }
+            val mode = plan.policy.mode
+            if (mode != DeviceRoutingMode.DIRECT) {
+                groups += buildGroups(plan)
+            }
+            val targets = if (mode == DeviceRoutingMode.DIRECT) {
+                listOf("DIRECT")
+            } else {
+                listOf(plan.targetGroup ?: return@forEach)
+            }
+            val target = targets.first()
+            val destination = when (mode) {
+                DeviceRoutingMode.DIRECT -> "DIRECT"
+                DeviceRoutingMode.GLOBAL -> target
+                DeviceRoutingMode.RULE -> target
+            }
+            val lines = mutableListOf<String>()
+            lines += ruleLine(plan.ip ?: "", destination)
+            lines += ruleLine(plan.ipv6 ?: "", destination)
+            plan.ipv6s.drop(1).forEach { lines += ruleLine(it, destination) }
+            if (mode == DeviceRoutingMode.RULE) {
+                tailRules += lines
+            } else {
+                rules += lines
+            }
         }
-        // MAC listeners are limited to 80 devices; extra devices keep SRC-IP fallback.
-        validPlans.filter { it.targetGroup != null && it.policy.mac.isNotBlank() }
+        // MAC listeners only for full-proxy mode; rule/direct use SRC-IP rules.
+        validPlans.filter {
+            it.policy.mode == DeviceRoutingMode.GLOBAL &&
+                it.targetGroup != null && it.policy.mac.isNotBlank()
+        }
             .take(80)
             .forEachIndexed { index, plan ->
                 val port = 7910 + index
@@ -267,12 +298,13 @@ class DevicePolicyRepositoryImpl(
         var text = DevicePolicyConfig.strip(original)
         text = DevicePolicyConfig.injectGroups(text, groups)
         text = DevicePolicyConfig.injectRules(text, rules)
+        text = DevicePolicyConfig.injectTailRules(text, tailRules)
         text = DevicePolicyConfig.injectListeners(text, listeners)
 
         // 内容没有变化就不要重写配置/备份，避免无意义的 IO 与 flash 写入
         if (text.trimEnd('\n') == original.trimEnd('\n')) {
             writeMacRules(macLines.toString()).getOrElse { return@withContext Result.failure(it) }
-            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s) }
+            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s, it.policy.mode) }
             return@withContext Result.success(Unit)
         }
 
@@ -287,7 +319,7 @@ class DevicePolicyRepositoryImpl(
         )
         if (replace.code == 0) {
             writeMacRules(macLines.toString()).getOrElse { return@withContext Result.failure(it) }
-            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s) }
+            appliedIps = validPlans.associate { it.policy.id to appliedKey(it.ip, it.ipv6s, it.policy.mode) }
             Result.success(Unit)
         } else Result.failure(IllegalStateException("写入配置失败"))
     }
@@ -297,11 +329,13 @@ class DevicePolicyRepositoryImpl(
             return@withContext Result.success(false)
         }
         val plans = runtime().filter {
-            it.policy.enabled && it.targetGroup != null && (it.ip != null || it.ipv6 != null)
+            it.policy.enabled &&
+                (it.policy.mode == DeviceRoutingMode.DIRECT || it.targetGroup != null) &&
+                (it.ip != null || it.ipv6 != null)
         }
         if (plans.isEmpty()) return@withContext Result.success(false)
         if (appliedIps == null) appliedIps = readAppliedIps()
-        val changed = plans.any { appliedIps?.get(it.policy.id) != appliedKey(it.ip, it.ipv6s) }
+        val changed = plans.any { appliedIps?.get(it.policy.id) != appliedKey(it.ip, it.ipv6s, it.policy.mode) }
         if (!changed) return@withContext Result.success(false)
 
         val applied = applyToConfig()
@@ -343,7 +377,7 @@ class DevicePolicyRepositoryImpl(
                 }
             }
             if (ip != null || ipv6s.isNotEmpty()) {
-                result[policy.id] = appliedKey(ip, ipv6s)
+                result[policy.id] = appliedKey(ip, ipv6s, policy.mode)
             }
         }
         return result
@@ -416,8 +450,8 @@ class DevicePolicyRepositoryImpl(
         else "SRC-IP-CIDR,$ip/32,$target"
     }
 
-    private fun appliedKey(ip: String?, ipv6s: List<String>): String =
-        "${ip.orEmpty()}|${ipv6s.sorted().joinToString(",")}"
+    private fun appliedKey(ip: String?, ipv6s: List<String>, mode: DeviceRoutingMode): String =
+        "${mode.name}|${ip.orEmpty()}|${ipv6s.sorted().joinToString(",")}"
     private suspend fun writeMacRules(content: String): Result<Unit> {
         val file = File(context.cacheDir, "mac-policy.tsv")
         return runCatching { file.writeText(content) }

@@ -46,6 +46,7 @@ import com.mihomo.gateway.data.catalog.DeviceTarget
 import com.mihomo.gateway.data.catalog.NodeInfo
 import com.mihomo.gateway.model.ConditionTemplate
 import com.mihomo.gateway.model.DevicePolicy
+import com.mihomo.gateway.model.DeviceRoutingMode
 import com.mihomo.gateway.model.DeviceSelector
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.TagExpr
@@ -71,6 +72,7 @@ fun DevicePolicyEditorPage(
     onDelete: () -> Unit
 ) {
     var mac by remember { mutableStateOf(draft.mac) }
+    var mode by remember { mutableStateOf(draft.mode) }
     var label by remember { mutableStateOf(draft.label) }
     var primaryExpr by remember { mutableStateOf(draft.primary.expr) }
     var fallbackExpr by remember { mutableStateOf(draft.fallback.expr) }
@@ -116,6 +118,35 @@ fun DevicePolicyEditorPage(
                 )
             }
 
+            EditorCard {
+                SectionTitle("连接模式")
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ModeChip("全局", mode == DeviceRoutingMode.GLOBAL, Modifier.weight(1f)) {
+                        mode = DeviceRoutingMode.GLOBAL
+                    }
+                    ModeChip("规则", mode == DeviceRoutingMode.RULE, Modifier.weight(1f)) {
+                        mode = DeviceRoutingMode.RULE
+                    }
+                    ModeChip("直连", mode == DeviceRoutingMode.DIRECT, Modifier.weight(1f)) {
+                        mode = DeviceRoutingMode.DIRECT
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    when (mode) {
+                        DeviceRoutingMode.GLOBAL -> "该设备全部流量都走设备策略组"
+                        DeviceRoutingMode.RULE -> "遵循首页规则；未命中规则时走设备策略组"
+                        DeviceRoutingMode.DIRECT -> "该设备全部流量直连，不使用代理"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (mode != DeviceRoutingMode.DIRECT) {
             ConditionSection(
                 title = "优先条件",
                 initial = draft.primary.expr,
@@ -128,7 +159,9 @@ fun DevicePolicyEditorPage(
                 onExprChange = { primaryExpr = it },
                 onInvalidChange = { primaryInvalid = it }
             )
+            }
 
+            if (mode != DeviceRoutingMode.DIRECT) {
             ConditionSection(
                 title = "回落条件",
                 initial = draft.fallback.expr,
@@ -141,6 +174,7 @@ fun DevicePolicyEditorPage(
                 onExprChange = { fallbackExpr = it },
                 onInvalidChange = { fallbackInvalid = it }
             )
+            }
 
             EditorCard {
                 SectionTitle("其他设置")
@@ -192,12 +226,14 @@ fun DevicePolicyEditorPage(
             TextButton(onClick = onBack) { Text("取消") }
             Spacer(Modifier.width(6.dp))
             Button(
-                enabled = !busy && mac.isNotBlank() && !primaryInvalid && !fallbackInvalid,
+                enabled = !busy && mac.isNotBlank() &&
+                    (mode == DeviceRoutingMode.DIRECT || (!primaryInvalid && !fallbackInvalid)),
                 onClick = {
                     onSave(
                         draft.copy(
                             mac = mac.lowercase(),
                             label = label.trim(),
+                            mode = mode,
                             primary = DeviceSelector(primaryExpr),
                             fallback = DeviceSelector(fallbackExpr),
                             maxDelayMs = maxDelay.toIntOrNull() ?: 0,
@@ -454,4 +490,31 @@ private fun DevicePickerDialog(
             TextButton(onClick = onDismiss) { Text("取消") }
         }
     )
+}
+
+@Composable
+private fun ModeChip(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface
+        )
+    }
 }

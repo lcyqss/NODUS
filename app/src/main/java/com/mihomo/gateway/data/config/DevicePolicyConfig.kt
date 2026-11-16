@@ -11,12 +11,14 @@ object DevicePolicyConfig {
     const val GROUP_START = "# >>> device policy groups"
     const val GROUP_END = "# <<< device policy groups"
     const val RULE_START = "# >>> device policy rules"
+    const val RULE_TAIL_START = "# >>> device policy tail rules"
+    const val RULE_TAIL_END = "# <<< device policy tail rules"
     const val LISTENER_START = "# >>> device policy listeners"
     const val LISTENER_END = "# <<< device policy listeners"
     const val RULE_END = "# <<< device policy rules"
 
     fun strip(text: String): String =
-        stripBlock(stripBlock(stripBlock(text, GROUP_START, GROUP_END), RULE_START, RULE_END), LISTENER_START, LISTENER_END)
+        stripBlock(stripBlock(stripBlock(stripBlock(text, GROUP_START, GROUP_END), RULE_START, RULE_END), RULE_TAIL_START, RULE_TAIL_END), LISTENER_START, LISTENER_END)
 
     /** groupLines 是不带缩进的 YAML 列表项，例如 `- { name: __dev_x, ... }`。 */
     fun injectGroups(text: String, groupLines: List<String>): String {
@@ -96,6 +98,28 @@ object DevicePolicyConfig {
             add("$indent$LISTENER_END")
         }
         lines.addAll(end, block)
+        return lines.joinToString("\n")
+    }
+
+    /** tailRuleLines 插到 MATCH 之前，用于“规则模式”的设备兜底组。 */
+    fun injectTailRules(text: String, tailRuleLines: List<String>): String {
+        if (tailRuleLines.isEmpty()) return text
+        val lines = text.lines().toMutableList()
+        var index = lines.indexOfFirst { line ->
+            val t = line.trim()
+            t.startsWith("- 'MATCH,") || t.startsWith("- MATCH,")
+        }
+        if (index < 0) {
+            index = lines.indexOfFirst { it.trimEnd() == "proxy-groups:" }
+            if (index < 0) index = lines.size
+        }
+        val indent = lines.getOrNull(index)?.takeWhile { it == ' ' }?.ifBlank { "    " } ?: "    "
+        val block = buildList {
+            add("$indent$RULE_TAIL_START")
+            tailRuleLines.forEach { add("$indent- $it") }
+            add("$indent$RULE_TAIL_END")
+        }
+        lines.addAll(index, block)
         return lines.joinToString("\n")
     }
 

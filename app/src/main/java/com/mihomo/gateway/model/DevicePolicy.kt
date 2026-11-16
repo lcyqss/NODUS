@@ -17,10 +17,17 @@ data class DeviceSelector(
 )
 
 /** 按源设备（MAC）生效的出口策略：优先条件 + 回落条件。 */
+enum class DeviceRoutingMode {
+    GLOBAL,
+    RULE,
+    DIRECT
+}
+
 data class DevicePolicy(
     val id: String,
     val mac: String,
     val label: String = "",
+    val mode: DeviceRoutingMode = DeviceRoutingMode.GLOBAL,
     val primary: DeviceSelector = DeviceSelector(),
     val fallback: DeviceSelector = DeviceSelector(),
     val maxDelayMs: Int = 0,
@@ -136,6 +143,9 @@ object DevicePolicyCodec {
                     id = obj.optString("id").ifBlank { mac },
                     mac = mac,
                     label = obj.optString("label"),
+                    mode = runCatching {
+                        DeviceRoutingMode.valueOf(obj.optString("mode", "GLOBAL").uppercase())
+                    }.getOrDefault(DeviceRoutingMode.GLOBAL),
                     primary = decodeSelector(obj.optJSONObject("primary")),
                     fallback = decodeSelector(obj.optJSONObject("fallback")),
                     maxDelayMs = obj.optInt("maxDelayMs", 0),
@@ -154,6 +164,7 @@ object DevicePolicyCodec {
                     .put("id", item.id)
                     .put("mac", item.mac)
                     .put("label", item.label)
+                    .put("mode", item.mode.name)
                     .put("primary", encodeSelector(item.primary))
                     .put("fallback", encodeSelector(item.fallback))
                     .put("maxDelayMs", item.maxDelayMs)
