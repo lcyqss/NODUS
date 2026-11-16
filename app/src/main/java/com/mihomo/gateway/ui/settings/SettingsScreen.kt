@@ -162,52 +162,7 @@ private fun SettingsMain(
 
         Spacer(Modifier.height(24.dp))
 
-        SettingsGroup("系统") {
-            SettingsSwitchRow(
-                title = "开机自启",
-                subtitle = "重启后自动启动网关",
-                checked = settings.autoStart,
-                onChange = vm::setAutoStart
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        SettingsGroup("诊断") {
-            SettingsRow(
-                title = "日志",
-                subtitle = "实时输出 / 搜索 / 导出",
-                onClick = onLogs
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = "内核 / DNS / 规则快照",
-                subtitle = "root 命令与内核状态",
-                onClick = onDiagnostics
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        SettingsGroup("关于") {
-            SettingsRow(
-                title = "备份配置",
-                subtitle = "导出规则与设置（分享文本）",
-                onClick = {
-                    val send = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, vm.buildBackup())
-                    }
-                    context.startActivity(Intent.createChooser(send, "备份配置"))
-                }
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = "恢复配置",
-                subtitle = "粘贴备份内容并导入",
-                onClick = { showRestore = true }
-            )
-            SettingsDivider()
+        SettingsGroup("运行组件") {
             SettingsRow(
                 title = "内核版本",
                 value = coreVersion.ifBlank { "未知" },
@@ -256,7 +211,56 @@ private fun SettingsMain(
                 subtitle = "停止网关、清除规则、删除 /data/adb/mihomo",
                 onClick = { showCleanup = true }
             )
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        SettingsGroup("应用") {
+            SettingsSwitchRow(
+                title = "开机自启",
+                subtitle = "重启后自动启动网关",
+                checked = settings.autoStart,
+                onChange = vm::setAutoStart
+            )
             SettingsDivider()
+            SettingsRow(
+                title = "备份配置",
+                subtitle = "导出规则与设置（分享文本）",
+                onClick = {
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, vm.buildBackup())
+                    }
+                    context.startActivity(Intent.createChooser(send, "备份配置"))
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "恢复配置",
+                subtitle = "粘贴备份内容并导入",
+                onClick = { showRestore = true }
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        SettingsGroup("诊断") {
+            SettingsRow(
+                title = "日志",
+                subtitle = "实时输出 / 搜索 / 导出",
+                onClick = onLogs
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "内核 / DNS / 规则快照",
+                subtitle = "root 命令与内核状态",
+                onClick = onDiagnostics
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        SettingsGroup("关于") {
             SettingsRow(
                 title = "版本",
                 value = "v$versionName",
