@@ -186,6 +186,44 @@ fun DevicePolicyScreen(
 
         Spacer(Modifier.height(8.dp))
 
+        SectionLabel("策略")
+        message?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(8.dp))
+        }
+        if (policies.isEmpty()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(16.dp)
+            ) {
+                Text("还没有设备策略", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    "点右上角 ＋ 选择一台局域网设备，指定它优先使用哪些节点标签",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            val macCounts = policies.groupingBy { it.mac.lowercase() }.eachCount()
+            policies.forEachIndexed { index, policy ->
+                PolicyCard(
+                    policy = policy,
+                    runtime = runtimeById[policy.id],
+                    tags = tags,
+                    duplicate = (macCounts[policy.mac.lowercase()] ?: 0) > 1,
+                    onToggle = { enabled -> vm.save(policy.copy(enabled = enabled)) },
+                    onClick = { editing = policy }
+                )
+                if (index != policies.lastIndex) Spacer(Modifier.height(8.dp))
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        SectionLabel("条件与标签")
         Row(
             Modifier
                 .fillMaxWidth()
@@ -228,7 +266,9 @@ fun DevicePolicyScreen(
             Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
+
+        SectionLabel("运行调度")
         IntervalRow(
             title = "延迟调度间隔",
             subtitle = "仅对设置了延迟阈值的策略生效",
@@ -244,7 +284,10 @@ fun DevicePolicyScreen(
             options = listOf(30 to "30 秒", 60 to "1 分钟", 120 to "2 分钟", 300 to "5 分钟"),
             onChange = { vm.setIpInterval(it) }
         )
-        Spacer(Modifier.height(8.dp))
+
+        Spacer(Modifier.height(12.dp))
+
+        SectionLabel("数据")
         Row(
             Modifier
                 .fillMaxWidth()
@@ -267,42 +310,6 @@ fun DevicePolicyScreen(
             }
             Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
         }
-        Spacer(Modifier.height(8.dp))
-
-        message?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(8.dp))
-        }
-
-        if (policies.isEmpty()) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(16.dp)
-            ) {
-                Text("还没有设备策略", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Text(
-                    "点右上角 ＋ 选择一台局域网设备，指定它优先使用哪些节点标签",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            val macCounts = policies.groupingBy { it.mac.lowercase() }.eachCount()
-            policies.forEachIndexed { index, policy ->
-                PolicyCard(
-                    policy = policy,
-                    runtime = runtimeById[policy.id],
-                    tags = tags,
-                    duplicate = (macCounts[policy.mac.lowercase()] ?: 0) > 1,
-                    onToggle = { enabled -> vm.save(policy.copy(enabled = enabled)) },
-                    onClick = { editing = policy }
-                )
-                if (index != policies.lastIndex) Spacer(Modifier.height(8.dp))
-            }
-        }
 
         Spacer(Modifier.height(12.dp))
     }
@@ -310,6 +317,16 @@ fun DevicePolicyScreen(
     if (showBackup) {
         BackupDialog(vm = vm, onDismiss = { showBackup = false })
     }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+    )
 }
 
 @Composable
