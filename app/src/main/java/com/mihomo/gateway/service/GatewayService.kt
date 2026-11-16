@@ -139,9 +139,11 @@ class GatewayService : Service() {
         if (!due) return
 
         val wasRunning = AppContainer.gateway.state.value.running
-        if (wasRunning) AppContainer.gateway.stop()
-        val result = AppContainer.geoData.update()
-        if (wasRunning) AppContainer.gateway.start()
+        val result = AppContainer.geoData.update(useProxy = wasRunning)
+        if (wasRunning && result.getOrNull()?.unchanged != true) {
+            AppContainer.gateway.stop()
+            AppContainer.gateway.start()
+        }
         result.onSuccess {
             AppContainer.settings.update { it.copy(lastGeoUpdateAt = now) }
             Log.i(TAG, "geo updated: ${it.version}")

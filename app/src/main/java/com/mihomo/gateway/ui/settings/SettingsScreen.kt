@@ -81,6 +81,7 @@ private fun SettingsMain(
     val ipv6RaBlocked by vm.ipv6RaBlocked.collectAsState()
     val coreVersion by vm.coreVersion.collectAsState()
     val geoVersion by vm.geoVersion.collectAsState()
+    val geoProgress by vm.geoProgress.collectAsState()
     LaunchedEffect(Unit) {
         vm.refreshIpv6Capability()
         vm.refreshComponentVersions()
@@ -234,7 +235,11 @@ private fun SettingsMain(
             SettingsDivider()
             SettingsRow(
                 title = "更新 Geo 数据",
-                subtitle = "从官方源下载最新 GeoIP / GeoSite",
+                subtitle = when {
+                    geoProgress == -1 -> "下载中…"
+                    geoProgress != null -> "下载中 ${geoProgress}%"
+                    else -> "从官方源下载最新 GeoIP / GeoSite"
+                },
                 enabled = !busy,
                 onClick = { showGeoUpdate = true }
             )

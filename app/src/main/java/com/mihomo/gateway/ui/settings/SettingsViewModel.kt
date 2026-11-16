@@ -43,7 +43,9 @@ class SettingsViewModel(
     private val _coreVersion = MutableStateFlow("")
     val coreVersion: StateFlow<String> = _coreVersion.asStateFlow()
     private val _geoVersion = MutableStateFlow("")
+    private val _geoProgress = MutableStateFlow<Int?>(null)
     val geoVersion: StateFlow<String> = _geoVersion.asStateFlow()
+    val geoProgress: StateFlow<Int?> = _geoProgress.asStateFlow()
     val ipv6RaBlocked: StateFlow<Boolean> = _ipv6RaBlocked.asStateFlow()
 
     fun refreshIpv6Capability() {
@@ -282,9 +284,20 @@ class SettingsViewModel(
             _busy.value = true
             _message.value = "正在更新 Geo 数据…"
             val wasRunning = gateway.state.value.running
-            if (wasRunning) gateway.stop()
-            val result = geoData.update()
-            if (wasRunning) gateway.start()
+            _geoProgress.value = 0
+            val result = geoData.update(useProxy = wasRunning) { done, total ->
+                _geoProgress.value = if (total > 0) {
+                    ((done * 100) / total).toInt().coerceIn(0, 100)
+                } else {
+                    -1
+                }
+            }
+            _geoProgress.value = null
+            val changed = result.getOrNull()?.unchanged != true
+            if (wasRunning && changed) {
+                gateway.stop()
+                gateway.start()
+            }
             if (result.isSuccess) {
                 store.update { it.copy(lastGeoUpdateAt = System.currentTimeMillis()) }
             }
@@ -296,7 +309,6 @@ class SettingsViewModel(
             _busy.value = false
         }
     }
-
     fun setGeoAutoUpdate(enabled: Boolean) {
         viewModelScope.launch {
             store.update { it.copy(geoAutoUpdate = enabled) }
