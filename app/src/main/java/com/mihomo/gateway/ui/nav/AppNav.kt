@@ -77,7 +77,10 @@ fun AppNav() {
         }
         Box(Modifier.padding(padding).alpha(fade.value)) {
             when (tab) {
-                0 -> OverviewScreen(onOpenNodes = { AppContainer.navigator.selectTab(1) })
+                0 -> OverviewScreen(
+                    onOpenNodes = { AppContainer.navigator.selectTab(1) },
+                    onOpenSettings = { AppContainer.navigator.selectTab(4) }
+                )
                 1 -> ProxiesScreen()
                 2 -> RulesScreen()
                 3 -> ConnectionsScreen()

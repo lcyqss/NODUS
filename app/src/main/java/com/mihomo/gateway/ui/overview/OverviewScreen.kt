@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -35,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -62,7 +64,7 @@ private val UpColor = Color(0xFF0F766E)
 private val DownColor = Color(0xFF4F46E5)
 
 @Composable
-fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit = {}) {
+fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit = {}, onOpenSettings: () -> Unit = {}) {
     val state by vm.state.collectAsState()
     val traffic by vm.traffic.collectAsState()
     val upHistory by vm.upHistory.collectAsState()
@@ -73,6 +75,7 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
     val busy by vm.busy.collectAsState()
     val runtimeMode by vm.runtimeMode.collectAsState()
     val appSettings by vm.appSettings.collectAsState()
+    val appUpdate by vm.appUpdate.collectAsState()
     val today by vm.today.collectAsState()
 
     PullRefreshBox(onRefresh = { vm.refresh() }) {
@@ -138,6 +141,36 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
             KeyValueRow("IPv6 拦截", if (state.blockIpv6) "开" else "关")
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        appUpdate?.let { update ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                    .clickable(onClick = onOpenSettings)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "发现新版本 v${update.version}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    )
+                    Text(
+                        "前往设置手动下载并安装",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    "查看",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
 

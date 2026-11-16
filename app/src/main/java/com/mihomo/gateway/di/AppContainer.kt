@@ -31,6 +31,8 @@ import com.mihomo.gateway.data.repo.RuleRepositoryImpl
 import com.mihomo.gateway.data.store.RuleStore
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.data.store.SettingsStoreImpl
+import com.mihomo.gateway.data.update.AppUpdateManager
+import com.mihomo.gateway.data.update.AppUpdateRepositoryImpl
 
 /**
  * 组合根：唯一允许知道所有实现的地方。
@@ -71,6 +73,8 @@ object AppContainer {
         private set
     lateinit var policyBackup: PolicyBackupService
         private set
+    lateinit var appUpdates: AppUpdateManager
+        private set
 
     private var initialized = false
 
@@ -92,6 +96,7 @@ object AppContainer {
         nodeTags = NodeTagRepositoryImpl(settings)
         conditionTemplates = ConditionTemplateRepositoryImpl(settings)
         policyBackup = PolicyBackupService(settings)
+        appUpdates = AppUpdateManager(AppUpdateRepositoryImpl(app), settings)
         devicePolicies = DevicePolicyRepositoryImpl(
             context = app,
             settings = settings,

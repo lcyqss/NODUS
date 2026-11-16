@@ -101,6 +101,7 @@ data class AppSettings(
     val autoStart: Boolean = true,
     val desiredRunning: Boolean = true,
     val lastHealthAt: Long = 0L,
+    val appUpdateLastCheckAt: Long = 0L,
     val lastHealthOk: Boolean = false,
     val updateIntervalHours: Int = 0,
     val lastUpdateAt: Long = 0L,
@@ -186,3 +187,11 @@ sealed class AppError(override val message: String?) : Throwable(message) {
     data class Network(val error: Throwable) : AppError(error.message ?: "网络错误")
     data class Protocol(val detail: String) : AppError(detail)
 }
+data class AppUpdateInfo(
+    val version: String,
+    val tag: String,
+    val notes: String,
+    val apkUrl: String,
+    val size: Long,
+    val digest: String = ""
+)

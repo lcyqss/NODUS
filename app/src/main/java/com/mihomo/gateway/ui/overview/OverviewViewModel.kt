@@ -7,6 +7,7 @@ import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.model.AppSettings
+import com.mihomo.gateway.model.AppUpdateInfo
 import com.mihomo.gateway.model.GatewayState
 import com.mihomo.gateway.model.ProxyNames
 import com.mihomo.gateway.model.Traffic
@@ -37,6 +38,8 @@ class OverviewViewModel(
 ) : ViewModel() {
 
     val state: StateFlow<GatewayState> = gateway.state
+
+    val appUpdate: StateFlow<AppUpdateInfo?> = AppContainer.appUpdates.available
 
     val appSettings: StateFlow<AppSettings> = settings.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())

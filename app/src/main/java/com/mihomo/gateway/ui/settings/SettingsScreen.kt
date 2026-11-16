@@ -90,6 +90,9 @@ private fun SettingsMain(
     val health by vm.health.collectAsState()
     val geoVersion by vm.geoVersion.collectAsState()
     val geoProgress by vm.geoProgress.collectAsState()
+    val appUpdate by vm.appUpdate.collectAsState()
+    val appUpdateChecking by vm.appUpdateChecking.collectAsState()
+    val appUpdateError by vm.appUpdateError.collectAsState()
     LaunchedEffect(Unit) {
         vm.refreshIpv6Capability()
         vm.refreshComponentVersions()
@@ -106,6 +109,7 @@ private fun SettingsMain(
     var restoreJson by remember { mutableStateOf("") }
     var showIpMode by remember { mutableStateOf(false) }
     var showRuntimeMode by remember { mutableStateOf(false) }
+    var showAppUpdate by remember { mutableStateOf(false) }
     val versionName = remember {
         runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
@@ -325,6 +329,25 @@ private fun SettingsMain(
                 value = "v$versionName",
                 showChevron = false
             )
+            SettingsDivider()
+            SettingsRow(
+                title = "检查应用更新",
+                subtitle = when {
+                    appUpdateChecking -> "正在检查 GitHub Release…"
+                    appUpdateError != null -> "检查失败，可重试"
+                    appUpdate != null -> "发现新版本 v${appUpdate!!.version}"
+                    else -> "从 GitHub Releases 检查新版本"
+                },
+                value = when {
+                    appUpdateChecking -> "检查中"
+                    appUpdate != null -> "可更新"
+                    appUpdateError != null -> "失败"
+                    else -> null
+                },
+                onClick = {
+                    showAppUpdate = true
+                }
+            )
         }
 
         Spacer(Modifier.height(12.dp))
@@ -517,6 +540,10 @@ private fun SettingsMain(
                 TextButton(onClick = { showGeoUpdate = false }) { Text("取消") }
             }
         )
+    }
+
+    if (showAppUpdate) {
+        AppUpdateDialog(onDismiss = { showAppUpdate = false })
     }
 
     if (showCleanup) {

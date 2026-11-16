@@ -58,6 +58,10 @@ class SettingsViewModel(
     val coreUpdate: StateFlow<CoreUpdateInfo?> = _coreUpdate.asStateFlow()
     val coreProgress: StateFlow<Int?> = _coreProgress.asStateFlow()
     val health: StateFlow<HealthReport?> = _health.asStateFlow()
+    val appUpdate: StateFlow<com.mihomo.gateway.model.AppUpdateInfo?> =
+        AppContainer.appUpdates.available
+    val appUpdateChecking: StateFlow<Boolean> = AppContainer.appUpdates.checking
+    val appUpdateError: StateFlow<String?> = AppContainer.appUpdates.error
     private val _geoVersion = MutableStateFlow("")
     private val _geoProgress = MutableStateFlow<Int?>(null)
     val geoVersion: StateFlow<String> = _geoVersion.asStateFlow()
@@ -145,6 +149,12 @@ class SettingsViewModel(
                     lastHealthOk = report.ok
                 )
             }
+        }
+    }
+
+    fun checkAppUpdate() {
+        viewModelScope.launch {
+            AppContainer.appUpdates.checkIfDue(force = true)
         }
     }
 
