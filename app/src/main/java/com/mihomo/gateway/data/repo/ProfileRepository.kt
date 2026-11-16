@@ -10,6 +10,7 @@ import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.model.ProviderMeta
 import com.mihomo.gateway.model.SubscriptionCodec
 import com.mihomo.gateway.model.SubscriptionProfile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -184,7 +185,9 @@ class ProfileRepositoryImpl(
                 }
                 Result.success(body)
             }
-        } catch (e: Throwable) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
             Log.w(TAG, "download failed: ${e.message}")
             Result.failure(e)
         }

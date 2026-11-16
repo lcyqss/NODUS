@@ -203,6 +203,10 @@ class SubscriptionViewModel(
 
     /** 手动全部更新：不区分是否开启自动更新，串行执行。 */
     fun updateAll() {
+        if (_busy.value) {
+            _message.value = "正在更新，请稍候"
+            return
+        }
         val list = subscriptions.value
         if (list.isEmpty()) {
             _message.value = "没有可更新的订阅"

@@ -2,6 +2,7 @@ package com.mihomo.gateway.core
 
 import android.os.SystemClock
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -36,7 +37,9 @@ class ShellExecutorImpl : ShellExecutor {
                     val output = StringBuilder()
                     val reader = Thread {
                         runCatching {
-                            process.inputStream.bufferedReader().forEachLine { output.appendLine(it) }
+                            process.inputStream.bufferedReader().forEachLine {
+                                if (output.length < MAX_OUTPUT) output.appendLine(it)
+                            }
                         }
                     }
                     reader.start()
@@ -56,7 +59,9 @@ class ShellExecutorImpl : ShellExecutor {
                     record(trace, command, code, cost)
                     Log.i(TAG, "trace=$trace code=$code cost=${cost}ms cmd=$command")
                     return@withContext ShellResult(code, output.toString(), "")
-                } catch (_: Throwable) {
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
                     // try next su candidate
                 }
             }
@@ -80,5 +85,6 @@ class ShellExecutorImpl : ShellExecutor {
 
     companion object {
         private const val TAG = "GW-Shell"
+        private const val MAX_OUTPUT = 256_000
     }
 }

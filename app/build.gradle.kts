@@ -20,8 +20,8 @@ android {
         applicationId = "com.mihomo.gateway"
         minSdk = 29
         targetSdk = 35
-        versionCode = 122
-        versionName = "2.51.1"
+        versionCode = 124
+        versionName = "2.52.1"
     }
 
     signingConfigs {

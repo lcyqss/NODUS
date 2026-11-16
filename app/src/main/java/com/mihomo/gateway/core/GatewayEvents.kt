@@ -10,6 +10,7 @@ import com.mihomo.gateway.di.AppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
@@ -20,6 +21,7 @@ class GatewayEvents(private val context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val handler = Handler(Looper.getMainLooper())
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private val applyTask = Runnable {
         scope.launch {
@@ -38,12 +40,12 @@ class GatewayEvents(private val context: Context) {
         handler.post {
             runCatching {
                 val connectivity = context.getSystemService(ConnectivityManager::class.java)
-                connectivity?.registerDefaultNetworkCallback(
-                    object : ConnectivityManager.NetworkCallback() {
-                        override fun onAvailable(network: Network) = schedule()
-                        override fun onLost(network: Network) = schedule()
-                    }
-                )
+                val callback = object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) = schedule()
+                    override fun onLost(network: Network) = schedule()
+                }
+                networkCallback = callback
+                connectivity?.registerDefaultNetworkCallback(callback)
             }.onFailure {
                 Log.w(TAG, "register network callback failed: ${it.message}")
             }
@@ -53,6 +55,18 @@ class GatewayEvents(private val context: Context) {
     private fun schedule() {
         handler.removeCallbacks(applyTask)
         handler.postDelayed(applyTask, 2000)
+    }
+
+    fun stop() {
+        handler.removeCallbacks(applyTask)
+        networkCallback?.let { callback ->
+            runCatching {
+                context.getSystemService(ConnectivityManager::class.java)
+                    ?.unregisterNetworkCallback(callback)
+            }
+        }
+        networkCallback = null
+        scope.cancel()
     }
 
     companion object {

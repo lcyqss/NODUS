@@ -38,6 +38,7 @@ class MihomoApiImpl(
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
+        .pingInterval(20, TimeUnit.SECONDS)
         .build()
 
     private val wsBase = baseUrl.replaceFirst("http", "ws")
@@ -62,12 +63,14 @@ class MihomoApiImpl(
                 }
                 Result.success(parser(JSONObject(text)))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: ConnectException) {
             Result.failure(AppError.CoreDown)
         } catch (e: IOException) {
             Log.w(TAG, "io error $path: ${e.message}")
             Result.failure(AppError.CoreDown)
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
             Result.failure(AppError.Protocol(e.message ?: "parse"))
         }
     }
@@ -92,7 +95,9 @@ class MihomoApiImpl(
                     }
                     Result.success(Unit)
                 }
-            } catch (e: ConnectException) {
+            } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: ConnectException) {
                 Result.failure(AppError.CoreDown)
             } catch (e: IOException) {
                 Result.failure(AppError.CoreDown)
@@ -363,6 +368,14 @@ class MihomoApiImpl(
                         time = System.currentTimeMillis()
                     )
                 )
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                close(t)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                close()
             }
         })
         awaitClose { socket.cancel() }

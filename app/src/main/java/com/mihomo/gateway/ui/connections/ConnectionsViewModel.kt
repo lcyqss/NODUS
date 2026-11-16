@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+private const val MAX_DEVICES = 200
+
 data class DeviceSeen(
     val ip: String,
     val label: String,
@@ -49,9 +51,12 @@ class ConnectionsViewModel(
         if (pollJob != null) return
         pollJob = viewModelScope.launch {
             var tick = 0
+            var backoff = 2_000L
             while (isActive) {
                 val result = api.connections()
+                var ok = false
                 result.onSuccess { list ->
+                    ok = true
                     _state.value = ConnectionsUiState(connections = list, loaded = true)
                     updateHistory(list)
                 }.onFailure {
@@ -65,7 +70,8 @@ class ConnectionsViewModel(
                     }
                 }
                 tick++
-                delay(2000)
+                backoff = if (ok) 2_000L else (backoff * 2).coerceAtMost(30_000L)
+                delay(backoff)
             }
         }
     }
@@ -105,7 +111,10 @@ class ConnectionsViewModel(
             }
             next.mapValues { (ip, device) ->
                 device.copy(label = labelFor(ip))
-            }
+            }.entries
+                .sortedByDescending { it.value.lastSeen }
+                .take(MAX_DEVICES)
+                .associate { it.key to it.value }
         }
     }
 

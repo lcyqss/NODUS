@@ -24,6 +24,7 @@ class GatewayService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var events: GatewayEvents? = null
+    private var auxiliaryLoopsStarted = false
 
     override fun onCreate() {
         super.onCreate()
@@ -81,6 +82,8 @@ class GatewayService : Service() {
         }
 
         // 自动更新订阅：启动时检查一次，之后每 30 分钟检查；每个订阅按自己的间隔
+        if (!auxiliaryLoopsStarted) {
+            auxiliaryLoopsStarted = true
         scope.launch {
             while (isActive) {
                 runCatching {
@@ -112,6 +115,7 @@ class GatewayService : Service() {
             }
         }
 
+        }
         return START_STICKY
     }
 
@@ -159,6 +163,8 @@ class GatewayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        events?.stop()
+        events = null
         scope.cancel()
         super.onDestroy()
     }

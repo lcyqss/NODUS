@@ -9,11 +9,13 @@ import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.model.GatewayState
 import com.mihomo.gateway.model.ProxyNames
 import com.mihomo.gateway.model.Traffic
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -48,7 +50,7 @@ class OverviewViewModel(
     private val _today = MutableStateFlow(Traffic(0, 0))
     val today: StateFlow<Traffic> = _today.asStateFlow()
 
-    private var sampleCount = 0
+    private var lastPersistAt = 0L
 
     private fun todayKey(): String =
         java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
@@ -80,15 +82,14 @@ class OverviewViewModel(
         }
         viewModelScope.launch { loadCurrentNode() }
         viewModelScope.launch {
-            while (isActive) {
-            runCatching {
-            api.trafficFlow().collect { traffic ->
+            api.trafficFlow().collectWithBackoff { traffic ->
                 _traffic.value = traffic
                 _upHistory.update { list -> (list + traffic.up).takeLast(60) }
                 _downHistory.update { list -> (list + traffic.down).takeLast(60) }
                 _today.update { current -> Traffic(current.up + traffic.up, current.down + traffic.down) }
-                sampleCount++
-                if (sampleCount % 10 == 0) {
+                val now = System.currentTimeMillis()
+                if (now - lastPersistAt >= 60_000L) {
+                    lastPersistAt = now
                     val snapshot = _today.value
                     settings.update {
                         it.copy(
@@ -99,15 +100,9 @@ class OverviewViewModel(
                     }
                 }
             }
-            }
-            delay(2000)
-            }
         }
         viewModelScope.launch {
-            while (isActive) {
-                runCatching { api.memoryFlow().collect { _memory.value = it } }
-                delay(2000)
-            }
+            api.memoryFlow().collectWithBackoff { _memory.value = it }
         }
         // 启动/重装核心后，内核可能晚于界面就绪：在前 30 秒内自动重试刷新
         viewModelScope.launch {
@@ -156,6 +151,26 @@ class OverviewViewModel(
         viewModelScope.launch {
             gateway.refresh()
             loadCurrentNode()
+        }
+    }
+
+    private suspend fun <T> Flow<T>.collectWithBackoff(onValue: suspend (T) -> Unit) {
+        var backoff = 2_000L
+        while (currentCoroutineContext().isActive) {
+            var received = false
+            try {
+                collect {
+                    received = true
+                    onValue(it)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // reconnect below
+            }
+            if (received) backoff = 2_000L
+            delay(backoff)
+            backoff = (backoff * 2).coerceAtMost(30_000L)
         }
     }
 
