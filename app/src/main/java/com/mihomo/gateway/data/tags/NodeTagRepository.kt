@@ -1,7 +1,6 @@
 package com.mihomo.gateway.data.tags
 
 import com.mihomo.gateway.data.catalog.NodeInfo
-import com.mihomo.gateway.data.catalog.NodeRegions
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.NodeTagCodec
@@ -25,6 +24,7 @@ interface NodeTagRepository {
 
     suspend fun save(tag: NodeTag): Result<Unit>
     suspend fun delete(id: String)
+    suspend fun restoreRegions(): Result<Unit>
 
     /** 按布尔表达式求值；null 表示任意节点。 */
     fun matches(tags: List<NodeTag>, expr: TagExpr?, node: NodeInfo): Boolean
@@ -47,17 +47,9 @@ class NodeTagRepositoryImpl(
                     builtinKind = "type"
                 )
             }
-        val builtinRegions = NodeRegions.all.map { region ->
-            NodeTag(
-                id = "__region_${region.code}",
-                name = region.label,
-                builtin = true,
-                builtinKind = "region"
-            )
-        }
         val custom = NodeTagCodec.decode(settings.settings.first().nodeTags)
             .sortedBy { it.name.lowercase() }
-        custom + builtinTypes + builtinRegions
+        custom + builtinTypes
     }
 
     override suspend fun save(tag: NodeTag): Result<Unit> = withContext(Dispatchers.IO) {
@@ -87,6 +79,16 @@ class NodeTagRepositoryImpl(
             return@withContext Result.failure(IllegalArgumentException("标签存在循环引用"))
         }
         settings.update { it.copy(nodeTags = NodeTagCodec.encode(list)) }
+        Result.success(Unit)
+    }
+
+    override suspend fun restoreRegions(): Result<Unit> = withContext(Dispatchers.IO) {
+        val current = NodeTagCodec.decode(settings.settings.first().nodeTags)
+        val ids = current.map { it.id }.toSet()
+        val missing = RegionPresets.all.filter { it.id !in ids }.map(RegionPresets::asTag)
+        if (missing.isNotEmpty()) {
+            settings.update { it.copy(nodeTags = NodeTagCodec.encode(current + missing)) }
+        }
         Result.success(Unit)
     }
 
@@ -130,13 +132,12 @@ class NodeTagRepositoryImpl(
         if (tag.builtin) {
             return when (tag.builtinKind) {
                 "type" -> node.type.equals(tag.id.removePrefix("__type_"), true)
-                "region" -> node.region.equals(tag.id.removePrefix("__region_"), true)
                 else -> false
             }
         }
         val lower = node.name.lowercase()
-        val includeOk = tag.include.isEmpty() || tag.include.any { lower.contains(it.lowercase()) }
-        val excludeHit = tag.exclude.any { lower.contains(it.lowercase()) }
+        val includeOk = tag.include.isEmpty() || tag.include.any { TagMatcher.hit(lower, it) }
+        val excludeHit = tag.exclude.any { TagMatcher.hit(lower, it) }
         return includeOk && !excludeHit
     }
 }

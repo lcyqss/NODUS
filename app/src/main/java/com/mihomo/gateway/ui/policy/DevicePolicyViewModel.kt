@@ -156,6 +156,17 @@ class DevicePolicyViewModel(
         }
     }
 
+    fun restoreRegions() {
+        viewModelScope.launch {
+            tagRepo.restoreRegions()
+                .onSuccess {
+                    _tags.value = repo.tags()
+                    _message.value = "已恢复默认地区标签"
+                }
+                .onFailure { _message.value = "恢复失败: ${it.message}" }
+        }
+    }
+
     /** 条件命中的节点数，用于 UI 预览。 */
     fun matchCount(expr: TagExpr?): Int =
         _nodes.value.count { node -> tagRepo.matches(_tags.value, expr, node) }

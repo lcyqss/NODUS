@@ -1,8 +1,10 @@
 package com.mihomo.gateway.data.store
 
 import android.content.Context
+import com.mihomo.gateway.data.tags.RegionPresets
 import com.mihomo.gateway.model.AppSettings
 import com.mihomo.gateway.model.IpMode
+import com.mihomo.gateway.model.NodeTagCodec
 import com.mihomo.gateway.model.SubscriptionCodec
 import com.mihomo.gateway.model.SubscriptionProfile
 import java.util.UUID
@@ -20,6 +22,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
 
     init {
         migrateLegacySubscription()
+        migrateRegionPresets()
     }
 
     private val _settings = MutableStateFlow(read())
@@ -56,6 +59,18 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
     }
 
     /** 旧版本只有单个订阅：迁移成订阅对象，自动更新间隔归属该订阅。 */
+    /** 把内置地区迁移成可编辑的预设标签，保留 __region_* ID。 */
+    private fun migrateRegionPresets() {
+        if (prefs.getBoolean(KEY_REGION_PRESETS, false)) return
+        val current = NodeTagCodec.decode(prefs.getString(KEY_NODE_TAGS, "").orEmpty())
+        val ids = current.map { it.id }.toSet()
+        val presets = RegionPresets.all.filter { it.id !in ids }.map(RegionPresets::asTag)
+        prefs.edit()
+            .putString(KEY_NODE_TAGS, NodeTagCodec.encode(current + presets))
+            .putBoolean(KEY_REGION_PRESETS, true)
+            .apply()
+    }
+
     private fun migrateLegacySubscription() {
         val raw = prefs.getString(KEY_SUBSCRIPTIONS, "").orEmpty()
         if (raw.isNotBlank()) {
@@ -138,6 +153,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_ACTIVE_SUB = "active_sub_id"
         private const val KEY_DEVICE_POLICIES = "device_policies"
         private const val KEY_NODE_TAGS = "node_tags"
+        private const val KEY_REGION_PRESETS = "region_presets_seeded"
         private const val KEY_POLICY_INTERVAL = "policy_interval_sec"
         private const val KEY_IP_FOLLOW_INTERVAL = "ip_follow_interval_sec"
         private const val KEY_CONDITION_TEMPLATES = "condition_templates"

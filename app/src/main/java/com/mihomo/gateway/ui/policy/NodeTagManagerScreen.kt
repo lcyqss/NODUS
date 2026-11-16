@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.mihomo.gateway.data.tags.RegionPresets
 import com.mihomo.gateway.data.tags.TagExprParser
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.ui.components.SubPageHeader
@@ -55,7 +56,13 @@ fun NodeTagManagerScreen(
     var editing by remember { mutableStateOf<NodeTag?>(null) }
     var confirmDelete by remember { mutableStateOf<NodeTag?>(null) }
 
-    val custom = tags.filterNot { it.builtin }
+    val region = tags.filterNot { it.builtin }
+        .filter { it.id.startsWith("__region_") }
+        .sortedBy { tag ->
+            RegionPresets.all.indexOfFirst { it.id == tag.id }
+                .let { if (it < 0) Int.MAX_VALUE else it }
+        }
+    val custom = tags.filterNot { it.builtin || it.id.startsWith("__region_") }
     val builtin = tags.filter { it.builtin }
 
     Column(
@@ -91,6 +98,40 @@ fun NodeTagManagerScreen(
             Spacer(Modifier.height(8.dp))
         }
 
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("地区标签（预设，可编辑）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { vm.restoreRegions() }) {
+                Text("恢复默认", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+
+        if (region.isEmpty()) {
+            Text(
+                "地区预设已全部删除；可新建自定义标签替代。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            region.forEachIndexed { index, tag ->
+                TagRow(
+                    tag = tag,
+                    count = vm.countTag(tag),
+                    subtitle = "包含：" + tag.include.joinToString(" / "),
+                    onClick = { editing = tag },
+                    onDelete = { confirmDelete = tag }
+                )
+                if (index != region.lastIndex) Spacer(Modifier.height(6.dp))
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Text("自定义标签", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(6.dp))
         Text("自定义标签", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(6.dp))
 
@@ -129,13 +170,13 @@ fun NodeTagManagerScreen(
         }
 
         Spacer(Modifier.height(16.dp))
-        Text("内置标签（只读）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("内置类型（只读）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(6.dp))
         builtin.forEachIndexed { index, tag ->
             TagRow(
                 tag = tag,
                 count = vm.countTag(tag),
-                subtitle = if (tag.builtinKind == "type") "节点协议" else "节点名识别地区",
+                subtitle = "节点协议",
                 onClick = null,
                 onDelete = null
             )
