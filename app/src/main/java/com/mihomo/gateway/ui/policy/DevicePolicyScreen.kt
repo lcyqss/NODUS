@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -85,6 +88,7 @@ fun DevicePolicyScreen(
     var showTags by remember { mutableStateOf(false) }
     var showTemplates by remember { mutableStateOf(false) }
     var showBackup by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.refresh() }
     LaunchedEffect(message) {
@@ -131,23 +135,48 @@ fun DevicePolicyScreen(
         return
     }
 
+    if (showSettings) {
+        DevicePolicySettingsScreen(
+            tags = tags,
+            templateCount = templates.size,
+            intervalSec = intervalSec,
+            ipIntervalSec = ipIntervalSec,
+            onBack = { showSettings = false },
+            onTags = { showTags = true },
+            onTemplates = { showTemplates = true },
+            onInterval = { vm.setInterval(it) },
+            onIpInterval = { vm.setIpInterval(it) },
+            onBackup = {
+                showBackup = true
+                vm.exportBackup()
+            }
+        )
+        return
+    }
+
     val runtimeById = runtime.associateBy { it.policy.id }
     val headerActions: @Composable () -> Unit = {
+        IconButton(onClick = { showSettings = true }) {
+            GwIcon(GwIcon.Settings, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         if (busy) {
             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         } else {
             IconButton(onClick = { vm.reapply() }) {
                 GwIcon(GwIcon.Refresh, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = {
+        }
+        IconButton(
+            onClick = {
                 editing = DevicePolicy(
                     id = UUID.randomUUID().toString(),
                     mac = "",
                     label = ""
                 )
-            }) {
-                GwIcon(GwIcon.Plus, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
-            }
+            },
+            enabled = !busy
+        ) {
+            GwIcon(GwIcon.Plus, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
         }
     }
 
@@ -155,7 +184,6 @@ fun DevicePolicyScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(if (embedded) 0.dp else 16.dp)
-            .verticalScroll(rememberScrollState())
     ) {
         if (embedded) {
             Row(
@@ -168,7 +196,7 @@ fun DevicePolicyScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        "按设备 MAC 选择节点标签，条件不满足时回落",
+                        "按设备 MAC 选择节点标签",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -208,28 +236,63 @@ fun DevicePolicyScreen(
             }
         } else {
             val macCounts = policies.groupingBy { it.mac.lowercase() }.eachCount()
-            policies.forEachIndexed { index, policy ->
-                PolicyCard(
-                    policy = policy,
-                    runtime = runtimeById[policy.id],
-                    tags = tags,
-                    duplicate = (macCounts[policy.mac.lowercase()] ?: 0) > 1,
-                    onToggle = { enabled -> vm.save(policy.copy(enabled = enabled)) },
-                    onClick = { editing = policy }
-                )
-                if (index != policies.lastIndex) Spacer(Modifier.height(8.dp))
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                items(policies, key = { it.id }) { policy ->
+                    PolicyCard(
+                        policy = policy,
+                        runtime = runtimeById[policy.id],
+                        tags = tags,
+                        duplicate = (macCounts[policy.mac.lowercase()] ?: 0) > 1,
+                        onToggle = { enabled -> vm.save(policy.copy(enabled = enabled)) },
+                        onClick = { editing = policy }
+                    )
+                }
             }
         }
+    }
 
-        Spacer(Modifier.height(12.dp))
+    if (showBackup) {
+        BackupDialog(vm = vm, onDismiss = { showBackup = false })
+    }
+}
 
+@Composable
+private fun DevicePolicySettingsScreen(
+    tags: List<NodeTag>,
+    templateCount: Int,
+    intervalSec: Int,
+    ipIntervalSec: Int,
+    onBack: () -> Unit,
+    onTags: () -> Unit,
+    onTemplates: () -> Unit,
+    onInterval: (Int) -> Unit,
+    onIpInterval: (Int) -> Unit,
+    onBackup: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        SubPageHeader(
+            title = "策略设置",
+            subtitle = "条件、调度与数据",
+            onBack = onBack
+        )
+
+        Spacer(Modifier.height(8.dp))
         SectionLabel("条件与标签")
         Row(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surface)
-                .clickable { showTags = true }
+                .clickable(onClick = onTags)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -251,14 +314,14 @@ fun DevicePolicyScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surface)
-                .clickable { showTemplates = true }
+                .clickable(onClick = onTemplates)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
                 Text("条件模板", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
-                    "${templates.size} 个模板 · 可复用条件树",
+                    "$templateCount 个模板 · 可复用条件树",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -267,14 +330,13 @@ fun DevicePolicyScreen(
         }
 
         Spacer(Modifier.height(12.dp))
-
         SectionLabel("运行调度")
         IntervalRow(
             title = "延迟调度间隔",
             subtitle = "仅对设置了延迟阈值的策略生效",
             seconds = intervalSec,
             options = listOf(30 to "30 秒", 60 to "1 分钟", 300 to "5 分钟"),
-            onChange = { vm.setInterval(it) }
+            onChange = onInterval
         )
         Spacer(Modifier.height(8.dp))
         IntervalRow(
@@ -282,21 +344,17 @@ fun DevicePolicyScreen(
             subtitle = "设备 IP 变化后自动重建规则",
             seconds = ipIntervalSec,
             options = listOf(30 to "30 秒", 60 to "1 分钟", 120 to "2 分钟", 300 to "5 分钟"),
-            onChange = { vm.setIpInterval(it) }
+            onChange = onIpInterval
         )
 
         Spacer(Modifier.height(12.dp))
-
         SectionLabel("数据")
         Row(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surface)
-                .clickable {
-                    showBackup = true
-                    vm.exportBackup()
-                }
+                .clickable(onClick = onBackup)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -310,12 +368,7 @@ fun DevicePolicyScreen(
             }
             Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
         }
-
         Spacer(Modifier.height(12.dp))
-    }
-
-    if (showBackup) {
-        BackupDialog(vm = vm, onDismiss = { showBackup = false })
     }
 }
 
