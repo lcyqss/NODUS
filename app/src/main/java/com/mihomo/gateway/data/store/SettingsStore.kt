@@ -39,6 +39,10 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putBoolean(KEY_GEO_AUTO, next.geoAutoUpdate)
                 .putInt(KEY_GEO_INTERVAL, next.geoUpdateIntervalDays)
                 .putLong(KEY_GEO_LAST, next.lastGeoUpdateAt)
+                .putLong(KEY_GEO_LAST_CHECK, next.geoLastCheckAt)
+                .putString(KEY_GEO_LAST_RESULT, next.geoLastResult)
+                .putString(KEY_GEO_LAST_ERROR, next.geoLastError)
+                .putString(KEY_GEO_LAST_VERSION, next.geoLastVersion)
                 .putBoolean(KEY_AUTOSTART, next.autoStart)
                 .putBoolean(KEY_DESIRED, next.desiredRunning)
                 .putInt(KEY_UPDATE_INTERVAL, next.updateIntervalHours)
@@ -121,6 +125,10 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         geoAutoUpdate = prefs.getBoolean(KEY_GEO_AUTO, false),
         geoUpdateIntervalDays = prefs.getInt(KEY_GEO_INTERVAL, 7),
         lastGeoUpdateAt = prefs.getLong(KEY_GEO_LAST, 0L),
+        geoLastCheckAt = prefs.getLong(KEY_GEO_LAST_CHECK, 0L),
+        geoLastResult = prefs.getString(KEY_GEO_LAST_RESULT, "").orEmpty(),
+        geoLastError = prefs.getString(KEY_GEO_LAST_ERROR, "").orEmpty(),
+        geoLastVersion = prefs.getString(KEY_GEO_LAST_VERSION, "").orEmpty(),
         autoStart = prefs.getBoolean(KEY_AUTOSTART, true),
         desiredRunning = prefs.getBoolean(KEY_DESIRED, true),
         updateIntervalHours = prefs.getInt(KEY_UPDATE_INTERVAL, 0),
@@ -148,6 +156,10 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_GEO_AUTO = "geo_auto_update"
         private const val KEY_GEO_INTERVAL = "geo_update_interval_days"
         private const val KEY_GEO_LAST = "geo_last_update"
+        private const val KEY_GEO_LAST_CHECK = "geo_last_check"
+        private const val KEY_GEO_LAST_RESULT = "geo_last_result"
+        private const val KEY_GEO_LAST_ERROR = "geo_last_error"
+        private const val KEY_GEO_LAST_VERSION = "geo_last_version"
         private const val KEY_AUTOSTART = "auto_start"
         private const val KEY_DESIRED = "desired_running"
         private const val KEY_UPDATE_INTERVAL = "update_interval_hours"

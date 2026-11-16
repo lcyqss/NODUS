@@ -298,8 +298,15 @@ class SettingsViewModel(
                 gateway.stop()
                 gateway.start()
             }
-            if (result.isSuccess) {
-                store.update { it.copy(lastGeoUpdateAt = System.currentTimeMillis()) }
+            val now = System.currentTimeMillis()
+            store.update {
+                it.copy(
+                    lastGeoUpdateAt = if (result.isSuccess) now else it.lastGeoUpdateAt,
+                    geoLastCheckAt = now,
+                    geoLastResult = if (result.isSuccess) "成功" else "失败",
+                    geoLastError = result.exceptionOrNull()?.message?.take(200).orEmpty(),
+                    geoLastVersion = result.getOrNull()?.version ?: it.geoLastVersion
+                )
             }
             refreshComponentVersions()
             _message.value = result.fold(

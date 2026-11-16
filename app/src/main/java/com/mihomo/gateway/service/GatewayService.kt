@@ -144,11 +144,26 @@ class GatewayService : Service() {
             AppContainer.gateway.stop()
             AppContainer.gateway.start()
         }
-        result.onSuccess {
-            AppContainer.settings.update { it.copy(lastGeoUpdateAt = now) }
-            Log.i(TAG, "geo updated: ${it.version}")
-        }.onFailure {
-            Log.w(TAG, "geo update failed: ${it.message}")
+        result.onSuccess { update ->
+            AppContainer.settings.update {
+                it.copy(
+                    lastGeoUpdateAt = now,
+                    geoLastCheckAt = now,
+                    geoLastResult = "成功",
+                    geoLastError = "",
+                    geoLastVersion = update.version
+                )
+            }
+            Log.i(TAG, "geo updated: ${update.version}")
+        }.onFailure { e ->
+            AppContainer.settings.update { settings ->
+                settings.copy(
+                    geoLastCheckAt = now,
+                    geoLastResult = "失败",
+                    geoLastError = e.message?.take(200).orEmpty()
+                )
+            }
+            Log.w(TAG, "geo update failed: ${e.message}")
         }
     }
 

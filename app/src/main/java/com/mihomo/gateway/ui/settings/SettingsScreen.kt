@@ -33,6 +33,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -91,6 +94,7 @@ private fun SettingsMain(
     var showCleanup by remember { mutableStateOf(false) }
     var showGeoUpdate by remember { mutableStateOf(false) }
     var showGeoInterval by remember { mutableStateOf(false) }
+    var showGeoHistory by remember { mutableStateOf(false) }
     var showRestore by remember { mutableStateOf(false) }
     var restoreJson by remember { mutableStateOf("") }
     var showIpMode by remember { mutableStateOf(false) }
@@ -173,6 +177,12 @@ private fun SettingsMain(
                 title = "Geo 数据",
                 value = geoVersion.ifBlank { "未知" },
                 showChevron = false
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "上次 Geo 更新",
+                value = geoResultLabel(settings.geoLastResult, settings.geoLastVersion),
+                onClick = { showGeoHistory = true }
             )
             SettingsDivider()
             SettingsRow(
@@ -331,6 +341,29 @@ private fun SettingsMain(
         )
     }
 
+    if (showGeoHistory) {
+        AlertDialog(
+            onDismissRequest = { showGeoHistory = false },
+            title = { Text("Geo 更新记录") },
+            text = {
+                Text(
+                    buildString {
+                        appendLine("上次检查：${formatGeoTime(settings.geoLastCheckAt)}")
+                        appendLine("结果：${geoResultLabel(settings.geoLastResult, settings.geoLastVersion)}")
+                        if (settings.geoLastError.isNotBlank()) {
+                            appendLine()
+                            appendLine("错误：")
+                            append(settings.geoLastError)
+                        }
+                    }.trim()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showGeoHistory = false }) { Text("关闭") }
+            }
+        )
+    }
+
     if (showGeoInterval) {
         OptionDialog(
             title = "Geo 更新间隔",
@@ -466,5 +499,16 @@ private fun runtimeHint(mode: String): String = when (mode) {
     "global" -> "全部流量走代理"
     "direct" -> "全部流量不走代理"
     else -> "按分流规则决定走向"
+}
+
+private fun geoResultLabel(result: String, version: String): String = when (result) {
+    "成功" -> if (version.isBlank()) "成功" else "成功 · $version"
+    "失败" -> "失败"
+    else -> "尚未更新"
+}
+
+private fun formatGeoTime(ts: Long): String {
+    if (ts <= 0L) return "从未"
+    return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(ts))
 }
 
