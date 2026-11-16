@@ -55,6 +55,9 @@ fun NodeTagManagerScreen(
 
     var editing by remember { mutableStateOf<NodeTag?>(null) }
     var confirmDelete by remember { mutableStateOf<NodeTag?>(null) }
+    var regionExpanded by remember { mutableStateOf(true) }
+    var customExpanded by remember { mutableStateOf(true) }
+    var builtinExpanded by remember { mutableStateOf(true) }
 
     val region = tags.filterNot { it.builtin }
         .filter { it.id.startsWith("__region_") }
@@ -98,18 +101,18 @@ fun NodeTagManagerScreen(
             Spacer(Modifier.height(8.dp))
         }
 
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        TagSectionHeader(
+            title = "地区标签（预设，可编辑）",
+            count = region.size,
+            expanded = regionExpanded,
+            onToggle = { regionExpanded = !regionExpanded }
         ) {
-            Text("地区标签（预设，可编辑）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.weight(1f))
             TextButton(onClick = { vm.restoreRegions() }) {
                 Text("恢复默认", style = MaterialTheme.typography.labelSmall)
             }
         }
-        Spacer(Modifier.height(6.dp))
 
+        if (regionExpanded) {
         if (region.isEmpty()) {
             Text(
                 "地区预设已全部删除；可新建自定义标签替代。",
@@ -129,12 +132,16 @@ fun NodeTagManagerScreen(
             }
         }
 
+        }
         Spacer(Modifier.height(16.dp))
-        Text("自定义标签", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(6.dp))
-        Text("自定义标签", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(6.dp))
+        TagSectionHeader(
+            title = "自定义标签",
+            count = custom.size,
+            expanded = customExpanded,
+            onToggle = { customExpanded = !customExpanded }
+        )
 
+        if (customExpanded) {
         if (custom.isEmpty()) {
             Column(
                 Modifier
@@ -169,9 +176,21 @@ fun NodeTagManagerScreen(
             }
         }
 
+        }
         Spacer(Modifier.height(16.dp))
-        Text("内置类型（只读）", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(6.dp))
+        TagSectionHeader(
+            title = "内置类型（当前订阅 ${builtin.size} 种，只读）",
+            count = builtin.size,
+            expanded = builtinExpanded,
+            onToggle = { builtinExpanded = !builtinExpanded }
+        )
+        if (builtinExpanded) {
+            Text(
+                "由当前订阅节点自动生成；切换订阅后自动更新",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(4.dp))
         builtin.forEachIndexed { index, tag ->
             TagRow(
                 tag = tag,
@@ -183,6 +202,7 @@ fun NodeTagManagerScreen(
             if (index != builtin.lastIndex) Spacer(Modifier.height(6.dp))
         }
 
+        }
         Spacer(Modifier.height(12.dp))
     }
 
@@ -213,6 +233,45 @@ fun NodeTagManagerScreen(
                 TextButton(onClick = { confirmDelete = null }) { Text("取消") }
             }
         )
+    }
+}
+
+@Composable
+private fun TagSectionHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            "$count",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            if (expanded) "▾" else "▸",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        trailing?.let {
+            Spacer(Modifier.width(4.dp))
+            it()
+        }
     }
 }
 
