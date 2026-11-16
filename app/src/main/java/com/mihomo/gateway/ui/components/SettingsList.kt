@@ -47,6 +47,17 @@ fun SettingsGroup(title: String? = null, content: @Composable ColumnScope.() -> 
     }
 }
 
+/** 分组内的次级标题，用于内核 / Geo 数据等分区。 */
+@Composable
+fun SettingsSubheader(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 14.dp, top = 12.dp, bottom = 4.dp)
+    )
+}
+
 /** 分组内行分隔线，左侧留出缩进。 */
 @Composable
 fun SettingsDivider() {

@@ -6,9 +6,12 @@ import com.mihomo.gateway.data.api.MihomoApi
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.store.SettingsStore
 import com.mihomo.gateway.di.AppContainer
+import com.mihomo.gateway.model.AppSettings
 import com.mihomo.gateway.model.GatewayState
 import com.mihomo.gateway.model.ProxyNames
 import com.mihomo.gateway.model.Traffic
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -34,6 +37,9 @@ class OverviewViewModel(
 ) : ViewModel() {
 
     val state: StateFlow<GatewayState> = gateway.state
+
+    val appSettings: StateFlow<AppSettings> = settings.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
     private val _traffic = MutableStateFlow(Traffic(0, 0))
     val traffic: StateFlow<Traffic> = _traffic.asStateFlow()

@@ -134,9 +134,17 @@ class SettingsViewModel(
                     rules = false,
                     detail = "网关未运行"
                 )
+                store.update { it.copy(lastHealthAt = System.currentTimeMillis(), lastHealthOk = false) }
                 return@launch
             }
-            _health.value = healthChecker.check(settings.value.ipv6Gateway)
+            val report = healthChecker.check(settings.value.ipv6Gateway)
+            _health.value = report
+            store.update {
+                it.copy(
+                    lastHealthAt = System.currentTimeMillis(),
+                    lastHealthOk = report.ok
+                )
+            }
         }
     }
 

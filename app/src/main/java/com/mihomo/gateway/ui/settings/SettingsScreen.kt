@@ -46,6 +46,7 @@ import com.mihomo.gateway.model.IpMode
 import com.mihomo.gateway.ui.components.SettingsDivider
 import com.mihomo.gateway.ui.components.SettingsGroup
 import com.mihomo.gateway.ui.components.SettingsRow
+import com.mihomo.gateway.ui.components.SettingsSubheader
 import com.mihomo.gateway.ui.components.SettingsSwitchRow
 import com.mihomo.gateway.ui.components.SubPageHeader
 import com.mihomo.gateway.ui.diagnostics.DiagnosticsScreen
@@ -173,6 +174,7 @@ private fun SettingsMain(
         Spacer(Modifier.height(24.dp))
 
         SettingsGroup("运行组件") {
+            SettingsSubheader("内核")
             SettingsRow(
                 title = "内核版本",
                 value = coreVersion.ifBlank { "未知" },
@@ -204,25 +206,34 @@ private fun SettingsMain(
             )
             SettingsDivider()
             SettingsRow(
-                title = "Geo 数据",
+                title = "重新安装内核",
+                subtitle = "强制从 APK 重装内核、脚本和 Geo 数据",
+                enabled = !busy,
+                onClick = { vm.installCore() }
+            )
+
+            SettingsDivider()
+            SettingsSubheader("Geo 数据")
+            SettingsRow(
+                title = "Geo 版本",
                 value = geoVersion.ifBlank { "未知" },
                 showChevron = false
             )
             SettingsDivider()
             SettingsRow(
-                title = "上次 Geo 更新",
+                title = "上次更新",
                 value = geoResultLabel(settings.geoLastResult, settings.geoLastVersion),
                 onClick = { showGeoHistory = true }
             )
             SettingsDivider()
             SettingsRow(
-                title = "Geo 自动更新",
+                title = "自动更新",
                 value = if (settings.geoAutoUpdate) "开启" else "关闭",
                 onClick = { vm.setGeoAutoUpdate(!settings.geoAutoUpdate) }
             )
             SettingsDivider()
             SettingsRow(
-                title = "Geo 更新间隔",
+                title = "更新间隔",
                 value = "每 ${settings.geoUpdateIntervalDays} 天",
                 enabled = settings.geoAutoUpdate,
                 onClick = { showGeoInterval = true }
@@ -238,14 +249,9 @@ private fun SettingsMain(
                 enabled = !busy,
                 onClick = { showGeoUpdate = true }
             )
+
             SettingsDivider()
-            SettingsRow(
-                title = "重新安装内核",
-                subtitle = "强制从 APK 重装内核、脚本和 Geo 数据",
-                enabled = !busy,
-                onClick = { vm.installCore() }
-            )
-            SettingsDivider()
+            SettingsSubheader("维护")
             SettingsRow(
                 title = "清理运行数据（卸载前）",
                 subtitle = "停止网关、清除规则、删除 /data/adb/mihomo",

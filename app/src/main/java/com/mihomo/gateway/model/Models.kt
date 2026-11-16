@@ -100,6 +100,8 @@ data class AppSettings(
     val geoLastVersion: String = "",
     val autoStart: Boolean = true,
     val desiredRunning: Boolean = true,
+    val lastHealthAt: Long = 0L,
+    val lastHealthOk: Boolean = false,
     val updateIntervalHours: Int = 0,
     val lastUpdateAt: Long = 0L,
     val todayDate: String = "",

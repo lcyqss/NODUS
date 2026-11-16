@@ -72,6 +72,7 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
     val currentNode by vm.currentNode.collectAsState()
     val busy by vm.busy.collectAsState()
     val runtimeMode by vm.runtimeMode.collectAsState()
+    val appSettings by vm.appSettings.collectAsState()
     val today by vm.today.collectAsState()
 
     PullRefreshBox(onRefresh = { vm.refresh() }) {
@@ -111,13 +112,6 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
             }
 
             Spacer(Modifier.height(4.dp))
-            val modes = listOf("rule" to "规则", "global" to "全局", "direct" to "直连")
-            SegmentedControl(
-                options = modes.map { it.second },
-                selectedIndex = modes.indexOfFirst { it.first == runtimeMode },
-                onSelect = { index -> vm.setRuntimeMode(modes[index].first) },
-                enabled = !busy
-            )
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -144,6 +138,42 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
             KeyValueRow("IPv6 拦截", if (state.blockIpv6) "开" else "关")
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        SectionCard(title = "运行状态") {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                StatusCell(
+                    label = "运行模式",
+                    value = runtimeLabel(runtimeMode),
+                    modifier = Modifier.weight(1f)
+                )
+                StatusCell(
+                    label = "局域网 IPv6",
+                    value = if (appSettings.ipv6Gateway) "开启" else "关闭",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                StatusCell(
+                    label = "运行健康",
+                    value = when {
+                        appSettings.lastHealthAt <= 0L -> "未检查"
+                        appSettings.lastHealthOk -> "正常"
+                        else -> "异常"
+                    },
+                    accent = when {
+                        appSettings.lastHealthAt <= 0L -> MaterialTheme.colorScheme.onSurfaceVariant
+                        appSettings.lastHealthOk -> Color(0xFF16A34A)
+                        else -> MaterialTheme.colorScheme.error
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                StatusCell(
+                    label = "内核",
+                    value = state.version.ifBlank { "-" },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 
@@ -191,6 +221,36 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
     }
 }
 
+
+@Composable
+private fun StatusCell(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    accent: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Column(modifier) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            color = accent,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+private fun runtimeLabel(mode: String): String = when (mode) {
+    "global" -> "全局"
+    "direct" -> "直连"
+    else -> "规则"
+}
 
 @Composable
 private fun LegendDot(color: Color, label: String) {

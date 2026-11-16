@@ -69,8 +69,9 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
 
     val neighborMap by vm.neighborMap.collectAsState()
     val deviceHistory by vm.deviceHistory.collectAsState()
+    val macOf: (String) -> String = { ip -> neighborMap[ip]?.mac ?: "-" }
     val labelOf: (String) -> String = { ip ->
-        deviceHistory[ip]?.label ?: neighborMap[ip]?.hostname ?: neighborMap[ip]?.mac ?: ip
+        deviceHistory[ip]?.label ?: neighborMap[ip]?.hostname?.takeIf { it.isNotBlank() } ?: ip
     }
 
     DisposableEffect(Unit) {
@@ -170,7 +171,8 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
                 connections = filtered,
                 expandedId = expandedId,
                 onToggle = { id -> expandedId = if (expandedId == id) null else id },
-                onClose = { id -> vm.close(id) }
+                onClose = { id -> vm.close(id) },
+                macOf = macOf
             )
 
             1 -> {
@@ -188,7 +190,8 @@ private fun ConnectionList(
     connections: List<ConnectionInfo>,
     expandedId: String?,
     onToggle: (String) -> Unit,
-    onClose: (String) -> Unit
+    onClose: (String) -> Unit,
+    macOf: (String) -> String
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -199,7 +202,8 @@ private fun ConnectionList(
                 conn = conn,
                 expanded = expandedId == conn.id,
                 onToggle = { onToggle(conn.id) },
-                onClose = { onClose(conn.id) }
+                onClose = { onClose(conn.id) },
+                mac = macOf(conn.sourceIP)
             )
         }
     }
@@ -340,7 +344,8 @@ private fun ConnectionRow(
     conn: ConnectionInfo,
     expanded: Boolean,
     onToggle: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    mac: String
 ) {
     Column(
         Modifier
@@ -384,6 +389,7 @@ private fun ConnectionRow(
         if (expanded) {
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
             KeyValue("源地址", "${conn.sourceIP}:${conn.sourcePort}".trimEnd(':'))
+            KeyValue("MAC", mac)
             KeyValue("目标地址", conn.destinationIP.ifBlank { "-" })
             KeyValue("网络类型", conn.network)
             KeyValue("规则", buildString {

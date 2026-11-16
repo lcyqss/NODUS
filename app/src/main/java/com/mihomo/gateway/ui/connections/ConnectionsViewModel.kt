@@ -91,7 +91,7 @@ class ConnectionsViewModel(
 
     private fun labelFor(ip: String): String {
         val info = _neighbors.value[ip] ?: return ip
-        return info.hostname ?: info.mac
+        return info.hostname?.takeIf { it.isNotBlank() } ?: ip
     }
 
     private fun updateHistory(list: List<ConnectionInfo>) {

@@ -45,6 +45,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putString(KEY_GEO_LAST_VERSION, next.geoLastVersion)
                 .putBoolean(KEY_AUTOSTART, next.autoStart)
                 .putBoolean(KEY_DESIRED, next.desiredRunning)
+                .putLong(KEY_HEALTH_AT, next.lastHealthAt)
+                .putBoolean(KEY_HEALTH_OK, next.lastHealthOk)
                 .putInt(KEY_UPDATE_INTERVAL, next.updateIntervalHours)
                 .putLong(KEY_LAST_UPDATE, next.lastUpdateAt)
                 .putString(KEY_TODAY_DATE, next.todayDate)
@@ -131,6 +133,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         geoLastVersion = prefs.getString(KEY_GEO_LAST_VERSION, "").orEmpty(),
         autoStart = prefs.getBoolean(KEY_AUTOSTART, true),
         desiredRunning = prefs.getBoolean(KEY_DESIRED, true),
+        lastHealthAt = prefs.getLong(KEY_HEALTH_AT, 0L),
+        lastHealthOk = prefs.getBoolean(KEY_HEALTH_OK, false),
         updateIntervalHours = prefs.getInt(KEY_UPDATE_INTERVAL, 0),
         lastUpdateAt = prefs.getLong(KEY_LAST_UPDATE, 0L),
         todayDate = prefs.getString(KEY_TODAY_DATE, "").orEmpty(),
@@ -162,6 +166,8 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_GEO_LAST_VERSION = "geo_last_version"
         private const val KEY_AUTOSTART = "auto_start"
         private const val KEY_DESIRED = "desired_running"
+        private const val KEY_HEALTH_AT = "last_health_at"
+        private const val KEY_HEALTH_OK = "last_health_ok"
         private const val KEY_UPDATE_INTERVAL = "update_interval_hours"
         private const val KEY_LAST_UPDATE = "last_update_at"
         private const val KEY_TODAY_DATE = "today_date"
