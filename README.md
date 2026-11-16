@@ -10,6 +10,14 @@
 - 更新：GitHub Release 应用内检查 / 手动下载安装
 - 仓库：<https://github.com/lcyqss/NODUS>
 
+## 下载
+
+签名 APK 从 GitHub Releases 获取：
+
+<https://github.com/lcyqss/NODUS/releases/latest>
+
+当前版本：**v2.61.9**（versionCode 182）。
+
 ## 测试状态
 
 | 模式 / 功能 | 状态 | 说明 |
