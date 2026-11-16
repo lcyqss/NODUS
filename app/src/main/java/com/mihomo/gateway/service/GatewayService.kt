@@ -115,8 +115,39 @@ class GatewayService : Service() {
             }
         }
 
+        // Geo 数据：默认关闭，开启后按天检查；仅在到期时下载并重启内核
+        scope.launch {
+            delay(30_000L)
+            while (isActive) {
+                runCatching { maybeUpdateGeo() }
+                    .onFailure { Log.w(TAG, "geo auto update: ${it.message}") }
+                delay(6 * 60 * 60_000L)
+            }
+        }
+
         }
         return START_STICKY
+    }
+
+    private suspend fun maybeUpdateGeo() {
+        val s = AppContainer.settings.settings.first()
+        if (!s.geoAutoUpdate) return
+        val intervalDays = s.geoUpdateIntervalDays.coerceIn(1, 30)
+        val now = System.currentTimeMillis()
+        val due = s.lastGeoUpdateAt <= 0L ||
+            now - s.lastGeoUpdateAt >= intervalDays * 24L * 60L * 60_000L
+        if (!due) return
+
+        val wasRunning = AppContainer.gateway.state.value.running
+        if (wasRunning) AppContainer.gateway.stop()
+        val result = AppContainer.geoData.update()
+        if (wasRunning) AppContainer.gateway.start()
+        result.onSuccess {
+            AppContainer.settings.update { it.copy(lastGeoUpdateAt = now) }
+            Log.i(TAG, "geo updated: ${it.version}")
+        }.onFailure {
+            Log.w(TAG, "geo update failed: ${it.message}")
+        }
     }
 
     private fun buildNotification(text: String, running: Boolean): Notification {

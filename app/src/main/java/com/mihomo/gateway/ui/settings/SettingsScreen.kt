@@ -89,6 +89,7 @@ private fun SettingsMain(
     val context = LocalContext.current
     var showCleanup by remember { mutableStateOf(false) }
     var showGeoUpdate by remember { mutableStateOf(false) }
+    var showGeoInterval by remember { mutableStateOf(false) }
     var showRestore by remember { mutableStateOf(false) }
     var restoreJson by remember { mutableStateOf("") }
     var showIpMode by remember { mutableStateOf(false) }
@@ -219,6 +220,19 @@ private fun SettingsMain(
             )
             SettingsDivider()
             SettingsRow(
+                title = "Geo 自动更新",
+                value = if (settings.geoAutoUpdate) "开启" else "关闭",
+                onClick = { vm.setGeoAutoUpdate(!settings.geoAutoUpdate) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = "Geo 更新间隔",
+                value = "每 ${settings.geoUpdateIntervalDays} 天",
+                enabled = settings.geoAutoUpdate,
+                onClick = { showGeoInterval = true }
+            )
+            SettingsDivider()
+            SettingsRow(
                 title = "更新 Geo 数据",
                 subtitle = "从官方源下载最新 GeoIP / GeoSite",
                 enabled = !busy,
@@ -305,6 +319,19 @@ private fun SettingsMain(
             dismissButton = {
                 TextButton(onClick = { showRestore = false }) { Text("取消") }
             }
+        )
+    }
+
+    if (showGeoInterval) {
+        OptionDialog(
+            title = "Geo 更新间隔",
+            options = listOf("7" to "每周", "30" to "每月"),
+            selectedKey = settings.geoUpdateIntervalDays.toString(),
+            onSelect = {
+                showGeoInterval = false
+                vm.setGeoUpdateInterval(it.toIntOrNull() ?: 7)
+            },
+            onDismiss = { showGeoInterval = false }
         )
     }
 

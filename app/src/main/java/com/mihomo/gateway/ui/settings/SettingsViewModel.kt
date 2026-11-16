@@ -285,12 +285,30 @@ class SettingsViewModel(
             if (wasRunning) gateway.stop()
             val result = geoData.update()
             if (wasRunning) gateway.start()
+            if (result.isSuccess) {
+                store.update { it.copy(lastGeoUpdateAt = System.currentTimeMillis()) }
+            }
             refreshComponentVersions()
             _message.value = result.fold(
                 onSuccess = { "Geo 数据已更新: ${it.version}" },
                 onFailure = { "Geo 更新失败: ${it.message}" }
             )
             _busy.value = false
+        }
+    }
+
+    fun setGeoAutoUpdate(enabled: Boolean) {
+        viewModelScope.launch {
+            store.update { it.copy(geoAutoUpdate = enabled) }
+            _message.value = if (enabled) "已开启 Geo 自动更新" else "已关闭 Geo 自动更新"
+        }
+    }
+
+    fun setGeoUpdateInterval(days: Int) {
+        if (days !in listOf(7, 30)) return
+        viewModelScope.launch {
+            store.update { it.copy(geoUpdateIntervalDays = days) }
+            _message.value = "Geo 数据每 $days 天检查一次"
         }
     }
 

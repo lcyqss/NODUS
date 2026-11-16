@@ -3,6 +3,8 @@ package com.mihomo.gateway.data.repo
 import android.content.Context
 import com.mihomo.gateway.core.ShellExecutor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -33,7 +35,13 @@ class GeoDataRepositoryImpl(
         .readTimeout(120, TimeUnit.SECONDS)
         .build()
 
-    override suspend fun update(): Result<GeoUpdateResult> = withContext(Dispatchers.IO) {
+    private val updateMutex = Mutex()
+
+    override suspend fun update(): Result<GeoUpdateResult> = updateMutex.withLock {
+        updateLocked()
+    }
+
+    private suspend fun updateLocked(): Result<GeoUpdateResult> = withContext(Dispatchers.IO) {
         val cache = File(context.cacheDir, "geo-update")
         cache.deleteRecursively()
         cache.mkdirs()

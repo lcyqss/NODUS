@@ -36,6 +36,9 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putString(KEY_IP_MODE, next.ipMode.name)
                 .putBoolean(KEY_BLOCK_V6, next.blockIpv6)
                 .putBoolean(KEY_IPV6_GATEWAY, next.ipv6Gateway)
+                .putBoolean(KEY_GEO_AUTO, next.geoAutoUpdate)
+                .putInt(KEY_GEO_INTERVAL, next.geoUpdateIntervalDays)
+                .putLong(KEY_GEO_LAST, next.lastGeoUpdateAt)
                 .putBoolean(KEY_AUTOSTART, next.autoStart)
                 .putBoolean(KEY_DESIRED, next.desiredRunning)
                 .putInt(KEY_UPDATE_INTERVAL, next.updateIntervalHours)
@@ -115,6 +118,9 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         }.getOrDefault(IpMode.AUTO),
         blockIpv6 = prefs.getBoolean(KEY_BLOCK_V6, true),
         ipv6Gateway = prefs.getBoolean(KEY_IPV6_GATEWAY, false),
+        geoAutoUpdate = prefs.getBoolean(KEY_GEO_AUTO, false),
+        geoUpdateIntervalDays = prefs.getInt(KEY_GEO_INTERVAL, 7),
+        lastGeoUpdateAt = prefs.getLong(KEY_GEO_LAST, 0L),
         autoStart = prefs.getBoolean(KEY_AUTOSTART, true),
         desiredRunning = prefs.getBoolean(KEY_DESIRED, true),
         updateIntervalHours = prefs.getInt(KEY_UPDATE_INTERVAL, 0),
@@ -139,6 +145,9 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_IP_MODE = "ip_mode"
         private const val KEY_BLOCK_V6 = "block_ipv6"
         private const val KEY_IPV6_GATEWAY = "ipv6_gateway"
+        private const val KEY_GEO_AUTO = "geo_auto_update"
+        private const val KEY_GEO_INTERVAL = "geo_update_interval_days"
+        private const val KEY_GEO_LAST = "geo_last_update"
         private const val KEY_AUTOSTART = "auto_start"
         private const val KEY_DESIRED = "desired_running"
         private const val KEY_UPDATE_INTERVAL = "update_interval_hours"
