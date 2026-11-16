@@ -1,174 +1,161 @@
 # NODUS
 
-把一台 root 后的 Android 手机变成**透明代理网关**：热点客户端与局域网设备共享 VPN 出口。
+把一台已 root 的 Android 手机变成透明代理网关：热点客户端和局域网设备共享 mihomo 出口。
 
-- 内核：[mihomo](https://github.com/MetaCubeX/mihomo)（Clash.Meta）
-- 形态：原生 Kotlin + Jetpack Compose App，root 直连，无 WebView
-- 场景：
-  1. 手机开热点，热点客户端走代理（含 IPv4/IPv6 与分流）
-  2. 手机连 Wi-Fi 作旁路由，内网设备网关指向手机
+> **项目状态：开发 / 灰度测试阶段。**
+> 热点模式已在真机验证；**旁路由模式尚未完成完整测试**，不要直接用于生产或无人值守环境。使用前请先阅读[测试状态](#测试状态)和[已知限制](#已知限制)。
+
+- 内核：[mihomo](https://github.com/MetaCubeX/mihomo)
+- 形态：原生 Kotlin + Jetpack Compose，root 直连，无 WebView
+- 更新：GitHub Release 应用内检查 / 手动下载安装
+- 仓库：<https://github.com/lcyqss/NODUS>
+
+## 测试状态
+
+| 模式 / 功能 | 状态 | 说明 |
+|---|---|---|
+| 手机热点 + IPv4/iPtables REDIRECT | 已真机验证 | 热点客户端透明代理 |
+| 手机热点 + IPv6/TPROXY | 已真机验证 | ULA、v6dns、TPROXY6 |
+| 设备策略（MAC / 标签条件） | 已真机验证 | 每设备 listener 与子规则 |
+| root 持久 shell | 已真机验证 | 复用单个 `su -c sh` |
+| Geo / 内核更新 | 已真机验证 | GitHub 下载与 SHA256 |
+| 应用内 APK 更新 | 代码已完成 | 需要 GitHub Release；尚未做完整发布验证 |
+| **旁路由模式** | **未完整测试** | Wi-Fi 上游、LAN 网关、IPv6 RA 冲突等场景需继续验证 |
+
+旁路由模式的问题优先记录到 [docs/BACKLOG.md](docs/BACKLOG.md)，不要在未验证的情况下默认可用。
+
+## 功能
+
+- 手机热点共享代理，支持 IPv4 与 IPv6
+- 设备策略：按 MAC 选择节点标签，支持条件表达式、延迟调度、IP 跟随
+- 分流规则：自定义规则与订阅规则
+- mihomo 内核与 Geo 数据更新
+- 运行健康检查：DNS、端口、代理、TPROXY、IPv6、规则加载
+- 应用内更新：每日检查 GitHub Release，手动下载并安装
+- 日志、连接拓扑、诊断信息导出
+
+## 环境要求
+
+- Android 9+（minSdk 29），arm64 设备
+- Magisk / KernelSU 等 root 环境
+- JDK 17
+- Android SDK 35
+- Gradle 8.9（仓库已包含 wrapper）
+
+## 构建
+
+```powershell
+# 1. 准备 mihomo 内核二进制
+powershell -File scripts/fetch-core.ps1
+
+# 2. Debug
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-17"
+.\gradlew.bat :app:assembleDebug
+
+# 3. Release（需要 keystore/keystore.properties）
+.\gradlew.bat :app:assembleRelease
+```
+
+Release 产物：
+
+```text
+app/build/outputs/apk/release/app-release.apk
+```
+
+`keystore/`、`local.properties` 和内核二进制不会提交到仓库。
+
+## 运行布局
+
+```text
+/data/adb/mihomo/
+├── mihomo              内核二进制
+├── config.yaml         当前配置
+├── gateway.conf        网关参数
+├── *.sh                启停、规则、模式切换脚本
+└── mihomo.log          内核日志
+```
+
+清理运行数据：
+
+```text
+App：设置 → 运行组件 → 维护 → 清理运行数据
+```
+
+或手动：
+
+```sh
+sh /data/adb/mihomo/cleanup.sh
+rm -rf /data/adb/mihomo
+```
+
+## 应用更新
+
+更新入口：
+
+```text
+设置 → 关于 → 检查应用更新
+```
+
+行为：
+
+- 应用启动后每天最多自动检查一次
+- 有新版本时首页显示提示条
+- 用户手动下载并安装
+- 安装前校验包名、版本号和签名
+
+发布流程：
+
+```bash
+# 1. 修改 versionCode / versionName
+# 2. 提交代码
+# 3. 打 tag 并推送
+git tag v2.61.9
+git push origin v2.61.9
+```
+
+GitHub Actions 会使用仓库 Secrets 中的签名文件构建 `NODUS.apk`，并在 Release 中附带 `NODUS.apk.sha256`。
+
+需要的 Secrets：
+
+```text
+KEYSTORE_BASE64
+KEYSTORE_STORE_PASSWORD
+KEYSTORE_KEY_ALIAS
+KEYSTORE_KEY_PASSWORD
+```
+
+详细步骤见 [docs/app-update.md](docs/app-update.md)。
+
+## 已知限制
+
+- **旁路由模式尚未完整测试**，网络拓扑、上游 RA、IPv6 转发可能与热点模式不同。
+- 必须使用 root；不同 root 管理器的 `su` 行为和授权提示可能不同。
+- 应用更新必须使用与当前安装包相同的签名密钥，否则 Android 会拒绝覆盖安装。
+- GitHub API 可能被限流或网络不可达；更新失败时请直接访问 Release 页面。
+- 当前更新检查要求仓库和 Release 可匿名访问。
+- 真机行为受 ROM、热点实现和运营商网络影响，不能只依据模拟器或单台设备判断。
 
 ## 文档
 
 | 文档 | 说明 |
 |---|---|
-| [docs/DESIGN.md](docs/DESIGN.md) | 总体设计（架构、模块、API、性能约束、里程碑） |
-| [docs/adr/](docs/adr/) | 架构决策记录（ADR） |
-| [docs/BACKLOG.md](docs/BACKLOG.md) | 待办与暂缓事项 |
+| [docs/DESIGN.md](docs/DESIGN.md) | 架构、模块、API 与约束 |
+| [docs/BACKLOG.md](docs/BACKLOG.md) | 待办、已知问题和未测试项 |
+| [docs/TESTING.md](docs/TESTING.md) | 热点 / 旁路由测试状态与验证清单 |
+| [docs/app-update.md](docs/app-update.md) | 应用内更新、签名和 GitHub Release 流程 |
+| [docs/adr/](docs/adr/) | 架构决策记录 |
 
-## 当前进度
+## 版本
 
-| 里程碑 | 内容 | 状态 |
-|---|---|---|
-| M1 | 数据层 + 概览/设置页 | ✅ v0.5.0 |
-| M2 | 代理页 | ✅ v0.6.0 |
-| M3 | 连接/日志/规则 | ✅ v0.7.0 |
-| M4 | 订阅独立页/诊断页/自启/深色模式 | ✅ v1.0.0 |
-| M5 | 单一开关 / 状态恢复 / 图标体系 | ✅ v1.2.0 |
-| M6 | 发布签名 / 清理卸载 / 回归 | ✅ v1.9.1 |
-| M7 | 自定义规则管理（注入 + 热重载 + 回滚） | ✅ v2.0.1 |
-| M8 | 拓扑图形化（Canvas 分层树） | ✅ v2.1.0 |
-| M9 | 横向拓扑 + 设备聚合 + 端口层 + 图标 | ✅ v2.3.1 |
-| M10 | P0 体验（模式快捷 / 通知操作 / QS 磁贴 / 隐藏不可用 / 日志搜索导出） | ✅ v2.4.0 |
-| M11 | P1（今日流量 / 规则模板 / 拖拽排序 / 订阅名称节点数 / 备份恢复） | ✅ v2.5.3 |
-| M12 | P2（收藏置顶 / 连接排序 / 设备过滤 / 多订阅） | ✅ v2.7.0 |
+当前版本：**v2.61.9**（versionCode 182）。
 
-## 近期版本
+近期变更：
 
 | 版本 | 内容 |
 |---|---|
-| v2.61.9 | 增加应用内更新检查、GitHub Release 下载与 GitHub Actions 发布 |`n| v2.61.7 | 设备策略页样式优化，修复策略设置返回逻辑 |`n| v2.61.6 | 设备策略页改为纯策略列表，策略设置独立入口 |`n| v2.61.4 | 设备策略页按策略/条件/调度/数据重新分组 |`n| v2.61.3 | 设备策略直接嵌入分流页，去掉管理中转 |`n| v2.61.2 | 首页状态卡、分流分区、设置子分组、连接设备标签整理 |`n| v2.61.0 | 回滚 IPv6 DNS 实验，修复配置损坏与 IPv6 健康误报 |`n| v2.59.8 | 持久化 root shell，减少重复 su 授权提示 |`n| v2.59.7 | 抑制启动网络回调的重复 root 应用 |`n| v2.59.6 | 降低后台 root 调用与重复 su 提示 |`n| v2.59.0 | 品牌更名为 NODUS，新增 launcher 图标/通知图标 |`n| v2.58.9 | Geo/内核上游 SHA256 校验与深度健康检查 |`n| v2.58.6 | 运行健康检查（DNS/端口/代理） |`n| v2.58.4 | 手动检查/安装官方 Android arm64 内核 |`n| v2.58.3 | 内核上一版本、配置校验、手动/自动回退 |`n| v2.58.0 | Geo 更新记录/上次错误展示，未变化不重启内核 |`n| v2.57.9 | 设置页按网关/运行组件/应用/诊断/关于分组 |`n| v2.57.8 | Geo 下载走代理、ETag 免重复下载、进度与 SHA256 记录 |`n| v2.57.4 | Geo 可选自动更新（每周/每月，默认关闭） |`n| v2.57.3 | Geo 数据随版本更新、手动更新入口、强制重装内核 |`n| v2.56.2 | 清理 release 模板示例 Provider，明确用户数据不随包发布 |`n| v2.56.1 | 直连模式 DNS 绕过 fake-IP，网页/图片恢复 |`n| v2.56.0 | 设备独立 listener/子规则：首页模式不再影响设备策略 |`n| v2.53.0 | 设备策略增加规则/全局/直连三种模式 |`n| v2.52.2 | 订阅下载按 ID 串行化，避免并发缓存写入 |`n| v2.52.1 | 运行时内存与重试审计：退避、历史上限、回调清理 |`n| v2.51.1 | 标签分组标题卡片化，折叠边界更清晰 |`n| v2.51.0 | 标签分组可折叠；内置类型改为当前订阅动态生成 |`n| v2.50.1 | 地区标签改为可编辑预设，统一标签匹配 |`n| v2.48.0 | 设备策略标签可点击更换，无需删除重加 |`n| v2.47.0 | 自定义自动更新改为步进/滑杆，无需输入数字 |`n| v2.46.2 | 订阅自动更新支持 10 分钟粒度与自定义间隔 |`n| v2.45.0 | MAC 级 IPv6 设备分流产品化：listener + MAC 规则 |`n| v2.43.1 | IPv6 UDP/QUIC 实测通过；TPROXY 端口级看护 |`n| v2.43.0 | IPv6 UDP TPROXY、后台看护、设备策略多 IPv6 地址 |`n| v2.42.2 | 代码审查修复：开关失败状态、关闭清理、脚本 RA 保护 |`n| v2.42.0 | 对已连接客户端补发单播 RA，无需重连即可获得 ULA |`n| v2.41.0 | IPv6 DNS 中继：客户端 53 端口转发到 mihomo 1053 |`n| v2.40.2 | 客户端 RS 单播 RA；DNS 配置去重，修复 mihomo 解析失败 |`n| v2.39.0 | Windows DNS 兜底：DHCPv6 下发 IPv6 DNS |`n| v2.38.0 | IPv6 DNS：mihomo 双栈监听 + RA RDNSS |`n| v2.37.1 | 旁路由 IPv6 RA 检测，冲突时禁用 IPv6 代理 |`n| v2.36.1 | IPv6 设备策略：SRC-IP-CIDR v6 + 离线策略保护 |
-| v2.36.0 | 设备策略同时生成 IPv4/IPv6 源规则 |
-| v2.35.2 | 局域网 IPv6 代理：ULA/RA、IPv6 TPROXY、关闭时撤回 RA |
-| v2.34.0 | 条件模板可套用到设备的优先或回落条件 |
-| v2.33.0 | 条件模板可直接选择设备新建/更新策略 |
-| v2.32.0 | 备份支持导出到文件 / 从文件导入（SAF） |
-| v2.31.0 | 条件模板管理页：重命名、排序、删除 |
-| v2.30.0 | 策略列表启用开关/重复 MAC；节点定位提示；轮询降频；编辑页键盘适配；备份提示常驻 |
-| v2.29.3 | 安装回滚时同步清空策略已应用状态，避免 sync 误判 |
-| v2.29.2 | 修复策略回滚状态、规则编辑校验、备份导入去重；编辑页键盘适配；节点缓存/无变化不写盘 |
-| v2.28.0 | 自定义规则支持编辑（✎）；ip.sb 规则改为 DOMAIN-SUFFIX 直连 |
-| v2.27.2 | 修复首页当前节点误显示设备策略隐藏组；同一 MAC 只保留一条策略 |
-| v2.27.1 | 设备策略编辑页重做：全屏表单、紧凑输入框、条件树层级、底部操作栏 |
-| v2.26.0 | 每台设备可单独覆盖延迟调度间隔（0=跟随全局） |
-| v2.25.0 | 命中节点可点击跳转代理页：自动选中包含该节点的组并过滤 |
-| v2.24.1 | 备份与恢复：导出/导入策略、标签、条件模板（合并或覆盖） |
-| v2.23.0 | 条件模板：把常用条件树存成模板，跨设备策略一键套用 |
-| v2.22.2 | 条件组命中节点预览（可展开）；标签/子组上下移动排序 |
-| v2.21.0 | 设备策略可视化条件组：标签块 + 且/或 + 子组 + 取反，保留高级表达式 |
-| v2.20.0 | 标签可引用其他标签（组合表达式）；循环引用校验 |
-| v2.19.0 | 表达式支持引号标签名；IP 跟随与延迟调度间隔分别可配 |
-| v2.18.1 | 标签表达式实时校验：语法错误边输边提示，不再显示误导性命中数 |
-| v2.18.0 | 标签表达式：策略条件支持 ∧/∨/¬ 与括号，表达式编辑器 + 实时命中预览 |
-| v2.17.0 | 设备 IP 自动跟随（DHCP 变化重建 SRC-IP 规则）；延迟调度间隔可配置（30s/1min/5min） |
-| v2.16.0 | 设备策略延迟阈值：优先组最优延迟超过阈值时自动切到回落组，恢复后切回 |
-| v2.15.0 | 节点标签：关键词包含/排除、内置类型与地区标签；设备策略用标签组合（AND + 单标签取反） |
-| v2.14.0 | 设备策略：按设备 MAC 选择地区+协议出口，生成 SRC-IP 规则与独立策略组，主条件不可用回落 |
-| v2.13.4 | 修复流量/内存 WS 断开后不恢复；订阅行显示当前订阅名；更新中可查看订阅管理 |
-| v2.13.3 | 代理页改下拉刷新去 ⋮；分流首行统计卡；连接计数与图标合并一行 |
-| v2.13.2 | 一级页去掉标题（导航已标识），动作图标独立成行；订阅切换组名不变属正常 |
-| v2.13.1 | 订阅管理改为 CMFA 式集合页：卡片切换 + ⋮ 对象动作；去掉弹层；同 URL 可并存 |
-| v2.13.0 | 订阅为聚合根：每订阅缓存/自动更新/Provider 详情、编辑名称链接；设置瘦身；连接排序缩小 |
-| v2.12.1 | 修复首页当前节点不同步：改为顶层策略组 + 子组链解析，3 秒轮询 |
-| v2.12.0 | 结构打磨：沉浸式系统栏、去冗余提示、大标题重设计、紧凑搜索框、首页下拉刷新、返回栈 |
-| v2.11.0 | 结构微调：首页去品牌标题+56dp 开关、节点→代理、代理页三层重构、连接视图图标化 |
-| v2.10.2 | 修复订阅配置 allow-lan=false 导致热点客户端无网；导入时强制网关必需字段 |
-| v2.10.1 | 节点页支持选中子组（url-test / fallback）作为父组出口，显示子组当前节点 |
-| v2.10.0 | 订阅入口移到节点页（切换条 + 弹层）；导入保留地址族、支持停止状态导入 |
-| v2.9.8 | 地址族切换改内核 API 热重载（不杀进程）；IPv6 判定改为全局地址 + 多点探测 |
-| v2.9.7 | 节点地址族：新增「仅 IPv6 / 仅 IPv4」严格模式，修正优先/双栈文案 |
-| v2.9.6 | 视觉统一：28sp 大标题、15sp 正文、卡片圆角 12、分段控件、空态带操作、Tab 淡入 |
-| v2.9.5 | 设置页：插入式分组、取值弹窗、统一二级页与返回；日志工具栏不再溢出 |
-| v2.9.4 | 分流页：单行汇总、＋ActionSheet、应用按钮按脏状态高亮、规则行重排 |
-| v2.9.3 | 节点页：工具栏图标化、排序/筛选菜单、延迟条 |
-| v2.9.2 | 首页重做：iOS 分段控件、当前节点可点、流量卡片合并 |
-| v2.9.1 | Tab 重排：规则独立为「分流」，日志移入设置 → 诊断 |
-| v2.7.0 | 多订阅管理：列表/单选切换/添加/删除 |
-| v2.6.0 | 节点收藏置顶、连接表格排序、按设备过滤 |
-| v2.5.3 | 规则拖拽排序；修复 SRC-IP-CIDR 校验 |
-| v2.5.0 | 今日流量、规则模板、订阅名称/节点数、备份恢复 |
-| v2.4.0 | 模式快捷 chips、通知栏操作、QS 磁贴、隐藏不可用、日志搜索/导出 |
-| v2.3.1 | 端口节点 + 类型图标，画布裁剪 |
-| v2.2.0 | 横向布局 + 客户端按设备聚合 |
-| v2.0.1 | 自定义规则管理（独立存储、注入、回滚） |
-
-## 目录
-
-```
-app/src/main/java/com/mihomo/gateway/
-├── MainActivity.kt          入口
-├── MihomoApp.kt             Application（组合根初始化）
-├── di/AppContainer.kt       组合根（唯一知道实现的地方）
-├── model/Models.kt          领域模型 + AppError
-├── core/
-│   ├── ShellExecutor.kt     su 执行封装（带 traceId）
-│   ├── AssetInstaller.kt    首次解压内核/脚本
-│   └── GatewayEvents.kt     网络事件 → 规则重下发
-├── data/
-│   ├── api/                 MihomoApi 接口 + 实现（OkHttp + org.json）
-│   ├── repo/                GatewayController / ProfileRepository
-│   └── store/               SettingsStore（SharedPreferences）
-├── service/                 前台服务 / 开机自启
-└── ui/
-    ├── nav/AppNav.kt        底部导航
-    ├── overview/            概览
-    └── settings/            设置
-app/src/main/assets/
-├── mihomo                   内核二进制（不提交，见 scripts/fetch-core.ps1）
-├── scripts/*.sh             网关脚本
-├── config.template.yaml     模板配置
-└── gateway.conf             网关参数
-```
-
-## 构建
-
-```powershell
-# 1. 准备内核二进制
-powershell -File scripts/fetch-core.ps1
-
-# 2. 构建（离线也可，依赖已在缓存）
-$env:JAVA_HOME="C:\Program Files\Java\jdk-17"
-gradle :app:assembleDebug --offline
-```
-
-需要 JDK 17、Android SDK 35、Gradle 8.9。
-
-## 运行时布局（设备上）
-
-```
-/data/adb/mihomo/
-├── mihomo                 内核二进制
-├── config.yaml            当前配置（订阅写入）
-├── gateway.conf           网关参数（IFACE / BLOCK_IPV6 / IP_MODE）
-├── *.sh                   启停、规则、模式切换脚本
-└── mihomo.log             内核日志
-```
-
-## 变更纪律
-## Release 构建
-
-签名配置在 `keystore/keystore.properties`（已 gitignore，内含 keystore 路径与口令）。
-
-```powershell
-$env:JAVA_HOME="C:\Program Files\Java\jdk-17"
-gradle :app:assembleRelease --offline
-# 产物: app/build/outputs/apk/release/app-release.apk
-```
-
-- release 版内核与 GeoSite/GeoIP 均随 APK 打包（首次运行解压到 `/data/adb/mihomo`），无需联网下载
-- debug 与 release 签名不同，切换安装需先卸载旧包
-
-## 卸载清理
-
-App 内：**设置 → 管理 → 清理运行数据（卸载前）**
-
-或手动：
-
-```sh
-sh /data/adb/mihomo/cleanup.sh   # 停网关 + 清 iptables
-rm -rf /data/adb/mihomo
-```
-
-清理后重新打开 App 会自动从 APK assets 恢复内核与配置模板。
-
-改动设计前先读 [docs/DESIGN.md](docs/DESIGN.md)；任何偏离都需要新增 ADR 并在 PR 中说明。
+| v2.61.9 | 应用内更新、GitHub Release、GitHub Actions |
+| v2.61.7 | 设备策略样式、策略设置返回修复 |
+| v2.61.6 | 设备策略改为纯列表，设置独立入口 |
+| v2.61.3 | 设备策略直接嵌入分流页 |
+| v2.61.0 | 回滚 IPv6 DNS 实验，修复配置损坏 |
+| v2.59.8 | 持久化 root shell |
