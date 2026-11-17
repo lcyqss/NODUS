@@ -286,12 +286,18 @@ class SettingsViewModel(
                 val root = org.json.JSONObject(json)
                 val s = root.optJSONObject("settings")
                 if (s != null) {
+                    val activeId = s.optString("activeSubId", settings.value.activeSubId)
+                    val restoredSubs = s.optString("subscriptions", settings.value.subscriptions)
+                    val activeName = com.mihomo.gateway.model.SubscriptionCodec.decode(restoredSubs)
+                        .firstOrNull { it.id == activeId }
+                        ?.name
+                        ?: s.optString("subName", settings.value.subName)
                     store.update { current ->
                         current.copy(
                             subscriptionUrl = s.optString("subscriptionUrl", current.subscriptionUrl),
-                            subName = s.optString("subName", current.subName),
-                            subscriptions = s.optString("subscriptions", current.subscriptions),
-                            activeSubId = s.optString("activeSubId", current.activeSubId),
+                            subName = activeName,
+                            subscriptions = restoredSubs,
+                            activeSubId = activeId,
                             ipMode = runCatching {
                                 com.mihomo.gateway.model.IpMode.valueOf(
                                     s.optString("ipMode", current.ipMode.name)
