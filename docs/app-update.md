@@ -30,7 +30,7 @@ NODUS.apk.sha256
 Tag 必须和 `versionName` 一致：
 
 ```text
-v2.61.9  ↔  versionName = "2.61.9"
+v2.63.0  ↔  versionName = "2.63.0"
 ```
 
 每次发布前递增 `versionCode`。
@@ -59,8 +59,8 @@ v2.61.9  ↔  versionName = "2.61.9"
 ```text
 1. 修改 versionCode / versionName
 2. 提交代码
-3. 打 tag：git tag v2.61.9
-4. 推送 tag：git push origin v2.61.9
+3. 打 tag：git tag v2.63.0
+4. 推送 tag：git push origin v2.63.0
 5. GitHub Actions 构建并创建 Release
 ```
 
@@ -77,3 +77,12 @@ v2.61.9  ↔  versionName = "2.61.9"
 - 私有仓库需要 Token，当前实现面向公开仓库
 - GitHub API 可能被限流或网络不可达
 - 更新必须使用与当前安装包相同的签名密钥，否则 Android 会拒绝安装
+
+## 发布验证记录
+
+v2.63.0（2026-11-17）已验证：
+
+- Actions 产物 `NODUS.apk` 约 46.9 MB，包含 mihomo 内核
+- CI 产物与本机 keystore 的签名证书 SHA-256 一致（`0ab12892…296a`）
+- CI 产物可直接覆盖安装本地构建（同 versionCode / 同签名）
+- 应用内「检查应用更新」能读到该 Release，并显示「当前已是最新版本」
