@@ -3,14 +3,17 @@ package com.mihomo.gateway.ui.rules
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.data.api.MihomoApi
+import com.mihomo.gateway.data.policy.DevicePolicyRepository
 import com.mihomo.gateway.data.repo.RuleRepository
 import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.model.CustomRule
+import com.mihomo.gateway.model.DeviceRoutingMode
 import com.mihomo.gateway.model.RuleInfo
 import com.mihomo.gateway.model.RuleKind
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class RulesUiState(
@@ -29,7 +32,8 @@ data class RulesUiState(
 
 class RulesViewModel(
     private val api: MihomoApi = AppContainer.api,
-    private val ruleRepository: RuleRepository = AppContainer.rules
+    private val ruleRepository: RuleRepository = AppContainer.rules,
+    private val devicePolicies: DevicePolicyRepository = AppContainer.devicePolicies
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RulesUiState())
@@ -181,13 +185,27 @@ class RulesViewModel(
         viewModelScope.launch {
             _state.value = _state.value.copy(applying = true, message = null)
             val result = ruleRepository.apply()
+            var policyNote = ""
+            if (result.isSuccess) {
+                appliedSnapshot = ruleRepository.rules.value
+                // RULE 模式策略设备的子规则是从全局规则生成的，
+                // 自定义规则变化后必须一起重建，否则策略设备仍走旧规则。
+                val hasRulePolicies = runCatching {
+                    devicePolicies.policies.first().any {
+                        it.enabled && it.mode == DeviceRoutingMode.RULE
+                    }
+                }.getOrDefault(false)
+                if (hasRulePolicies) {
+                    runCatching { devicePolicies.apply() }
+                        .onFailure { policyNote = "；策略子规则更新失败: ${it.message}" }
+                }
+            }
             val conflicts = ruleRepository.conflicts()
             val ok = result.isSuccess
-            if (ok) appliedSnapshot = ruleRepository.rules.value
             _state.value = _state.value.copy(
                 applying = false,
                 dirty = if (ok) false else _state.value.dirty,
-                message = result.getOrElse { "应用失败: ${it.message}" },
+                message = result.getOrElse { "应用失败: ${it.message}" } + policyNote,
                 conflicts = conflicts
             )
         }
