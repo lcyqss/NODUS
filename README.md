@@ -18,6 +18,25 @@
 
 当前版本：**v2.63.0**（versionCode 184）。
 
+## 界面预览
+
+> 截图来自真机（手机热点网关模式）。设备 MAC、局域网 IP 与节点名已打码。
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/overview.png" width="340" alt="首页"><br><sub>首页：运行状态、模式、IPv6 与实时流量</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/device-policy.png" width="340" alt="设备策略"><br><sub>设备策略：按 MAC 绑定标签条件，支持回落与延迟调度</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/policy-settings.png" width="340" alt="策略设置"><br><sub>策略设置：节点标签、条件模板、延迟与 IP 跟随</sub></td>
+    <td align="center"><img src="docs/screenshots/rules.png" width="340" alt="规则"><br><sub>规则：自定义规则与订阅规则分离，应用前提示未保存改动</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/settings-ipv6.png" width="340" alt="局域网 IPv6 代理"><br><sub>网关设置：IPv6 拦截与「局域网 IPv6 代理」开关</sub></td>
+    <td align="center"><img src="docs/screenshots/health.png" width="340" alt="运行健康"><br><sub>运行健康：DNS、端口、代理、TPROXY、规则加载</sub></td>
+  </tr>
+</table>
+
 ## 测试状态
 
 | 模式 / 功能 | 状态 | 说明 |
