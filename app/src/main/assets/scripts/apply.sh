@@ -89,7 +89,23 @@ if [ "$IP_MODE" = "auto" ]; then
     fi
   fi
 fi
-# IPv6 局域网网关：配置开启时在应用规则后启动入口
+# IPv6 局域网网关：配置开启时在应用规则后启动入口。
+# 已就绪时只同步每设备 TPROXY 规则（syncmac），
+# 避免每次 apply 都撤销/重发 RA、重启 DNS relay 和 DHCPv6。
+ipv6_ready() {
+  pidof v6ra >/dev/null 2>&1 || return 1
+  for IF in $(list_gateways); do
+    ip -6 addr show dev "$IF" 2>/dev/null | grep -q "fd00:1234::1/64" || return 1
+  done
+  grep -q '^tproxy-port:' "$CFG" 2>/dev/null || return 1
+  $IP6 -w -t mangle -C PREROUTING -j MIHOMO6_TPROXY >/dev/null 2>&1 || return 1
+  return 0
+}
+
 if [ "$IPV6_GATEWAY" = "1" ] && [ -x "$BASE/ipv6.sh" ]; then
-  sh "$BASE/ipv6.sh" enable >> "$LOG" 2>&1
+  if ipv6_ready; then
+    sh "$BASE/ipv6.sh" syncmac >> "$LOG" 2>&1
+  else
+    sh "$BASE/ipv6.sh" enable >> "$LOG" 2>&1
+  fi
 fi
