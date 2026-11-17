@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -76,6 +77,15 @@ class DevicePolicyViewModel(
     fun setIpInterval(seconds: Int) {
         viewModelScope.launch {
             AppContainer.settings.update { it.copy(ipFollowIntervalSec = seconds) }
+        }
+    }
+
+    init {
+        viewModelScope.launch {
+            com.mihomo.gateway.di.AppContainer.settings.settings
+                .map { it.nodeTags }
+                .distinctUntilChanged()
+                .collect { refresh() }
         }
     }
 

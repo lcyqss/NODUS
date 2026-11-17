@@ -352,6 +352,8 @@ class SettingsViewModel(
                 runCatching { gateway.setIpMode(restored.ipMode) }
                 runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
                 runCatching { gateway.setIpv6Gateway(restored.ipv6Gateway) }
+                runCatching { ruleRepository.apply() }
+                runCatching { AppContainer.devicePolicies.apply() }
             }
             _message.value = result.fold(
                 onSuccess = { "配置已恢复" },
