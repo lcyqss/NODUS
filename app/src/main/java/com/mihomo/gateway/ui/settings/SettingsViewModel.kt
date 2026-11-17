@@ -115,7 +115,7 @@ class SettingsViewModel(
     fun setRuntimeMode(mode: String) {
         viewModelScope.launch {
             _busy.value = true
-            api.setMode(mode)
+            gateway.setRuntimeMode(mode)
                 .onSuccess {
                     _runtimeMode.value = mode
                     _message.value = "运行模式: ${modeLabel(mode)}"
@@ -256,8 +256,12 @@ class SettingsViewModel(
                     ensureActiveNodes(activeProfile)
                 }
                 runCatching { gateway.setIpMode(restored.ipMode) }
-                runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
+                // 先恢复 IPv6 代理、再恢复拦截：关闭代理会强制打开拦截，
+                // 顺序反了会把备份里的「拦截=关」覆盖成「开」。
                 runCatching { gateway.setIpv6Gateway(restored.ipv6Gateway) }
+                if (!restored.ipv6Gateway) {
+                    runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
+                }
                 runCatching { ruleRepository.apply() }
                     .onFailure { throw IllegalStateException("规则恢复后应用失败: ${it.message}") }
                 runCatching { AppContainer.devicePolicies.apply() }

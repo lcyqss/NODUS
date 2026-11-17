@@ -238,11 +238,13 @@ class ProfileRepositoryImpl(
         }
     }
 
-    /** 原子替换：先备份，切换订阅配置并保留用户选择的地址族；不可用则回滚。 */
+    /** 原子替换：先备份，切换订阅配置并保留用户选择的地址族和运行模式；不可用则回滚。 */
     private suspend fun install(file: File): Result<Unit> = installMutex.withLock {
         val backup = "$base/config.yaml.bak.auto"
         val running = coreRunning()
         val modeArg = currentIpModeArg()
+        // 订阅配置会整体覆盖 config.yaml，先记下当前运行模式，写完再恢复
+        val runtimeMode = currentRuntimeMode()
 
         val prepare = shell.run("cp -f $base/config.yaml $backup", 20_000)
         if (prepare.code != 0) {
@@ -258,6 +260,7 @@ class ProfileRepositoryImpl(
             rollback(backup, modeArg, running)
             return@withLock Result.failure(IllegalStateException("应用配置失败: ${replace.stdout.take(200)}"))
         }
+        writeRuntimeMode(runtimeMode)
 
         // 内核运行中才需要等 API 就绪；停止状态下只落盘，等下次启动生效
         if (running && !waitReady()) {
@@ -281,6 +284,24 @@ class ProfileRepositoryImpl(
             }
         }
         Result.success(Unit)
+    }
+
+    /** 读取 config.yaml 的运行模式；缺失时按 mihomo 默认 rule 处理。 */
+    private suspend fun currentRuntimeMode(): String {
+        val text = shell.run("grep -m1 '^mode:' $base/config.yaml 2>/dev/null").stdout
+        return when (text.substringAfter(':', "").trim().lowercase()) {
+            "global", "direct" -> text.substringAfter(':', "").trim().lowercase()
+            else -> "rule"
+        }
+    }
+
+    /** 订阅配置整体覆盖后，把用户选择的运行模式写回去（reload/重启不回退）。 */
+    private suspend fun writeRuntimeMode(mode: String) {
+        shell.run("sed -i 's/^mode:.*/mode: $mode/' $base/config.yaml", 5_000)
+        val hasMode = shell.run("grep -q '^mode:' $base/config.yaml", 5_000).code == 0
+        if (!hasMode) {
+            shell.run("sed -i '1i mode: $mode' $base/config.yaml", 5_000)
+        }
     }
 
     private suspend fun rollback(backup: String, modeArg: String, wasRunning: Boolean) {

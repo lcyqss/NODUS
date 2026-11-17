@@ -23,6 +23,9 @@ interface GatewayController {
     suspend fun setIpMode(mode: IpMode): Result<Unit>
     suspend fun setBlockIpv6(enabled: Boolean): Result<Unit>
     suspend fun setIpv6Gateway(enabled: Boolean): Result<Unit>
+
+    /** 切换运行模式（rule/global/direct），同时写回 config.yaml，避免 reload 后回退。 */
+    suspend fun setRuntimeMode(mode: String): Result<Unit>
     suspend fun detectUpstreamRa(): Boolean
     suspend fun applyRules(): Result<Unit>
     suspend fun refresh()
@@ -87,6 +90,29 @@ class GatewayControllerImpl(
         }
     }
 
+    override suspend fun setRuntimeMode(mode: String): Result<Unit> = mutex.withLock {
+        if (mode !in setOf("rule", "global", "direct")) {
+            return Result.failure(IllegalArgumentException("未知运行模式: $mode"))
+        }
+        val switched = api.setMode(mode)
+        if (switched.isFailure) {
+            return Result.failure(
+                IllegalStateException(switched.exceptionOrNull()?.message ?: "切换运行模式失败")
+            )
+        }
+        // mihomo 的 PATCH /configs 只改运行时；reload 或重启会回到配置文件里的 mode。
+        val hasMode = shell.run("grep -q '^mode:' $base/config.yaml", 5_000).code == 0
+        val written = if (hasMode) {
+            shell.run("sed -i 's/^mode:.*/mode: $mode/' $base/config.yaml", 5_000)
+        } else {
+            shell.run("sed -i '1i mode: $mode' $base/config.yaml", 5_000)
+        }
+        if (written.code != 0) {
+            return Result.failure(IllegalStateException("写入运行模式失败"))
+        }
+        Result.success(Unit)
+    }
+
     override suspend fun setBlockIpv6(enabled: Boolean): Result<Unit> = mutex.withLock {
         val value = if (enabled) "1" else "0"
         val result = shell.run("sh $base/conf.sh BLOCK_IPV6 $value")
@@ -115,6 +141,8 @@ class GatewayControllerImpl(
                     shell.run("sh $base/ipv6.sh disable", 30_000)
                     shell.run("sh $base/conf.sh IPV6_GATEWAY 0")
                     shell.run("sh $base/conf.sh BLOCK_IPV6 1")
+                    // 脚本已回滚 conf，状态也要同步，避免 UI 显示「已开启」但实际是关闭+拦截
+                    _state.update { it.copy(ipv6Gateway = false, blockIpv6 = true) }
                     return Result.failure(IllegalStateException(r.stdout.take(300)))
                 }
             } else {
