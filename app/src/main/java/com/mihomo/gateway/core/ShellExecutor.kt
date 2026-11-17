@@ -53,7 +53,7 @@ class ShellExecutorImpl : ShellExecutor {
             }
         }
 
-    private fun ensureSession(): Session? {
+    private suspend fun ensureSession(): Session? {
         session?.let { if (it.isAlive()) return it else it.close() }
         session = null
         for (su in candidates) {
@@ -64,7 +64,7 @@ class ShellExecutorImpl : ShellExecutor {
         return null
     }
 
-    private fun startSession(su: String): Session? {
+    private suspend fun startSession(su: String): Session? {
         val process = try {
             ProcessBuilder(su, "-c", "sh")
                 .redirectErrorStream(true)
@@ -99,8 +99,12 @@ class ShellExecutorImpl : ShellExecutor {
             writer.write("export PATH=/system/bin:/system/xbin:/data/adb/mihomo:\$PATH\n")
             writer.write("echo __GW_READY__\n")
             writer.flush()
-            val deadline = SystemClock.elapsedRealtime() + 30_000
+            val deadline = SystemClock.elapsedRealtime() + 15_000
             while (SystemClock.elapsedRealtime() < deadline) {
+                if (!currentCoroutineContext().isActive) {
+                    session.close()
+                    throw CancellationException("root shell startup cancelled")
+                }
                 val line = queue.poll(100, TimeUnit.MILLISECONDS)
                 when {
                     line == null -> continue
