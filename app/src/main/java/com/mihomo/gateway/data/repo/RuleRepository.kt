@@ -8,12 +8,22 @@ import com.mihomo.gateway.model.CustomRule
 import com.mihomo.gateway.model.RuleKind
 import com.mihomo.gateway.data.config.DevicePolicyConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** 最近一次成功应用时的规则快照；generation 变化表示外部完成了 apply。 */
+data class RulesApplyState(
+    val generation: Long = 0L,
+    val rules: List<CustomRule> = emptyList()
+)
+
 interface RuleRepository {
     val rules: StateFlow<List<CustomRule>>
+
+    /** 供规则页之外的调用方（恢复备份、订阅切换）同步「已应用」状态。 */
+    val applyState: StateFlow<RulesApplyState>
     fun add(kind: RuleKind, value: String, target: String, noResolve: Boolean): Result<Unit>
     fun update(rule: CustomRule): Result<Unit>
     fun delete(id: String)
@@ -41,6 +51,9 @@ class RuleRepositoryImpl(
 ) : RuleRepository {
 
     override val rules: StateFlow<List<CustomRule>> = store.rules
+
+    private val _applyState = MutableStateFlow(RulesApplyState())
+    override val applyState: StateFlow<RulesApplyState> = _applyState
 
     override fun add(kind: RuleKind, value: String, target: String, noResolve: Boolean): Result<Unit> {
         val trimmed = value.trim()
@@ -91,6 +104,10 @@ class RuleRepositoryImpl(
                 IllegalStateException("重载失败，已回滚: ${reload.exceptionOrNull()?.message}")
             )
         }
+        _applyState.value = RulesApplyState(
+            generation = _applyState.value.generation + 1,
+            rules = store.rules.value
+        )
         Result.success(
             if (enabled.isEmpty()) "已清除自定义规则" else "已应用 ${enabled.size} 条自定义规则"
         )

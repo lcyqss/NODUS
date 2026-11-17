@@ -38,7 +38,20 @@ class RulesViewModel(
     /** 上一次成功应用时的规则快照，用于判断「有无未应用的改动」。 */
     private var appliedSnapshot: List<CustomRule> = ruleRepository.rules.value
 
+    /** 已处理的 apply 序号，避免初始值为 0 的首次发射误清空 dirty。 */
+    private var seenApplyGeneration: Long = 0L
+
     init {
+        viewModelScope.launch {
+            ruleRepository.applyState.collect { applied ->
+                if (applied.generation == seenApplyGeneration) return@collect
+                seenApplyGeneration = applied.generation
+                appliedSnapshot = applied.rules
+                _state.value = _state.value.copy(
+                    dirty = _state.value.custom != appliedSnapshot
+                )
+            }
+        }
         viewModelScope.launch {
             ruleRepository.rules.collect { list ->
                 _state.value = _state.value.copy(

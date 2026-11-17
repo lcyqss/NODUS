@@ -353,8 +353,9 @@ class SettingsViewModel(
                     .decode(restored.subscriptions)
                     .firstOrNull { it.id == restored.activeSubId }
                 if (activeProfile != null) {
-                    runCatching { profiles.switchTo(activeProfile) }
+                    profiles.switchTo(activeProfile)
                         .onFailure { throw IllegalStateException("订阅恢复失败: ${it.message}") }
+                    ensureActiveNodes(activeProfile)
                 }
                 runCatching { gateway.setIpMode(restored.ipMode) }
                 runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
@@ -371,8 +372,25 @@ class SettingsViewModel(
         }
     }
 
-    fun installCore() {
-        viewModelScope.launch {
+    /**
+     * 备份只保存订阅元数据，缓存文件可能在删除订阅时被清掉。
+     * 恢复后如果节点目录为空，重新下载一次；仍然为空则明确报错，
+     * 避免设备策略把「节点未加载」误显示成「引用的标签已被删除」。
+     */
+    private suspend fun ensureActiveNodes(profile: com.mihomo.gateway.model.SubscriptionProfile) {
+        if (AppContainer.nodeCatalog.nodes().isNotEmpty()) return
+        val fetched = profiles.fetchToCache(profile).getOrElse {
+            throw IllegalStateException("订阅节点缺失且重新下载失败: ${it.message}")
+        }
+        if (fetched.nodeCount == 0 && fetched.providers.isEmpty()) {
+            throw IllegalStateException("订阅没有返回任何节点，请检查订阅链接")
+        }
+        profiles.installFromCache(profile).onFailure {
+            throw IllegalStateException("订阅缓存安装失败: ${it.message}")
+        }
+    }
+
+    fun installCore() {        viewModelScope.launch {
             _busy.value = true
             _message.value = "安装中…"
             val wasRunning = gateway.state.value.running

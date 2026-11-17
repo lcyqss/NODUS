@@ -138,6 +138,8 @@ class DevicePolicyRepositoryImpl(
             val ipv6 = ipv6s.firstOrNull()
             val error = when {
                 !policy.enabled -> null
+                allNodes.isEmpty() && current.activeSubId.isBlank() -> "尚未选择订阅"
+                allNodes.isEmpty() -> "订阅节点未加载，请在订阅管理更新"
                 missingTag -> "引用的标签已被删除"
                 policy.mode != DeviceRoutingMode.DIRECT &&
                     primary.isEmpty() && fallback.isEmpty() -> "没有匹配的节点"

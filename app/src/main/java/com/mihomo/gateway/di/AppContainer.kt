@@ -69,6 +69,8 @@ object AppContainer {
         private set
     lateinit var nodeTags: NodeTagRepository
         private set
+    lateinit var nodeCatalog: NodeCatalogRepository
+        private set
     lateinit var conditionTemplates: ConditionTemplateRepository
         private set
     lateinit var policyBackup: PolicyBackupService
@@ -92,7 +94,7 @@ object AppContainer {
         health = GatewayHealthChecker(shell, api)
         neighbors = NeighborResolver(shell)
         rules = RuleRepositoryImpl(app, shell, api, RuleStore(app), base = BASE)
-        val nodeCatalog: NodeCatalogRepository = NodeCatalogRepositoryImpl(app, settings)
+        nodeCatalog = NodeCatalogRepositoryImpl(app, settings)
         nodeTags = NodeTagRepositoryImpl(settings)
         conditionTemplates = ConditionTemplateRepositoryImpl(settings)
         policyBackup = PolicyBackupService(settings)
