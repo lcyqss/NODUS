@@ -254,15 +254,27 @@ class SettingsViewModel(
             )
         }
         return org.json.JSONObject()
-            .put("version", 1)
+            .put("version", 2)
             .put(
                 "settings",
                 org.json.JSONObject()
                     .put("subscriptionUrl", current.subscriptionUrl)
                     .put("subName", current.subName)
+                    .put("subscriptions", current.subscriptions)
+                    .put("activeSubId", current.activeSubId)
                     .put("ipMode", current.ipMode.name)
                     .put("blockIpv6", current.blockIpv6)
+                    .put("ipv6Gateway", current.ipv6Gateway)
                     .put("updateIntervalHours", current.updateIntervalHours)
+                    .put("autoStart", current.autoStart)
+                    .put("geoAutoUpdate", current.geoAutoUpdate)
+                    .put("geoUpdateIntervalDays", current.geoUpdateIntervalDays)
+                    .put("favoriteNodes", current.favoriteNodes)
+                    .put("devicePolicies", current.devicePolicies)
+                    .put("nodeTags", current.nodeTags)
+                    .put("conditionTemplates", current.conditionTemplates)
+                    .put("policyIntervalSec", current.policyIntervalSec)
+                    .put("ipFollowIntervalSec", current.ipFollowIntervalSec)
             )
             .put("rules", rules)
             .toString(2)
@@ -278,13 +290,34 @@ class SettingsViewModel(
                         current.copy(
                             subscriptionUrl = s.optString("subscriptionUrl", current.subscriptionUrl),
                             subName = s.optString("subName", current.subName),
+                            subscriptions = s.optString("subscriptions", current.subscriptions),
+                            activeSubId = s.optString("activeSubId", current.activeSubId),
                             ipMode = runCatching {
                                 com.mihomo.gateway.model.IpMode.valueOf(
                                     s.optString("ipMode", current.ipMode.name)
                                 )
                             }.getOrDefault(current.ipMode),
                             blockIpv6 = s.optBoolean("blockIpv6", current.blockIpv6),
-                            updateIntervalHours = s.optInt("updateIntervalHours", current.updateIntervalHours)
+                            ipv6Gateway = s.optBoolean("ipv6Gateway", current.ipv6Gateway),
+                            updateIntervalHours = s.optInt("updateIntervalHours", current.updateIntervalHours),
+                            autoStart = s.optBoolean("autoStart", current.autoStart),
+                            geoAutoUpdate = s.optBoolean("geoAutoUpdate", current.geoAutoUpdate),
+                            geoUpdateIntervalDays = s.optInt(
+                                "geoUpdateIntervalDays",
+                                current.geoUpdateIntervalDays
+                            ),
+                            favoriteNodes = s.optString("favoriteNodes", current.favoriteNodes),
+                            devicePolicies = s.optString("devicePolicies", current.devicePolicies),
+                            nodeTags = s.optString("nodeTags", current.nodeTags),
+                            conditionTemplates = s.optString(
+                                "conditionTemplates",
+                                current.conditionTemplates
+                            ),
+                            policyIntervalSec = s.optInt("policyIntervalSec", current.policyIntervalSec),
+                            ipFollowIntervalSec = s.optInt(
+                                "ipFollowIntervalSec",
+                                current.ipFollowIntervalSec
+                            )
                         )
                     }
                 }
@@ -312,6 +345,7 @@ class SettingsViewModel(
                 val restored = settings.value
                 runCatching { gateway.setIpMode(restored.ipMode) }
                 runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
+                runCatching { gateway.setIpv6Gateway(restored.ipv6Gateway) }
             }
             _message.value = result.fold(
                 onSuccess = { "配置已恢复" },

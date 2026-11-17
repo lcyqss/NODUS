@@ -34,13 +34,20 @@ class AppUpdateManager(
         }
         _checking.value = true
         _error.value = null
-        runCatching {
-            settings.update { it.copy(appUpdateLastCheckAt = now) }
-        }
         val result = repository.latest(BuildConfig.VERSION_NAME)
         _checking.value = false
-        result.onSuccess { _available.value = it }
-            .onFailure { _error.value = it.message ?: "检查更新失败" }
+        if (result.isSuccess) {
+            runCatching { settings.update { it.copy(appUpdateLastCheckAt = now) } }
+            _available.value = result.getOrNull()
+        } else {
+            // 失败后 1 小时再试，不把失败当成已完成的每日检查。
+            runCatching {
+                settings.update {
+                    it.copy(appUpdateLastCheckAt = now - CHECK_INTERVAL_MS + RETRY_AFTER_FAILURE_MS)
+                }
+            }
+            _error.value = result.exceptionOrNull()?.message ?: "检查更新失败"
+        }
         result
     }
 
@@ -49,5 +56,6 @@ class AppUpdateManager(
 
     companion object {
         private const val CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
+        private const val RETRY_AFTER_FAILURE_MS = 60 * 60 * 1000L
     }
 }

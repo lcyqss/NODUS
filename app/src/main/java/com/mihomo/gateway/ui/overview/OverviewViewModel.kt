@@ -138,12 +138,6 @@ class OverviewViewModel(
         }
     }
 
-    fun setRuntimeMode(mode: String) {
-        viewModelScope.launch {
-            api.setMode(mode).onSuccess { _runtimeMode.value = mode }
-        }
-    }
-
     fun toggle() {
         if (_busy.value) return
         viewModelScope.launch {

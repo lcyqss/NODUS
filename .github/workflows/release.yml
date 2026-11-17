@@ -66,7 +66,10 @@ jobs:
       - name: Prepare release asset
         run: |
           set -euo pipefail
-          cp app/build/outputs/apk/release/app-release.apk NODUS.apk
+          APK=app/build/outputs/apk/release/app-release.apk
+          test "$(stat -c%s "$APK")" -gt 40000000
+          unzip -l "$APK" | grep -q 'assets/mihomo'
+          cp "$APK" NODUS.apk
           sha256sum NODUS.apk > NODUS.apk.sha256
 
       - name: Create GitHub Release

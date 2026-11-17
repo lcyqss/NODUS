@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import com.mihomo.gateway.di.AppContainer
 import com.mihomo.gateway.service.GatewayService
 import com.mihomo.gateway.ui.nav.AppNav
 import com.mihomo.gateway.ui.theme.GatewayTheme
@@ -20,6 +23,9 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
         )
         startForegroundService(Intent(this, GatewayService::class.java))
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { AppContainer.appUpdates.checkIfDue() }
+        }
         setContent {
             GatewayTheme {
                 AppNav()
