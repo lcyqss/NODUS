@@ -4,6 +4,8 @@ import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -113,7 +115,7 @@ class ShellExecutorImpl : ShellExecutor {
         return null
     }
 
-    private fun execute(session: Session, command: String, timeoutMs: Long): ShellResult {
+    private suspend fun execute(session: Session, command: String, timeoutMs: Long): ShellResult {
         val trace = UUID.randomUUID().toString().take(8)
         val startedAt = SystemClock.elapsedRealtime()
         val marker = "__GW_DONE_${UUID.randomUUID().toString().replace("-", "")}__"
@@ -131,6 +133,11 @@ class ShellExecutorImpl : ShellExecutor {
 
         val timeoutAt = startedAt + timeoutMs
         while (true) {
+            if (!currentCoroutineContext().isActive) {
+                session.close()
+                this.session = null
+                throw CancellationException("shell command cancelled")
+            }
             val remaining = timeoutAt - SystemClock.elapsedRealtime()
             if (remaining <= 0) {
                 session.close()
