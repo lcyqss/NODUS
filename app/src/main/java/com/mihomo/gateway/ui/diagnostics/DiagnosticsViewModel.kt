@@ -3,6 +3,7 @@ package com.mihomo.gateway.ui.diagnostics
 import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mihomo.gateway.core.ClientIpv6Status
 import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.core.ShellLog
 import com.mihomo.gateway.core.ShellRecord
@@ -11,6 +12,7 @@ import com.mihomo.gateway.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -33,6 +35,9 @@ class DiagnosticsViewModel(
 
     val records: StateFlow<List<ShellRecord>> = ShellLog.records
 
+    private val _clientIpv6 = MutableStateFlow<ClientIpv6Status?>(null)
+    val clientIpv6: StateFlow<ClientIpv6Status?> = _clientIpv6.asStateFlow()
+
     fun refresh() {
         viewModelScope.launch {
             val started = SystemClock.elapsedRealtime()
@@ -46,7 +51,17 @@ class DiagnosticsViewModel(
                     error = result.exceptionOrNull()?.message
                 )
             }
+            refreshClientIpv6()
         }
+    }
+
+    /** 普通设备的 IPv6 出口状态；设备策略设备不在其中，只给出启用条数。 */
+    private suspend fun refreshClientIpv6() {
+        val enabledPolicies = runCatching {
+            AppContainer.devicePolicies.policies.first().count { it.enabled }
+        }.getOrDefault(0)
+        runCatching { ClientIpv6Status.detect(shell, enabledPolicies) }
+            .onSuccess { _clientIpv6.value = it }
     }
 
     private val _dnsAnswers = MutableStateFlow<List<String>>(emptyList())
@@ -132,6 +147,11 @@ class DiagnosticsViewModel(
             appendLine("内核: ${s.version.ifBlank { "-" }}  运行: ${if (s.running) "是" else "否"}")
             appendLine("API 延迟: ${if (s.latencyMs >= 0) "${s.latencyMs}ms" else "-"}")
             s.error?.let { appendLine("错误: $it") }
+            _clientIpv6.value?.let { ipv6 ->
+                appendLine()
+                appendLine("客户端 IPv6（普通设备）:")
+                ipv6.detail.lineSequence().filter { it.isNotBlank() }.forEach { appendLine(it) }
+            }
             appendLine()
             appendLine("最近 root 命令:")
             records.value.takeLast(10).forEach {

@@ -35,6 +35,7 @@ fun DiagnosticsScreen(
     vm: DiagnosticsViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
+    val clientIpv6 by vm.clientIpv6.collectAsState()
     val records by vm.records.collectAsState()
     val actionMessage by vm.actionMessage.collectAsState()
     val dnsAnswers by vm.dnsAnswers.collectAsState()
@@ -66,6 +67,49 @@ fun DiagnosticsScreen(
                 Text("运行: ${if (state.running) "是" else "否"}")
                 Text("API 延迟: ${if (state.latencyMs >= 0) "${state.latencyMs}ms" else "-"}")
                 state.error?.let { Text("错误: $it", color = MaterialTheme.colorScheme.error) }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("客户端 IPv6（普通设备）", style = MaterialTheme.typography.titleMedium)
+                val ipv6 = clientIpv6
+                if (ipv6 == null) {
+                    Text("检测中…", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    Text(
+                        "上游 IPv6：${if (ipv6.upstream) "有" else "无"}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "热点原生共享：${if (ipv6.nativeTethering) "可用" else "不可用"}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "ULA 代理：${if (ipv6.proxyActive) "开启" else "关闭"}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "IPv6 拦截：${if (ipv6.blocked) "开启" else "关闭"}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "结论：${ipv6.title}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = when (ipv6.mode) {
+                            com.mihomo.gateway.core.ClientIpv6Status.Mode.NONE ->
+                                MaterialTheme.colorScheme.error
+                            com.mihomo.gateway.core.ClientIpv6Status.Mode.BLOCKED ->
+                                MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.primary
+                        }
+                    )
+                    Text(
+                        "不含设备策略设备；当前有 ${ipv6.policyCount} 条策略启用，它们使用各自的 listener / SRC-IP 规则。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
