@@ -222,6 +222,17 @@ enable() {
   status
 }
 
+# 只拆除 IPv6 网关，不改动 BLOCK_IPV6。
+# 用于「停止整个网关」：停止时不该顺手改写用户的 IPv6 拦截设置。
+stop_gateway() {
+  teardown
+  restore_dns
+  if grep -q '^IPV6_GATEWAY=' "$CONF" 2>/dev/null; then
+    sed -i 's/^IPV6_GATEWAY=.*/IPV6_GATEWAY=0/' "$CONF"
+  fi
+  log "stopped (block setting kept)"
+}
+
 disable() {
   teardown
   restore_dns
@@ -306,9 +317,10 @@ detect() {
 case "$1" in
   enable) with_lock enable ;;
   disable) with_lock disable ;;
+  stop) with_lock stop_gateway ;;
   ensure) with_lock ensure ;;
   syncmac) with_lock syncmac ;;
   status) status ;;
   detect) detect ;;
-  *) echo "usage: $0 enable|disable|status|detect"; exit 1 ;;
+  *) echo "usage: $0 enable|disable|stop|status|detect"; exit 1 ;;
 esac
