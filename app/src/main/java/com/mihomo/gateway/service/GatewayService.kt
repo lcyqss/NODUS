@@ -113,10 +113,8 @@ class GatewayService : Service() {
         scope.launch {
             delay(60_000L)
             while (isActive) {
-                if (AppContainer.gateway.state.value.ipv6Gateway) {
-                    runCatching { AppContainer.devicePolicies.syncIfNeeded() }
-                        .onFailure { Log.w(TAG, "device policy ip sync: ${it.message}") }
-                }
+                runCatching { AppContainer.devicePolicies.syncIfNeeded() }
+                    .onFailure { Log.w(TAG, "device policy ip sync: ${it.message}") }
                 val seconds = runCatching {
                     AppContainer.settings.settings.first().ipFollowIntervalSec
                 }.getOrDefault(60).coerceAtLeast(300)

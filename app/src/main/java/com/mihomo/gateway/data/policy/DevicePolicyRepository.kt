@@ -341,9 +341,6 @@ class DevicePolicyRepositoryImpl(
     }
 
     private suspend fun syncIfNeededLocked(): Result<Boolean> = withContext(Dispatchers.IO) {
-        if (!settings.settings.first().ipv6Gateway) {
-            return@withContext Result.success(false)
-        }
         if (DevicePolicyCodec.decode(settings.settings.first().devicePolicies).none { it.enabled }) {
             return@withContext Result.success(false)
         }
