@@ -21,7 +21,9 @@ data class HealthReport(
     val tproxy: Boolean,
     val dnsDomains: Boolean,
     val rules: Boolean,
-    val detail: String
+    val detail: String,
+    /** 普通设备（不含设备策略）的 IPv6 出口结论，仅用于展示。 */
+    val clientIpv6: String = ""
 ) {
     val ok: Boolean get() = dns && ports && proxy && ipv6 && tproxy && dnsDomains && rules
 }
@@ -52,7 +54,20 @@ class GatewayHealthChecker(
         if (!dnsDomains) notes += "CN/国际域名 DNS 解析失败"
         val rules = checkRules()
         if (!rules) notes += "规则表未加载"
-        HealthReport(dns, ports, proxy, ipv6, tproxy, dnsDomains, rules, notes.ifEmpty { listOf("组件级检查正常") }.joinToString("；"))
+        // 仅作展示，不参与 ok 判定：它描述的是「普通设备」的 IPv6 出口
+        val clientIpv6 = runCatching { ClientIpv6Status.detect(shell, 0).title }
+            .getOrDefault("未知")
+        HealthReport(
+            dns,
+            ports,
+            proxy,
+            ipv6,
+            tproxy,
+            dnsDomains,
+            rules,
+            notes.ifEmpty { listOf("组件级检查正常") }.joinToString("；"),
+            clientIpv6
+        )
     }
 
     private suspend fun checkPorts(ipv6Enabled: Boolean): Boolean {

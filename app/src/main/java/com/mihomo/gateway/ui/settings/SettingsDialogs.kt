@@ -121,12 +121,15 @@ internal fun HealthDialog(
                         appendLine("代理 204：${if (health.proxy) "正常" else "异常"}")
                         appendLine("TPROXY：${if (health.tproxy) "正常" else "异常"}")
                         appendLine(
-                            "IPv6：" + when {
+                            "IPv6 代理：" + when {
                                 !ipv6Gateway -> "未启用"
                                 health.ipv6 -> "正常"
                                 else -> "异常"
                             }
                         )
+                        if (health.clientIpv6.isNotBlank()) {
+                            appendLine("客户端 IPv6（普通设备）：${health.clientIpv6}")
+                        }
                         appendLine("DNS 域名：${if (health.dnsDomains) "正常" else "异常"}")
                         appendLine("规则加载：${if (health.rules) "正常" else "异常"}")
                         append(health.detail)
