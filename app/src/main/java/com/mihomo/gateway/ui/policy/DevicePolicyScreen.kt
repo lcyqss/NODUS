@@ -62,7 +62,6 @@ import com.mihomo.gateway.model.DevicePolicy
 import com.mihomo.gateway.model.DeviceSelector
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.TagExpr
-import com.mihomo.gateway.ui.components.SubPageHeader
 import com.mihomo.gateway.ui.icons.GwIcon
 import kotlinx.coroutines.delay
 import java.util.UUID
@@ -73,9 +72,7 @@ import java.util.UUID
  */
 @Composable
 fun DevicePolicyScreen(
-    onBack: () -> Unit,
-    vm: DevicePolicyViewModel,
-    embedded: Boolean = false
+    vm: DevicePolicyViewModel
 ) {
     val policies by vm.policies.collectAsState()
     val runtime by vm.runtime.collectAsState()
@@ -187,14 +184,13 @@ fun DevicePolicyScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(if (embedded) 0.dp else 16.dp)
+            .padding(0.dp)
     ) {
-        if (embedded) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         CountChip("${policies.size} 条策略")
                         CountChip("${policies.count { it.enabled }} 条启用", highlighted = true)
@@ -206,15 +202,7 @@ fun DevicePolicyScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                headerActions()
-            }
-        } else {
-            SubPageHeader(
-                title = "设备策略",
-                subtitle = "按设备选择标签表达式，主条件不满足时回落",
-                onBack = onBack,
-                actions = { headerActions() }
-            )
+            headerActions()
         }
 
         Spacer(Modifier.height(8.dp))

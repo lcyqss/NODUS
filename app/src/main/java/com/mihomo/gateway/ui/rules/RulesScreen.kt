@@ -104,11 +104,7 @@ fun RulesScreen(vm: RulesViewModel = viewModel()) {
 
         if (section == 0) {
             Box(Modifier.weight(1f)) {
-                DevicePolicyScreen(
-                    onBack = {},
-                    vm = policyVm,
-                    embedded = true
-                )
+                DevicePolicyScreen(vm = policyVm)
             }
         } else {
             SummaryLine(state)
