@@ -45,7 +45,10 @@ for IF in $(list_gateways); do
     while IFS="$TAB" read -r MAC MODE P4 P6 IP4; do
       [ -z "$MAC" ] && continue
       [ "$MODE" = "direct" ] || continue
+      # DIRECT 设备不进代理：DNS 也不能被劫持到 fake-IP，
+      # 否则它拿到 198.18.x.x 后又绕过代理，会直接连到不可路由地址。
       $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp -m mac --mac-source "$MAC" -j RETURN
+      $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p udp -m mac --mac-source "$MAC" --dport 53 -j RETURN
       $IPT -w -A MIHOMO_FWD -i "$IF" -m mac --mac-source "$MAC" -p udp --dport 443 -j RETURN
     done < "$MACFILE"
   fi
@@ -58,6 +61,7 @@ for IF in $(list_gateways); do
       case "$MODE" in
         direct)
           $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp -m mac --mac-source "$MAC" -j RETURN
+          $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p udp -m mac --mac-source "$MAC" --dport 53 -j RETURN
           $IPT -w -A MIHOMO_FWD -i "$IF" -m mac --mac-source "$MAC" -p udp --dport 443 -j RETURN
           ;;
         global|rule)
