@@ -143,7 +143,7 @@ class DevicePolicyRepositoryImpl(
                 allNodes.isEmpty() -> "订阅节点未加载，请在订阅管理更新"
                 missingTag -> "引用的标签已被删除"
                 policy.mode != DeviceRoutingMode.DIRECT &&
-                    primary.isEmpty() && fallback.isEmpty() -> "没有匹配的节点"
+                    primary.isEmpty() && fallback.isEmpty() -> "没有匹配的节点，将按全局规则转发"
                 else -> null
             }
             PolicyRuntime(

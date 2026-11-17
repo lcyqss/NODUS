@@ -55,6 +55,7 @@ import com.mihomo.gateway.data.policy.PolicyRuntime
 import com.mihomo.gateway.data.tags.TagExprParser
 import com.mihomo.gateway.model.ConditionTemplate
 import com.mihomo.gateway.model.DevicePolicy
+import com.mihomo.gateway.model.DeviceRoutingMode
 import com.mihomo.gateway.model.DeviceSelector
 import com.mihomo.gateway.model.NodeTag
 import com.mihomo.gateway.model.TagExpr
@@ -202,6 +203,16 @@ fun DevicePolicyScreen(
         }
 
         Spacer(Modifier.height(8.dp))
+
+        // 每台代理设备占一个 listener 端口，超过 40 后会被静默跳过
+        if (policies.count { it.enabled && it.mode != DeviceRoutingMode.DIRECT } > 40) {
+            Text(
+                "最多支持 40 台代理设备，超出部分会按全局规则转发",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(Modifier.height(8.dp))
+        }
 
         message?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
