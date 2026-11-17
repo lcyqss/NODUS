@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.core.GatewayHealthChecker
 import com.mihomo.gateway.core.HealthReport
 import com.mihomo.gateway.data.api.MihomoApi
+import com.mihomo.gateway.data.backup.BackupCodec
 import com.mihomo.gateway.data.repo.GatewayController
 import com.mihomo.gateway.data.repo.ProfileRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -198,110 +199,54 @@ class SettingsViewModel(
         }
     }
 
-    fun buildBackup(): String {
-        val current = settings.value
-        val rules = org.json.JSONArray()
-        ruleRepository.rules.value.forEach { rule ->
-            rules.put(
-                org.json.JSONObject()
-                    .put("kind", rule.kind.wire)
-                    .put("value", rule.value)
-                    .put("target", rule.target)
-                    .put("enabled", rule.enabled)
-                    .put("noResolve", rule.noResolve)
-            )
-        }
-        return org.json.JSONObject()
-            .put("version", 2)
-            .put(
-                "settings",
-                org.json.JSONObject()
-                    .put("subscriptionUrl", current.subscriptionUrl)
-                    .put("subName", current.subName)
-                    .put("subscriptions", current.subscriptions)
-                    .put("activeSubId", current.activeSubId)
-                    .put("ipMode", current.ipMode.name)
-                    .put("blockIpv6", current.blockIpv6)
-                    .put("ipv6Gateway", current.ipv6Gateway)
-                    .put("updateIntervalHours", current.updateIntervalHours)
-                    .put("autoStart", current.autoStart)
-                    .put("geoAutoUpdate", current.geoAutoUpdate)
-                    .put("geoUpdateIntervalDays", current.geoUpdateIntervalDays)
-                    .put("favoriteNodes", current.favoriteNodes)
-                    .put("devicePolicies", current.devicePolicies)
-                    .put("nodeTags", current.nodeTags)
-                    .put("conditionTemplates", current.conditionTemplates)
-                    .put("policyIntervalSec", current.policyIntervalSec)
-                    .put("ipFollowIntervalSec", current.ipFollowIntervalSec)
-            )
-            .put("rules", rules)
-            .toString(2)
-    }
+    fun buildBackup(): String = BackupCodec.encode(settings.value, ruleRepository.rules.value)
 
     fun restoreBackup(json: String) {
         viewModelScope.launch {
             val result = runCatching {
-                val root = org.json.JSONObject(json)
-                val s = root.optJSONObject("settings")
-                if (s != null) {
-                    val activeId = s.optString("activeSubId", settings.value.activeSubId)
-                    val restoredSubs = s.optString("subscriptions", settings.value.subscriptions)
-                    val activeName = com.mihomo.gateway.model.SubscriptionCodec.decode(restoredSubs)
-                        .firstOrNull { it.id == activeId }
-                        ?.name
-                        ?: s.optString("subName", settings.value.subName)
-                    store.update { current ->
-                        current.copy(
-                            subscriptionUrl = s.optString("subscriptionUrl", current.subscriptionUrl),
+                val backup = BackupCodec.decode(json)
+                    .getOrElse { throw IllegalArgumentException(it.message) }
+
+                backup.settings?.let { s ->
+                    val current = settings.value
+                    val restoredSubs = s.subscriptions ?: current.subscriptions
+                    val activeId = s.activeSubId ?: current.activeSubId
+                    val activeName = BackupCodec.activeSubName(
+                        restoredSubs,
+                        activeId,
+                        s.subName ?: current.subName
+                    )
+                    store.update { c ->
+                        c.copy(
+                            subscriptionUrl = s.subscriptionUrl ?: c.subscriptionUrl,
                             subName = activeName,
                             subscriptions = restoredSubs,
                             activeSubId = activeId,
-                            ipMode = runCatching {
-                                com.mihomo.gateway.model.IpMode.valueOf(
-                                    s.optString("ipMode", current.ipMode.name)
-                                )
-                            }.getOrDefault(current.ipMode),
-                            blockIpv6 = s.optBoolean("blockIpv6", current.blockIpv6),
-                            ipv6Gateway = s.optBoolean("ipv6Gateway", current.ipv6Gateway),
-                            updateIntervalHours = s.optInt("updateIntervalHours", current.updateIntervalHours),
-                            autoStart = s.optBoolean("autoStart", current.autoStart),
-                            geoAutoUpdate = s.optBoolean("geoAutoUpdate", current.geoAutoUpdate),
-                            geoUpdateIntervalDays = s.optInt(
-                                "geoUpdateIntervalDays",
-                                current.geoUpdateIntervalDays
-                            ),
-                            favoriteNodes = s.optString("favoriteNodes", current.favoriteNodes),
-                            devicePolicies = s.optString("devicePolicies", current.devicePolicies),
-                            nodeTags = s.optString("nodeTags", current.nodeTags),
-                            conditionTemplates = s.optString(
-                                "conditionTemplates",
-                                current.conditionTemplates
-                            ),
-                            policyIntervalSec = s.optInt("policyIntervalSec", current.policyIntervalSec),
-                            ipFollowIntervalSec = s.optInt(
-                                "ipFollowIntervalSec",
-                                current.ipFollowIntervalSec
-                            )
+                            ipMode = s.ipMode
+                                ?.let { raw -> runCatching { IpMode.valueOf(raw) }.getOrNull() }
+                                ?: c.ipMode,
+                            blockIpv6 = s.blockIpv6 ?: c.blockIpv6,
+                            ipv6Gateway = s.ipv6Gateway ?: c.ipv6Gateway,
+                            updateIntervalHours = s.updateIntervalHours ?: c.updateIntervalHours,
+                            autoStart = s.autoStart ?: c.autoStart,
+                            geoAutoUpdate = s.geoAutoUpdate ?: c.geoAutoUpdate,
+                            geoUpdateIntervalDays = s.geoUpdateIntervalDays ?: c.geoUpdateIntervalDays,
+                            favoriteNodes = s.favoriteNodes ?: c.favoriteNodes,
+                            devicePolicies = s.devicePolicies ?: c.devicePolicies,
+                            nodeTags = s.nodeTags ?: c.nodeTags,
+                            conditionTemplates = s.conditionTemplates ?: c.conditionTemplates,
+                            policyIntervalSec = s.policyIntervalSec ?: c.policyIntervalSec,
+                            ipFollowIntervalSec = s.ipFollowIntervalSec ?: c.ipFollowIntervalSec
                         )
                     }
                 }
-                val rules = root.optJSONArray("rules")
-                if (rules != null) {
-                    for (i in 0 until rules.length()) {
-                        val r = rules.optJSONObject(i) ?: continue
-                        val kind = com.mihomo.gateway.model.RuleKind.fromWire(r.optString("kind")) ?: continue
-                        val value = r.optString("value")
-                        ruleRepository.add(
-                            kind,
-                            value,
-                            r.optString("target"),
-                            r.optBoolean("noResolve", kind.needsNoResolve)
-                        )
-                        if (!r.optBoolean("enabled", true)) {
-                            ruleRepository.rules.value
-                                .firstOrNull { it.kind == kind && it.value == value.trim() }
-                                ?.let { ruleRepository.update(it.copy(enabled = false)) }
-                        }
+
+                backup.rules.forEach { rule ->
+                    ruleRepository.add(rule.kind, rule.value, rule.target, rule.noResolve)
+                    if (!rule.enabled) {
+                        ruleRepository.rules.value
+                            .firstOrNull { it.kind == rule.kind && it.value == rule.value }
+                            ?.let { ruleRepository.update(it.copy(enabled = false)) }
                     }
                 }
 
@@ -329,7 +274,6 @@ class SettingsViewModel(
             )
         }
     }
-
     /**
      * 备份只保存订阅元数据，缓存文件可能在删除订阅时被清掉。
      * 恢复后如果节点目录为空，重新下载一次；仍然为空则明确报错，

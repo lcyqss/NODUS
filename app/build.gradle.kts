@@ -80,4 +80,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.yaml:snakeyaml:1.33")
     testImplementation("junit:junit:4.13.2")
+    // 单元测试需要真实的 org.json（android.jar 里的实现是桩）
+    testImplementation("org.json:json:20240303")
 }
