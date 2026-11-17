@@ -349,6 +349,13 @@ class SettingsViewModel(
 
                 // 恢复后把地址族 / IPv6 拦截真正应用到网关
                 val restored = settings.value
+                val activeProfile = com.mihomo.gateway.model.SubscriptionCodec
+                    .decode(restored.subscriptions)
+                    .firstOrNull { it.id == restored.activeSubId }
+                if (activeProfile != null) {
+                    runCatching { profiles.switchTo(activeProfile) }
+                        .onFailure { throw IllegalStateException("订阅恢复失败: ${it.message}") }
+                }
                 runCatching { gateway.setIpMode(restored.ipMode) }
                 runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
                 runCatching { gateway.setIpv6Gateway(restored.ipv6Gateway) }
