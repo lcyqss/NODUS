@@ -94,13 +94,16 @@ class GatewayControllerImpl(
         if (mode !in setOf("rule", "global", "direct")) {
             return Result.failure(IllegalArgumentException("未知运行模式: $mode"))
         }
+        val coreRunning = shell.run("pidof mihomo >/dev/null 2>&1 && echo yes", 5_000)
+            .stdout.trim() == "yes"
         val switched = api.setMode(mode)
-        if (switched.isFailure) {
+        if (switched.isFailure && coreRunning) {
             return Result.failure(
                 IllegalStateException(switched.exceptionOrNull()?.message ?: "切换运行模式失败")
             )
         }
         // mihomo 的 PATCH /configs 只改运行时；reload 或重启会回到配置文件里的 mode。
+        // 内核没运行时只写文件，等下次启动生效。
         val hasMode = shell.run("grep -q '^mode:' $base/config.yaml", 5_000).code == 0
         val written = if (hasMode) {
             shell.run("sed -i 's/^mode:.*/mode: $mode/' $base/config.yaml", 5_000)

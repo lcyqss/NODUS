@@ -194,7 +194,8 @@ class SettingsViewModel(
         }
     }
 
-    fun buildBackup(): String = BackupCodec.encode(settings.value, ruleRepository.rules.value)
+    fun buildBackup(): String =
+        BackupCodec.encode(settings.value, ruleRepository.rules.value, _runtimeMode.value)
 
     fun restoreBackup(json: String) {
         viewModelScope.launch {
@@ -261,6 +262,11 @@ class SettingsViewModel(
                 runCatching { gateway.setIpv6Gateway(restored.ipv6Gateway) }
                 if (!restored.ipv6Gateway) {
                     runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
+                }
+                backup.settings?.runtimeMode?.let { mode ->
+                    gateway.setRuntimeMode(mode)
+                        .onFailure { throw IllegalStateException("运行模式恢复失败: ${it.message}") }
+                    _runtimeMode.value = mode
                 }
                 runCatching { ruleRepository.apply() }
                     .onFailure { throw IllegalStateException("规则恢复后应用失败: ${it.message}") }

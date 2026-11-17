@@ -74,6 +74,7 @@ class BackupCodecTest {
         assertEquals("[]", s.conditionTemplates)
         assertEquals(120, s.policyIntervalSec)
         assertEquals(300, s.ipFollowIntervalSec)
+        assertEquals("rule", s.runtimeMode)
 
         assertEquals(2, decoded.rules.size)
         assertTrue(decoded.rulesPresent)
@@ -81,6 +82,14 @@ class BackupCodecTest {
         assertEquals("ip.sb", decoded.rules[0].value)
         assertFalse(decoded.rules[1].enabled)
         assertTrue(decoded.rules[1].noResolve)
+    }
+
+    @Test
+    fun `runtime mode is preserved in backup`() {
+        val encoded = BackupCodec.encode(AppSettings(), emptyList(), runtimeMode = "global")
+        val decoded = BackupCodec.decode(encoded).getOrThrow()
+
+        assertEquals("global", decoded.settings!!.runtimeMode)
     }
 
     @Test
@@ -104,6 +113,7 @@ class BackupCodecTest {
         assertNull(s.devicePolicies)
         assertNull(s.nodeTags)
         assertNull(s.policyIntervalSec)
+        assertNull(s.runtimeMode)
         assertFalse(decoded.rulesPresent)
         assertTrue(decoded.rules.isEmpty())
     }

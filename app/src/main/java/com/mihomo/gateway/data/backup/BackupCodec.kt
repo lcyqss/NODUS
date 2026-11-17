@@ -46,7 +46,9 @@ object BackupCodec {
         val nodeTags: String? = null,
         val conditionTemplates: String? = null,
         val policyIntervalSec: Int? = null,
-        val ipFollowIntervalSec: Int? = null
+        val ipFollowIntervalSec: Int? = null,
+        /** 运行模式 rule/global/direct；旧备份没有该字段。 */
+        val runtimeMode: String? = null
     )
 
     data class Backup(
@@ -57,7 +59,11 @@ object BackupCodec {
         val rulesPresent: Boolean
     )
 
-    fun encode(current: AppSettings, rules: List<CustomRule>): String {
+    fun encode(
+        current: AppSettings,
+        rules: List<CustomRule>,
+        runtimeMode: String = "rule"
+    ): String {
         val ruleArray = JSONArray()
         rules.forEach { rule ->
             ruleArray.put(
@@ -91,6 +97,7 @@ object BackupCodec {
                     .put("conditionTemplates", current.conditionTemplates)
                     .put("policyIntervalSec", current.policyIntervalSec)
                     .put("ipFollowIntervalSec", current.ipFollowIntervalSec)
+                    .put("runtimeMode", runtimeMode)
             )
             .put("rules", ruleArray)
             .toString(2)
@@ -119,7 +126,8 @@ object BackupCodec {
                 nodeTags = s.stringOrNull("nodeTags"),
                 conditionTemplates = s.stringOrNull("conditionTemplates"),
                 policyIntervalSec = s.intOrNull("policyIntervalSec"),
-                ipFollowIntervalSec = s.intOrNull("ipFollowIntervalSec")
+                ipFollowIntervalSec = s.intOrNull("ipFollowIntervalSec"),
+                runtimeMode = s.stringOrNull("runtimeMode")
             )
         }
         val rulesArray = root.optJSONArray("rules")
