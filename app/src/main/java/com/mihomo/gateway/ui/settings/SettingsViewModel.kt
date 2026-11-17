@@ -353,7 +353,9 @@ class SettingsViewModel(
                 runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
                 runCatching { gateway.setIpv6Gateway(restored.ipv6Gateway) }
                 runCatching { ruleRepository.apply() }
+                    .onFailure { throw IllegalStateException("规则恢复后应用失败: ${it.message}") }
                 runCatching { AppContainer.devicePolicies.apply() }
+                    .onFailure { throw IllegalStateException("设备策略恢复后应用失败: ${it.message}") }
             }
             _message.value = result.fold(
                 onSuccess = { "配置已恢复" },
