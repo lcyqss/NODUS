@@ -15,8 +15,10 @@
 
 ### DIRECT 模式设备
 
-- IPv4：已改为「DNS 不劫持 + TCP 直连」，规则顺序已在设备上确认
-  （DIRECT 设备的 UDP/TCP 53 排在 fake-IP 重定向之前），但还缺一台真实 DIRECT 设备的端到端验证
+- IPv4：已验证（2026-11-18）
+  - 修复前：UDP DNS 被劫持到 fake-IP，DIRECT 设备拿到 198.18.x.x 后又绕过代理，域名访问不可用
+  - 修复后：DIRECT 设备的 TCP / UDP 53 在 fake-IP 重定向之前 RETURN，DNS 走网关 dnsmasq
+  - 真机结果：ip.sb 显示本地真实 IP（不是新加坡），百度正常打开，mihomo 日志不再出现该设备的新连接
 - IPv6：DIRECT 设备会绕过 TPROXY，但当前内核没有 NAT66，ULA 地址无法直连公网 IPv6；
   在运营商不提供原生 IPv6 共享的设备上，DIRECT 模式实际只能保证 IPv4 可用
 
