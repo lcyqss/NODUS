@@ -56,7 +56,10 @@ import kotlinx.coroutines.delay
 private enum class SettingsPage { MAIN, DIAGNOSTICS, LOGS }
 
 @Composable
-fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
+fun SettingsScreen(
+    vm: SettingsViewModel = viewModel(),
+    components: ComponentUpdateViewModel = viewModel()
+) {
     var page by rememberSaveable { mutableStateOf(SettingsPage.MAIN) }
 
     BackHandler(enabled = page != SettingsPage.MAIN) { page = SettingsPage.MAIN }
@@ -64,6 +67,7 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
     when (page) {
         SettingsPage.MAIN -> SettingsMain(
             vm = vm,
+            components = components,
             onDiagnostics = { page = SettingsPage.DIAGNOSTICS },
             onLogs = { page = SettingsPage.LOGS }
         )
@@ -76,26 +80,30 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
 @Composable
 private fun SettingsMain(
     vm: SettingsViewModel,
+    components: ComponentUpdateViewModel,
     onDiagnostics: () -> Unit,
     onLogs: () -> Unit
 ) {
     val settings by vm.settings.collectAsState()
-    val message by vm.message.collectAsState()
+    val settingsMessage by vm.message.collectAsState()
+    val componentMessage by components.message.collectAsState()
+    val message = settingsMessage ?: componentMessage
     val busy by vm.busy.collectAsState()
+    val componentsBusy by components.busy.collectAsState()
     val ipv6RaBlocked by vm.ipv6RaBlocked.collectAsState()
-    val coreVersion by vm.coreVersion.collectAsState()
-    val corePrevious by vm.corePrevious.collectAsState()
-    val coreUpdate by vm.coreUpdate.collectAsState()
-    val coreProgress by vm.coreProgress.collectAsState()
+    val coreVersion by components.coreVersion.collectAsState()
+    val corePrevious by components.corePrevious.collectAsState()
+    val coreUpdate by components.coreUpdate.collectAsState()
+    val coreProgress by components.coreProgress.collectAsState()
     val health by vm.health.collectAsState()
-    val geoVersion by vm.geoVersion.collectAsState()
-    val geoProgress by vm.geoProgress.collectAsState()
+    val geoVersion by components.geoVersion.collectAsState()
+    val geoProgress by components.geoProgress.collectAsState()
     val appUpdate by vm.appUpdate.collectAsState()
     val appUpdateChecking by vm.appUpdateChecking.collectAsState()
     val appUpdateError by vm.appUpdateError.collectAsState()
     LaunchedEffect(Unit) {
         vm.refreshIpv6Capability()
-        vm.refreshComponentVersions()
+        components.refreshComponentVersions()
     }
     val runtimeMode by vm.runtimeMode.collectAsState()
     val context = LocalContext.current
@@ -142,7 +150,7 @@ private fun SettingsMain(
                 title = "节点地址族",
                 subtitle = ipModeHint(settings.ipMode),
                 value = settings.ipMode.label,
-                enabled = !busy,
+                enabled = !busy && !componentsBusy,
                 onClick = { showIpMode = true }
             )
             SettingsDivider()
@@ -150,7 +158,7 @@ private fun SettingsMain(
                 title = "运行模式",
                 subtitle = runtimeHint(runtimeMode),
                 value = runtimeLabel(runtimeMode),
-                enabled = !busy,
+                enabled = !busy && !componentsBusy,
                 onClick = { showRuntimeMode = true }
             )
             SettingsDivider()
@@ -158,7 +166,7 @@ private fun SettingsMain(
                 title = "IPv6 拦截",
                 subtitle = if (settings.ipv6Gateway) "IPv6 代理开启时不生效" else "关闭后客户端可用 IPv6 直连",
                 checked = settings.blockIpv6,
-                enabled = !busy && !settings.ipv6Gateway,
+                enabled = !busy && !componentsBusy && !settings.ipv6Gateway,
                 onChange = vm::setBlockIpv6
             )
             SettingsDivider()
@@ -170,7 +178,7 @@ private fun SettingsMain(
                     else -> "让客户端 IPv6 字面量也走代理"
                 },
                 checked = settings.ipv6Gateway,
-                enabled = !busy && (!ipv6RaBlocked || settings.ipv6Gateway),
+                enabled = !busy && !componentsBusy && (!ipv6RaBlocked || settings.ipv6Gateway),
                 onChange = vm::setIpv6Gateway
             )
         }
@@ -205,15 +213,15 @@ private fun SettingsMain(
                     coreProgress != null -> "下载中 ${coreProgress}%"
                     else -> "从官方 release 检查 Android arm64 内核"
                 },
-                enabled = !busy,
-                onClick = { vm.checkCoreUpdate() }
+                enabled = !busy && !componentsBusy,
+                onClick = { components.checkCoreUpdate() }
             )
             SettingsDivider()
             SettingsRow(
                 title = "重新安装内核",
                 subtitle = "强制从 APK 重装内核、脚本和 Geo 数据",
-                enabled = !busy,
-                onClick = { vm.installCore() }
+                enabled = !busy && !componentsBusy,
+                onClick = { components.installCore() }
             )
 
             SettingsDivider()
@@ -233,7 +241,7 @@ private fun SettingsMain(
             SettingsRow(
                 title = "自动更新",
                 value = if (settings.geoAutoUpdate) "开启" else "关闭",
-                onClick = { vm.setGeoAutoUpdate(!settings.geoAutoUpdate) }
+                onClick = { components.setGeoAutoUpdate(!settings.geoAutoUpdate) }
             )
             SettingsDivider()
             SettingsRow(
@@ -250,7 +258,7 @@ private fun SettingsMain(
                     geoProgress != null -> "下载中 ${geoProgress}%"
                     else -> "从官方源下载最新 GeoIP / GeoSite"
                 },
-                enabled = !busy,
+                enabled = !busy && !componentsBusy,
                 onClick = { showGeoUpdate = true }
             )
 
@@ -450,7 +458,7 @@ private fun SettingsMain(
 
     coreUpdate?.let { info ->
         AlertDialog(
-            onDismissRequest = { vm.dismissCoreUpdate() },
+            onDismissRequest = { components.dismissCoreUpdate() },
             title = { Text("内核更新") },
             text = {
                 Text(
@@ -460,10 +468,10 @@ private fun SettingsMain(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { vm.installCoreUpdate() }) { Text("更新") }
+                TextButton(onClick = { components.installCoreUpdate() }) { Text("更新") }
             },
             dismissButton = {
-                TextButton(onClick = { vm.dismissCoreUpdate() }) { Text("取消") }
+                TextButton(onClick = { components.dismissCoreUpdate() }) { Text("取消") }
             }
         )
     }
@@ -478,7 +486,7 @@ private fun SettingsMain(
             confirmButton = {
                 TextButton(onClick = {
                     showCoreRollback = false
-                    vm.rollbackCore()
+                    components.rollbackCore()
                 }) { Text("回退") }
             },
             dismissButton = {
@@ -517,7 +525,7 @@ private fun SettingsMain(
             selectedKey = settings.geoUpdateIntervalDays.toString(),
             onSelect = {
                 showGeoInterval = false
-                vm.setGeoUpdateInterval(it.toIntOrNull() ?: 7)
+                components.setGeoUpdateInterval(it.toIntOrNull() ?: 7)
             },
             onDismiss = { showGeoInterval = false }
         )
@@ -533,7 +541,7 @@ private fun SettingsMain(
             confirmButton = {
                 TextButton(onClick = {
                     showGeoUpdate = false
-                    vm.updateGeo()
+                    components.updateGeo()
                 }) { Text("开始更新") }
             },
             dismissButton = {
