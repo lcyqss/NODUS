@@ -16,7 +16,7 @@
 
 <https://github.com/lcyqss/NODUS/releases/latest>
 
-当前版本：**v2.63.0**（versionCode 184）。
+当前版本：**v2.63.1**（versionCode 185）。
 
 ## 界面预览
 
@@ -213,8 +213,8 @@ rm -rf /data/adb/mihomo
 # 1. 修改 versionCode / versionName
 # 2. 提交代码
 # 3. 打 tag 并推送
-git tag v2.63.0
-git push origin v2.63.0
+git tag v2.63.1
+git push origin v2.63.1
 ```
 
 GitHub Actions 会使用仓库 Secrets 中的签名文件构建 `NODUS.apk`，并在 Release 中附带 `NODUS.apk.sha256`。
@@ -263,12 +263,13 @@ KEYSTORE_KEY_PASSWORD
 
 ## 版本
 
-当前版本：**v2.63.0**（versionCode 184）。
+当前版本：**v2.63.1**（versionCode 185）。
 
 近期变更：
 
 | 版本 | 内容 |
 |---|---|
+| v2.63.1 | 修复运行模式不持久化、恢复备份顺序、停止网关改写 IPv6 拦截、策略子规则不更新、DIRECT 模式 fake-IP 断网；新增客户端 IPv6 诊断与备份运行模式 |
 | v2.63.0 | 结构优化：备份 schema 测试、常量集中化、设备策略 / 规则 / 设置页文件拆分；修复恢复备份后规则状态不同步与订阅缓存缺失 |
 | v2.61.9 | 应用内更新、GitHub Release、GitHub Actions |
 | v2.61.7 | 设备策略样式、策略设置返回修复 |

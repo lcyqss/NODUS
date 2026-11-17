@@ -30,7 +30,7 @@ NODUS.apk.sha256
 Tag 必须和 `versionName` 一致：
 
 ```text
-v2.63.0  ↔  versionName = "2.63.0"
+v2.63.1  ↔  versionName = "2.63.1"
 ```
 
 每次发布前递增 `versionCode`。
@@ -59,8 +59,8 @@ v2.63.0  ↔  versionName = "2.63.0"
 ```text
 1. 修改 versionCode / versionName
 2. 提交代码
-3. 打 tag：git tag v2.63.0
-4. 推送 tag：git push origin v2.63.0
+3. 打 tag：git tag v2.63.1
+4. 推送 tag：git push origin v2.63.1
 5. GitHub Actions 构建并创建 Release
 ```
 
@@ -80,7 +80,7 @@ v2.63.0  ↔  versionName = "2.63.0"
 
 ## 发布验证记录
 
-v2.63.0（2026-11-17）已验证：
+v2.63.1（2026-11-18）已验证：
 
 - Actions 产物 `NODUS.apk` 约 46.9 MB，包含 mihomo 内核
 - CI 产物与本机 keystore 的签名证书 SHA-256 一致（`0ab12892…296a`）
