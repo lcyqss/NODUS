@@ -53,8 +53,38 @@
 | 分流规则 | 自定义 / 订阅 | 真机验证 |
 | 内核更新 | mihomo release + 回滚 | 真机验证 |
 | Geo 更新 | GeoIP / GeoSite + SHA256 | 真机验证 |
-| 应用更新 | GitHub Release + APK 校验 | 代码完成，待首次 Release 验证 |
+| 应用更新 | GitHub Release + APK 校验 | v2.63.0 已验证签名一致、可覆盖安装 |
 | 诊断 | 日志、健康检查、规则快照 | 真机验证 |
+
+## 代码结构
+
+```text
+app/src/main/java/com/mihomo/gateway/
+  core/          内核安装、root shell、健康检查、端口与路径常量（AppConfig）
+  data/
+    api/         mihomo REST / WebSocket 客户端
+    repo/        订阅、规则、网关控制、Geo、内核更新
+    policy/      设备策略解析与配置写入
+    catalog/     节点目录（来自订阅缓存）
+    tags/        节点标签、条件模板、表达式解析与匹配
+    backup/      配置备份编解码（BackupCodec）
+    store/       设置与自定义规则持久化
+    update/      应用内 APK 更新
+  service/       前台服务、网络回调
+  di/            组合根 AppContainer
+  model/         数据模型与编解码
+  ui/
+    overview/    首页（运行状态 + 流量）
+    proxies/     节点
+    rules/       分流 → 规则（列表 / 弹窗）
+    policy/      设备策略（列表 / 编辑 / 设置页）
+    connections/ 连接与拓扑
+    subscription/订阅管理
+    settings/    设置（分区 / 弹窗 / 两个 ViewModel）
+    diagnostics/ 诊断快照
+    logs/        日志
+    components/  通用组件与设置行
+```
 
 ## 依赖
 

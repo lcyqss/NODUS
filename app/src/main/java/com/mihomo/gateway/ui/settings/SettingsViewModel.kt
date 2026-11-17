@@ -112,12 +112,6 @@ class SettingsViewModel(
         }
     }
 
-    fun checkAppUpdate() {
-        viewModelScope.launch {
-            AppContainer.appUpdates.checkIfDue(force = true)
-        }
-    }
-
     fun setRuntimeMode(mode: String) {
         viewModelScope.launch {
             _busy.value = true
