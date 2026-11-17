@@ -175,24 +175,39 @@ class DevicePolicyRepositoryImpl(
     }
 
     override suspend fun apply(): Result<String> = withContext(Dispatchers.IO) {
+        val reloaded = applyAndReload("重载失败，已回滚")
+        if (reloaded.isFailure) {
+            return@withContext Result.failure(reloaded.exceptionOrNull()!!)
+        }
+        if (reloaded.getOrDefault(false)) {
+            evaluateRouting()
+            Result.success("设备策略已生效")
+        } else {
+            Result.success("已写入配置（内核未运行）")
+        }
+    }
+
+    /**
+     * 写配置并在内核运行时 reload；失败统一回滚。
+     * @return true 表示完成 reload，false 表示内核未运行、仅写入配置。
+     */
+    private suspend fun applyAndReload(failurePrefix: String): Result<Boolean> {
         val applied = applyToConfig()
         if (applied.isFailure) {
-            // 写入/设备离线失败后不能相信旧的已应用映射，否则后续 sync 会误判为无变化
             appliedIps = null
-            return@withContext Result.failure(applied.exceptionOrNull()!!)
+            return Result.failure(applied.exceptionOrNull()!!)
         }
-        if (!coreRunning()) return@withContext Result.success("已写入配置（内核未运行）")
+        if (!coreRunning()) return Result.success(false)
         val reload = api.reloadConfigs()
         if (reload.isFailure) {
             shell.run("cp -f $base/config.yaml.bak.policy $base/config.yaml", 20_000)
             api.reloadConfigs()
             appliedIps = null
-            return@withContext Result.failure(
-                IllegalStateException("重载失败，已回滚: ${reload.exceptionOrNull()?.message}")
+            return Result.failure(
+                IllegalStateException("$failurePrefix: ${reload.exceptionOrNull()?.message}")
             )
         }
-        evaluateRouting()
-        Result.success("设备策略已生效")
+        return Result.success(true)
     }
 
     /**
@@ -341,21 +356,9 @@ class DevicePolicyRepositoryImpl(
         val changed = plans.any { appliedIps?.get(it.policy.id) != appliedKey(it.ip, it.ipv6s, it.policy.mode, it.targetGroup) }
         if (!changed) return@withContext Result.success(false)
 
-        val applied = applyToConfig()
+        val applied = applyAndReload("设备 IP 变化后重载失败")
         if (applied.isFailure) {
-            appliedIps = null
             return@withContext Result.failure(applied.exceptionOrNull()!!)
-        }
-        if (coreRunning()) {
-            val reload = api.reloadConfigs()
-            if (reload.isFailure) {
-                shell.run("cp -f $base/config.yaml.bak.policy $base/config.yaml", 20_000)
-                api.reloadConfigs()
-                appliedIps = null
-                return@withContext Result.failure(
-                    IllegalStateException("设备 IP 变化后重载失败: ${reload.exceptionOrNull()?.message}")
-                )
-            }
         }
         Result.success(true)
     }
