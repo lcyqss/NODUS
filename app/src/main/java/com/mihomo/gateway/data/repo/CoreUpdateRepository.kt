@@ -1,5 +1,6 @@
 package com.mihomo.gateway.data.repo
 
+import com.mihomo.gateway.core.AppConfig
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,7 +40,7 @@ class CoreUpdateRepositoryImpl(
         .readTimeout(180, TimeUnit.SECONDS)
         .build()
     private val proxyClient = directClient.newBuilder()
-        .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", 7890)))
+        .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(AppConfig.LOOPBACK, AppConfig.PROXY_PORT)))
         .build()
 
     override suspend fun check(useProxy: Boolean): Result<CoreUpdateInfo> = withContext(Dispatchers.IO) {

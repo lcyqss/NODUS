@@ -1,5 +1,6 @@
 package com.mihomo.gateway.data.repo
 
+import com.mihomo.gateway.core.AppConfig
 import android.content.Context
 import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.data.api.MihomoApi
@@ -47,7 +48,7 @@ class RuleRepositoryImpl(
     private val shell: ShellExecutor,
     private val api: MihomoApi,
     private val store: RuleStore,
-    private val base: String = "/data/adb/mihomo"
+    private val base: String = AppConfig.BASE_DIR
 ) : RuleRepository {
 
     override val rules: StateFlow<List<CustomRule>> = store.rules

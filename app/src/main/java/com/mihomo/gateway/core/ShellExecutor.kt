@@ -96,7 +96,7 @@ class ShellExecutorImpl : ShellExecutor {
         }
         val session = Session(process, writer, queue, readerThread)
         try {
-            writer.write("export PATH=/system/bin:/system/xbin:/data/adb/mihomo:\$PATH\n")
+            writer.write("export PATH=/system/bin:/system/xbin:${AppConfig.BASE_DIR}:\$PATH\n")
             writer.write("echo __GW_READY__\n")
             writer.flush()
             val deadline = SystemClock.elapsedRealtime() + 15_000

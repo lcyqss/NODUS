@@ -1,5 +1,6 @@
 package com.mihomo.gateway.data.repo
 
+import com.mihomo.gateway.core.AppConfig
 import android.content.Context
 import com.mihomo.gateway.core.ShellExecutor
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +35,7 @@ interface GeoDataRepository {
 class GeoDataRepositoryImpl(
     private val context: Context,
     private val shell: ShellExecutor,
-    private val base: String = "/data/adb/mihomo"
+    private val base: String = AppConfig.BASE_DIR
 ) : GeoDataRepository {
 
     private val directClient = OkHttpClient.Builder()
@@ -42,7 +43,7 @@ class GeoDataRepositoryImpl(
         .readTimeout(120, TimeUnit.SECONDS)
         .build()
     private val proxyClient = directClient.newBuilder()
-        .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", 7890)))
+        .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(AppConfig.LOOPBACK, AppConfig.PROXY_PORT)))
         .build()
 
     private val updateMutex = Mutex()

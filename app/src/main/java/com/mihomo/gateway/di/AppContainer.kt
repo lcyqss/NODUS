@@ -1,5 +1,6 @@
 package com.mihomo.gateway.di
 
+import com.mihomo.gateway.core.AppConfig
 import android.content.Context
 import com.mihomo.gateway.core.AssetInstaller
 import com.mihomo.gateway.core.CoreInstaller
@@ -39,8 +40,8 @@ import com.mihomo.gateway.data.update.AppUpdateRepositoryImpl
  */
 object AppContainer {
 
-    const val SECRET = "9062b7e6cee1d259"
-    const val BASE = "/data/adb/mihomo"
+    const val SECRET = AppConfig.SECRET
+    const val BASE = AppConfig.BASE_DIR
 
     lateinit var shell: ShellExecutor
         private set

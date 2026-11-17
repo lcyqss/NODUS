@@ -1,5 +1,6 @@
 package com.mihomo.gateway.data.update
 
+import com.mihomo.gateway.core.AppConfig
 import android.content.Context
 import android.util.Log
 import com.mihomo.gateway.model.AppUpdateInfo
@@ -142,7 +143,7 @@ class AppUpdateRepositoryImpl(
 
     companion object {
         private const val TAG = "GW-Update"
-        const val RELEASES_API = "https://api.github.com/repos/lcyqss/NODUS/releases/latest"
+        val RELEASES_API = AppConfig.RELEASES_API
 
         /** 语义化版本比较，忽略前缀和预发布后缀。 */
         fun compareVersion(a: String, b: String): Int {

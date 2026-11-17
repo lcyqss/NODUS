@@ -1,5 +1,6 @@
 package com.mihomo.gateway.ui.settings
 
+import com.mihomo.gateway.core.AppConfig
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -266,7 +267,7 @@ private fun SettingsMain(
             SettingsSubheader("维护")
             SettingsRow(
                 title = "清理运行数据（卸载前）",
-                subtitle = "停止网关、清除规则、删除 /data/adb/mihomo",
+                subtitle = "停止网关、清除规则、删除 ${AppConfig.BASE_DIR}",
                 onClick = { showCleanup = true }
             )
         }
@@ -560,7 +561,7 @@ private fun SettingsMain(
             title = { Text("确认清理？") },
             text = {
                 Text(
-                    "将停止网关、清除 iptables 规则并删除 /data/adb/mihomo。" +
+                    "将停止网关、清除 iptables 规则并删除 ${AppConfig.BASE_DIR}。" +
                         "清理后需要点「重新安装内核」才能继续使用。"
                 )
             },

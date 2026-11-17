@@ -1,5 +1,6 @@
 package com.mihomo.gateway.data.repo
 
+import com.mihomo.gateway.core.AppConfig
 import android.content.Context
 import android.util.Log
 import com.mihomo.gateway.core.CoreInstaller
@@ -56,7 +57,7 @@ class ProfileRepositoryImpl(
     private val coreInstaller: CoreInstaller,
     private val rules: RuleRepository,
     private val devicePolicies: DevicePolicyApplier,
-    private val base: String = "/data/adb/mihomo"
+    private val base: String = AppConfig.BASE_DIR
 ) : ProfileRepository {
 
     private val client = OkHttpClient.Builder()

@@ -1,5 +1,6 @@
 package com.mihomo.gateway.data.policy
 
+import com.mihomo.gateway.core.AppConfig
 import android.content.Context
 import com.mihomo.gateway.core.NeighborResolver
 import com.mihomo.gateway.core.ShellExecutor
@@ -80,7 +81,7 @@ class DevicePolicyRepositoryImpl(
     private val neighbors: NeighborResolver,
     private val shell: ShellExecutor,
     private val api: MihomoApi,
-    private val base: String = "/data/adb/mihomo"
+    private val base: String = AppConfig.BASE_DIR
 ) : DevicePolicyRepository {
 
     /** 上次写入配置的 MAC→IP 映射；null 表示尚未从现有配置读取。 */
@@ -289,7 +290,7 @@ class DevicePolicyRepositoryImpl(
             val target = plan.targetGroup ?: return@forEach
             if (portIndex >= 40) return@forEach
             groups += buildGroups(plan)
-            val base = 7910 + portIndex * 2
+            val base = AppConfig.DEVICE_REDIR_PORT_BASE + portIndex * 2
             portIndex++
             val name = plan.policy.id.replace("-", "").take(8)
             val ruleName = "devrule_$name"

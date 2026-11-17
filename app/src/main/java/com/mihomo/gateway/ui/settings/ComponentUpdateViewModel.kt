@@ -1,5 +1,6 @@
 package com.mihomo.gateway.ui.settings
 
+import com.mihomo.gateway.core.AppConfig
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mihomo.gateway.core.CoreInstaller
@@ -58,8 +59,8 @@ class ComponentUpdateViewModel(
     fun refreshComponentVersions() {
         viewModelScope.launch {
             val probe = shell.run(
-                "/data/adb/mihomo/mihomo -v 2>/dev/null; echo '@@'; " +
-                    "cat /data/adb/mihomo/.geo_version 2>/dev/null",
+                "${AppConfig.BASE_DIR}/mihomo -v 2>/dev/null; echo '@@'; " +
+                    "cat ${AppConfig.BASE_DIR}/.geo_version 2>/dev/null",
                 10_000
             ).stdout
             val parts = probe.split("@@")

@@ -1,5 +1,6 @@
 package com.mihomo.gateway.data.repo
 
+import com.mihomo.gateway.core.AppConfig
 import android.util.Log
 import com.mihomo.gateway.core.ShellExecutor
 import com.mihomo.gateway.data.api.MihomoApi
@@ -36,7 +37,7 @@ interface GatewayController {
 class GatewayControllerImpl(
     private val shell: ShellExecutor,
     private val api: MihomoApi,
-    private val base: String = "/data/adb/mihomo"
+    private val base: String = AppConfig.BASE_DIR
 ) : GatewayController {
 
     private val _state = MutableStateFlow(GatewayState())

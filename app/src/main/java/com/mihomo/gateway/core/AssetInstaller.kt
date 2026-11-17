@@ -21,7 +21,7 @@ interface CoreInstaller {
 class AssetInstaller(
     private val context: Context,
     private val shell: ShellExecutor,
-    private val base: String = "/data/adb/mihomo"
+    private val base: String = AppConfig.BASE_DIR
 ) : CoreInstaller {
 
     private val installMutex = Mutex()

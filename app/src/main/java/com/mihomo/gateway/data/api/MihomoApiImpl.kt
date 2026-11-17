@@ -1,5 +1,6 @@
 package com.mihomo.gateway.data.api
 
+import com.mihomo.gateway.core.AppConfig
 import android.util.Log
 import com.mihomo.gateway.model.AppError
 import com.mihomo.gateway.model.ConfigInfo
@@ -29,7 +30,7 @@ import java.net.ConnectException
 import java.util.concurrent.TimeUnit
 
 class MihomoApiImpl(
-    private val baseUrl: String = "http://127.0.0.1:9090",
+    private val baseUrl: String = "http://${AppConfig.LOOPBACK}:${AppConfig.API_PORT}",
     private val secret: String
 ) : MihomoApi {
 
@@ -42,7 +43,7 @@ class MihomoApiImpl(
         .build()
 
     private val wsBase = baseUrl.replaceFirst("http", "ws")
-    private val baseUrlPath = "/data/adb/mihomo/config.yaml"
+    private val baseUrlPath = "${AppConfig.BASE_DIR}/config.yaml"
 
     // ---------- REST ----------
 

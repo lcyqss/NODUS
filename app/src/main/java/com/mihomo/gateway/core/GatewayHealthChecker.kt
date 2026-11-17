@@ -33,7 +33,7 @@ class GatewayHealthChecker(
     private val proxyClient = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
-        .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", 7890)))
+        .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(AppConfig.LOOPBACK, AppConfig.PROXY_PORT)))
         .build()
 
     suspend fun check(ipv6Enabled: Boolean): HealthReport = withContext(Dispatchers.IO) {
@@ -57,7 +57,7 @@ class GatewayHealthChecker(
 
     private suspend fun checkPorts(ipv6Enabled: Boolean): Boolean {
         val out = shell.run("ss -ltn 2>/dev/null", 5_000).stdout
-        val base = out.contains(":7890") && out.contains(":7892") && out.contains(":9090")
+        val base = out.contains(":${AppConfig.PROXY_PORT}") && out.contains(":7892") && out.contains(":${AppConfig.API_PORT}")
         return base && (!ipv6Enabled || out.contains(":7895"))
     }
 
