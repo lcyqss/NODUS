@@ -131,7 +131,8 @@ private fun SettingsMain(
             onIpMode = { showIpMode = true },
             onRuntimeMode = { showRuntimeMode = true },
             onBlockIpv6 = vm::setBlockIpv6,
-            onIpv6Gateway = vm::setIpv6Gateway
+            onIpv6Gateway = vm::setIpv6Gateway,
+            onDirectPrivateLan = vm::setDirectPrivateLan
         )
 
         Spacer(Modifier.height(24.dp))

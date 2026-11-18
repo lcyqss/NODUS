@@ -25,7 +25,8 @@ internal fun GatewaySection(
     onIpMode: () -> Unit,
     onRuntimeMode: () -> Unit,
     onBlockIpv6: (Boolean) -> Unit,
-    onIpv6Gateway: (Boolean) -> Unit
+    onIpv6Gateway: (Boolean) -> Unit,
+    onDirectPrivateLan: (Boolean) -> Unit
 ) {
     SettingsGroup("网关") {
         SettingsRow(
@@ -62,6 +63,18 @@ internal fun GatewaySection(
             checked = settings.ipv6Gateway,
             enabled = enabled && (!ipv6RaBlocked || settings.ipv6Gateway),
             onChange = onIpv6Gateway
+        )
+        SettingsDivider()
+        SettingsSwitchRow(
+            title = "内网直连",
+            subtitle = if (settings.directPrivateLan) {
+                "访问 10/8、172.16/12、192.168/16 等内网地址不走代理"
+            } else {
+                "内网地址也会进代理，可能访问不到 NAS / 打印机"
+            },
+            checked = settings.directPrivateLan,
+            enabled = enabled,
+            onChange = onDirectPrivateLan
         )
     }
 }

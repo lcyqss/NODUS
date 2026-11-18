@@ -175,6 +175,22 @@ class SettingsViewModel(
         }
     }
 
+    fun setDirectPrivateLan(enabled: Boolean) {
+        viewModelScope.launch {
+            _busy.value = true
+            val result = gateway.setDirectPrivateLan(enabled)
+            if (result.isSuccess) {
+                store.update { it.copy(directPrivateLan = enabled) }
+            }
+            _message.value = if (result.isSuccess) {
+                if (enabled) "内网直连已开启" else "内网直连已关闭"
+            } else {
+                "设置失败: ${result.exceptionOrNull()?.message}"
+            }
+            _busy.value = false
+        }
+    }
+
     fun setAutoStart(enabled: Boolean) {
         viewModelScope.launch {
             store.update { it.copy(autoStart = enabled) }

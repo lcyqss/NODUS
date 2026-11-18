@@ -73,7 +73,8 @@ data class ProviderInfo(
 data class GatewayConf(
     val mode: IpMode = IpMode.AUTO,
     val blockIpv6: Boolean = true,
-    val ipv6Gateway: Boolean = false
+    val ipv6Gateway: Boolean = false,
+    val directPrivateLan: Boolean = false
 )
 
 data class GatewayState(
@@ -91,6 +92,7 @@ data class AppSettings(
     val ipMode: IpMode = IpMode.AUTO,
     val blockIpv6: Boolean = true,
     val ipv6Gateway: Boolean = false,
+    val directPrivateLan: Boolean = false,
     val geoAutoUpdate: Boolean = false,
     val geoUpdateIntervalDays: Int = 7,
     val lastGeoUpdateAt: Long = 0L,

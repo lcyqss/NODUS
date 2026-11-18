@@ -37,9 +37,11 @@ $IPT -w -F MIHOMO_FWD
 $IPT -w -F MIHOMO_IN
 $IP6 -w -F MIHOMO6_FWD
 
+HAS_IF=0
 for IF in $(list_gateways); do
   NET=$(iface_net "$IF")
   [ -z "$NET" ] && continue
+  HAS_IF=1
   if [ -f "$MACFILE" ]; then
     TAB=$(printf '\t')
     while IFS="$TAB" read -r MAC MODE P4 P6 IP4; do
@@ -54,6 +56,13 @@ for IF in $(list_gateways); do
   fi
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p udp --dport 53 -j REDIRECT --to-ports 1053
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp --dport 53 -j REDIRECT --to-ports 1053
+  # 内网直连：私网目标不进代理。iptables legacy 不允许一条规则写多个 -d，
+  # 所以每个网段单独加 RETURN，放在 per-MAC / 全局重定向之前。
+  if [ "$DIRECT_PRIVATE" = "1" ]; then
+    for D in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16; do
+      $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -s "$NET" -d "$D" -p tcp -j RETURN
+    done
+  fi
   if [ -f "$MACFILE" ]; then
     TAB=$(printf '\t')
     while IFS="$TAB" read -r MAC MODE P4 P6 IP4; do
@@ -80,6 +89,14 @@ for IF in $(list_gateways); do
     $IP6 -w -A MIHOMO6_FWD -i "$IF" -j DROP
   fi
 done
+
+# 关键规则缺失时明确失败，避免「DNS 劫持成功但 TCP 没进代理」导致客户端断网
+if [ "$HAS_IF" = "1" ]; then
+  if ! $IPT -w -t nat -S MIHOMO_NAT 2>/dev/null | grep -q 'to-ports 7892'; then
+    echo "apply: global redirect rule missing" >&2
+    exit 1
+  fi
+fi
 
 if [ "$IP_MODE" = "auto" ]; then
   NOW=$(date +%s)
