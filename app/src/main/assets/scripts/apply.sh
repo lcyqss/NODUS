@@ -54,9 +54,11 @@ jump6() {
 jump4 nat PREROUTING MIHOMO_NAT
 jump4 filter FORWARD MIHOMO_FWD
 jump4 filter INPUT MIHOMO_IN
+jump4 mangle FORWARD MIHOMO_MSS
 jump6 FORWARD MIHOMO6_FWD
 
 $IPT -w -t nat -F MIHOMO_NAT
+$IPT -w -t mangle -F MIHOMO_MSS
 $IPT -w -F MIHOMO_FWD
 $IPT -w -F MIHOMO_IN
 $IP6 -w -F MIHOMO6_FWD
@@ -66,6 +68,9 @@ for IF in $(list_gateways); do
   NET=$(iface_net "$IF")
   [ -z "$NET" ] && continue
   HAS_IF=1
+  # 蜂窝网络下 PMTU 黑洞会让大包卡住；按路径 MTU 收敛 MSS（对直连流量有效）
+  $IPT -w -t mangle -A MIHOMO_MSS -i "$IF" -p tcp --tcp-flags SYN,RST SYN \
+    -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
   if [ -f "$MACFILE" ]; then
     TAB=$(printf '\t')
     while IFS="$TAB" read -r MAC MODE P4 P6 IP4; do
