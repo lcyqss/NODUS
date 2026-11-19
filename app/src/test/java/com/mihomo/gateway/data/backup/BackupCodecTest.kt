@@ -47,7 +47,12 @@ class BackupCodecTest {
             nodeTags = "[]",
             conditionTemplates = "[]",
             policyIntervalSec = 120,
-            ipFollowIntervalSec = 300
+            ipFollowIntervalSec = 300,
+            directPrivateLan = true,
+            udpProxy = true,
+            udpProxyAll = true,
+            autoCleanIdle = true,
+            autoCleanThreshold = 1200
         )
         val rules = listOf(
             rule(RuleKind.DOMAIN_SUFFIX, "ip.sb"),
@@ -74,6 +79,11 @@ class BackupCodecTest {
         assertEquals("[]", s.conditionTemplates)
         assertEquals(120, s.policyIntervalSec)
         assertEquals(300, s.ipFollowIntervalSec)
+        assertEquals(true, s.directPrivateLan)
+        assertEquals(true, s.udpProxy)
+        assertEquals(true, s.udpProxyAll)
+        assertEquals(true, s.autoCleanIdle)
+        assertEquals(1200, s.autoCleanThreshold)
         assertEquals("rule", s.runtimeMode)
 
         assertEquals(2, decoded.rules.size)
@@ -114,6 +124,11 @@ class BackupCodecTest {
         assertNull(s.nodeTags)
         assertNull(s.policyIntervalSec)
         assertNull(s.runtimeMode)
+        assertNull(s.directPrivateLan)
+        assertNull(s.udpProxy)
+        assertNull(s.udpProxyAll)
+        assertNull(s.autoCleanIdle)
+        assertNull(s.autoCleanThreshold)
         assertFalse(decoded.rulesPresent)
         assertTrue(decoded.rules.isEmpty())
     }

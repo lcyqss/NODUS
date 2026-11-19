@@ -31,9 +31,18 @@ class AssetInstaller(
     }
 
     private suspend fun ensureLocked(force: Boolean): Result<String> {
-        val version = runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull() ?: "0"
+        val pkg = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }.getOrNull()
+        val version = pkg?.versionName ?: "0"
+        val versionCode = when {
+            pkg == null -> 0L
+            android.os.Build.VERSION.SDK_INT >= 28 -> pkg.longVersionCode
+            else -> pkg.versionCode.toLong()
+        }
+        // 脚本/资源标记包含 versionCode：同一 versionName 的测试构建也能触发重装，
+        // 避免改了脚本但安装新 APK 后设备仍在跑旧脚本。
+        val assetKey = "$version-$versionCode"
 
         val probe = shell.run(
             "cat $base/.app_version 2>/dev/null; echo '@@'; " +
@@ -45,7 +54,7 @@ class AssetInstaller(
         val marker = probeParts.getOrNull(0)?.trim().orEmpty()
         val binaryOk = probeParts.getOrNull(1)?.trim() == "ok"
         val geoMarker = probeParts.getOrNull(2)?.trim().orEmpty()
-        if (!force && marker == version && geoMarker == version && binaryOk) {
+        if (!force && marker == assetKey && geoMarker == version && binaryOk) {
             return Result.success("核心已是 $version")
         }
 
@@ -112,7 +121,7 @@ class AssetInstaller(
             cp -f $c/GeoSite.dat $base/GeoSite.dat.new && mv -f $base/GeoSite.dat.new $base/GeoSite.dat
             chmod 644 $base/GeoIP.dat $base/GeoSite.dat
             echo "${'$'}NEW_VER" > $base/.core_version
-            echo "$version" > $base/.app_version
+            echo "$assetKey" > $base/.app_version
             echo "$version" > $base/.geo_version
             echo installed
         """.trimIndent()
