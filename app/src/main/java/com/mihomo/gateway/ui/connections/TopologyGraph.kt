@@ -56,8 +56,10 @@ private class GNode(
     var idleCount = 0
     var traffic = 0L
     var portCount = 0
+    /** 折叠后 children 会被跳过构建，这个标记保证折叠状态仍然显示「+」。 */
+    var expandable = false
     val allIdle: Boolean get() = count > 0 && idleCount >= count
-    val hasChildren: Boolean get() = children.isNotEmpty() || portCount > 0
+    val hasChildren: Boolean get() = children.isNotEmpty() || portCount > 0 || expandable
 }
 
 private val NodeWidth = 172.dp
@@ -267,11 +269,18 @@ fun TopologyGraph(
                             } else {
                                 !collapsed.contains(node.id)
                             }
+                            val signPaint = android.graphics.Paint().apply {
+                                isAntiAlias = true
+                                textSize = 15.sp.toPx()
+                                color = onSurface.toArgb()
+                                isFakeBoldText = true
+                                alpha = (255 * alpha.coerceAtLeast(0.65f)).toInt().coerceIn(0, 255)
+                            }
                             canvas.nativeCanvas.drawText(
                                 if (expanded) "−" else "+",
-                                topLeft.x + nodeW - 16.dp.toPx(),
-                                node.y + 4.dp.toPx(),
-                                titlePaint
+                                topLeft.x + nodeW - 20.dp.toPx(),
+                                node.y + 5.dp.toPx(),
+                                signPaint
                             )
                         }
                     }
@@ -441,12 +450,15 @@ private fun buildGraph(
     root.count = connections.size
     root.idleCount = connections.count { it.inactive }
     root.traffic = connections.sumOf { it.upload + it.download }
+    root.expandable = connections.isNotEmpty()
+    if (collapsed.contains(root.id)) return root
 
     connections.groupBy { it.chains.getOrNull(1) ?: "DIRECT" }.forEach { (group, groupConns) ->
         val groupNode = GNode("g:$group", groupLabel(group), null, NodeKind.GROUP)
         groupNode.count = groupConns.size
         groupNode.idleCount = groupConns.count { it.inactive }
         groupNode.traffic = groupConns.sumOf { it.upload + it.download }
+        groupNode.expandable = true
         root.children += groupNode
         if (collapsed.contains(groupNode.id)) return@forEach
 
@@ -455,6 +467,7 @@ private fun buildGraph(
             proxyNode.count = proxyConns.size
             proxyNode.idleCount = proxyConns.count { it.inactive }
             proxyNode.traffic = proxyConns.sumOf { it.upload + it.download }
+            proxyNode.expandable = true
             groupNode.children += proxyNode
             if (collapsed.contains(proxyNode.id)) return@forEach
 
@@ -468,6 +481,7 @@ private fun buildGraph(
                 ruleNode.count = ruleConns.size
                 ruleNode.idleCount = ruleConns.count { it.inactive }
                 ruleNode.traffic = ruleConns.sumOf { it.upload + it.download }
+                ruleNode.expandable = true
                 proxyNode.children += ruleNode
                 if (collapsed.contains(ruleNode.id)) return@forEach
 
@@ -479,6 +493,7 @@ private fun buildGraph(
                     clientNode.idleCount = clientConns.count { it.inactive }
                     clientNode.traffic = clientConns.sumOf { it.upload + it.download }
                     clientNode.portCount = clientConns.map { it.sourcePort }.distinct().size
+                    clientNode.expandable = clientNode.portCount > 0
                     ruleNode.children += clientNode
 
                     if (expandedClients.contains(clientId)) {

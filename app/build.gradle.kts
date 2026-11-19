@@ -20,7 +20,7 @@ android {
         applicationId = "com.mihomo.gateway"
         minSdk = 29
         targetSdk = 35
-        versionCode = 197
+        versionCode = 203
         versionName = "2.63.2"
     }
 
