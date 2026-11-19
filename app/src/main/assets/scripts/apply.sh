@@ -55,10 +55,12 @@ jump4 nat PREROUTING MIHOMO_NAT
 jump4 filter FORWARD MIHOMO_FWD
 jump4 filter INPUT MIHOMO_IN
 jump4 mangle FORWARD MIHOMO_MSS
+jump4 mangle PREROUTING MIHOMO_TPROXY4
 jump6 FORWARD MIHOMO6_FWD
 
 $IPT -w -t nat -F MIHOMO_NAT
 $IPT -w -t mangle -F MIHOMO_MSS
+$IPT -w -t mangle -F MIHOMO_TPROXY4
 $IPT -w -F MIHOMO_FWD
 $IPT -w -F MIHOMO_IN
 $IP6 -w -F MIHOMO6_FWD
@@ -81,6 +83,7 @@ for IF in $(list_gateways); do
       $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp -m mac --mac-source "$MAC" -j RETURN
       $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p udp -m mac --mac-source "$MAC" --dport 53 -j RETURN
       $IPT -w -A MIHOMO_FWD -i "$IF" -m mac --mac-source "$MAC" -p udp --dport 443 -j RETURN
+      $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -p udp -m mac --mac-source "$MAC" --dport 443 -j RETURN
     done < "$MACFILE"
   fi
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p udp --dport 53 -j REDIRECT --to-ports 1053
@@ -111,15 +114,30 @@ for IF in $(list_gateways); do
     done < "$MACFILE"
   fi
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -s "$NET" ! -d "$NET" -p tcp -j REDIRECT --to-ports 7892
-  # QUIC 无法走 redir 代理；用 REJECT 让客户端立刻回落 TCP，
-  # 比 DROP 静默丢包快很多（淘宝/支付宝等 App 会先尝试 HTTP/3）。
-  $IPT -w -A MIHOMO_FWD -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable
+  # QUIC 无法走 redir 代理；默认用 REJECT 让客户端立刻回落 TCP。
+  # 开启 UDP/QUIC 代理后改为 TPROXY 到 7895，由内核按规则转发。
+  if [ "$UDP_PROXY" = "1" ]; then
+    $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 \
+      -j TPROXY --on-port 7895 --tproxy-mark 0x1/0x1
+  else
+    $IPT -w -A MIHOMO_FWD -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable
+  fi
   $IPT -w -A MIHOMO_IN -i "$IF" -p tcp --dport 9090 -j DROP
   $IPT -w -A MIHOMO_IN -i "$IF" -p tcp --dport 7890 -j DROP
   if [ "$BLOCK_IPV6" = "1" ] && [ "$IPV6_GATEWAY" != "1" ]; then
     $IP6 -w -A MIHOMO6_FWD -i "$IF" -j DROP
   fi
 done
+
+# IPv4 UDP/QUIC TPROXY 的策略路由：只处理标记为 0x1 的 UDP 443
+if [ "$UDP_PROXY" = "1" ]; then
+  ip rule del fwmark 0x1/0x1 table 100 priority 9999 2>/dev/null
+  ip rule add fwmark 0x1/0x1 table 100 priority 9999 2>/dev/null
+  ip route replace local default dev lo table 100 2>/dev/null
+else
+  ip rule del fwmark 0x1/0x1 table 100 priority 9999 2>/dev/null
+  ip route del local default dev lo table 100 2>/dev/null
+fi
 
 # 关键规则缺失时明确失败，避免「DNS 劫持成功但 TCP 没进代理」导致客户端断网
 if [ "$HAS_IF" = "1" ]; then

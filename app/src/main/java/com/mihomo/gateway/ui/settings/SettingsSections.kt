@@ -26,7 +26,8 @@ internal fun GatewaySection(
     onRuntimeMode: () -> Unit,
     onBlockIpv6: (Boolean) -> Unit,
     onIpv6Gateway: (Boolean) -> Unit,
-    onDirectPrivateLan: (Boolean) -> Unit
+    onDirectPrivateLan: (Boolean) -> Unit,
+    onUdpProxy: (Boolean) -> Unit
 ) {
     SettingsGroup("网关") {
         SettingsRow(
@@ -75,6 +76,18 @@ internal fun GatewaySection(
             checked = settings.directPrivateLan,
             enabled = enabled,
             onChange = onDirectPrivateLan
+        )
+        SettingsDivider()
+        SettingsSwitchRow(
+            title = "UDP/QUIC 代理（实验）",
+            subtitle = if (settings.udpProxy) {
+                "QUIC 走 TPROXY，按规则代理或直连"
+            } else {
+                "关闭：QUIC 被拒绝并立即回落 TCP（更稳定）"
+            },
+            checked = settings.udpProxy,
+            enabled = enabled,
+            onChange = onUdpProxy
         )
     }
 }

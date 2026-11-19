@@ -191,6 +191,22 @@ class SettingsViewModel(
         }
     }
 
+    fun setUdpProxy(enabled: Boolean) {
+        viewModelScope.launch {
+            _busy.value = true
+            val result = gateway.setUdpProxy(enabled)
+            if (result.isSuccess) {
+                store.update { it.copy(udpProxy = enabled) }
+            }
+            _message.value = if (result.isSuccess) {
+                if (enabled) "UDP/QUIC 代理已开启" else "UDP/QUIC 代理已关闭"
+            } else {
+                "设置失败: ${result.exceptionOrNull()?.message}"
+            }
+            _busy.value = false
+        }
+    }
+
     fun setAutoStart(enabled: Boolean) {
         viewModelScope.launch {
             store.update { it.copy(autoStart = enabled) }

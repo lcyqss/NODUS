@@ -27,6 +27,9 @@ interface GatewayController {
     /** 内网直连：把常见私网目标排除出代理重定向。 */
     suspend fun setDirectPrivateLan(enabled: Boolean): Result<Unit>
 
+    /** UDP/QUIC 代理：开启后 UDP 443 走 TPROXY（实验特性）。 */
+    suspend fun setUdpProxy(enabled: Boolean): Result<Unit>
+
     /** 切换运行模式（rule/global/direct），同时写回 config.yaml，避免 reload 后回退。 */
     suspend fun setRuntimeMode(mode: String): Result<Unit>
     suspend fun detectUpstreamRa(): Boolean
@@ -178,6 +181,18 @@ class GatewayControllerImpl(
         Result.success(Unit)
     }
 
+    override suspend fun setUdpProxy(enabled: Boolean): Result<Unit> = mutex.withLock {
+        val wrote = shell.run("sh $base/conf.sh UDP_PROXY ${if (enabled) "1" else "0"}")
+        if (wrote.code != 0) {
+            return Result.failure(IllegalStateException(wrote.stdout.take(200)))
+        }
+        val applied = shell.run("sh $base/apply.sh", 30_000)
+        if (applied.code != 0) {
+            return Result.failure(IllegalStateException(applied.stdout.take(200)))
+        }
+        Result.success(Unit)
+    }
+
     override suspend fun applyRules(): Result<Unit> {
         val result = shell.run("sh $base/apply.sh")
         return if (result.code == 0) Result.success(Unit)
@@ -203,7 +218,8 @@ class GatewayControllerImpl(
         val block = map["BLOCK_IPV6"]?.trim() != "0"
         val ipv6Gateway = map["IPV6_GATEWAY"]?.trim() == "1"
         val directPrivate = map["DIRECT_PRIVATE"]?.trim() == "1"
-        return GatewayConf(mode, block, ipv6Gateway, directPrivate)
+        val udpProxy = map["UDP_PROXY"]?.trim() == "1"
+        return GatewayConf(mode, block, ipv6Gateway, directPrivate, udpProxy)
     }
 
     override suspend fun cleanup(): Result<Unit> {
