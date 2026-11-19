@@ -72,6 +72,31 @@ fun DiagnosticsScreen(
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("网络链路", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "当前节点：${state.nodeName.ifBlank { "-" }}" +
+                        if (state.nodeDelay > 0) "（${state.nodeDelay}ms）" else ""
+                )
+                Text(
+                    "QUIC 被拒绝：${
+                        if (state.quicRejects >= 0) "${state.quicRejects} 个包" else "-"
+                    }"
+                )
+                Text(
+                    "DNS fallback 失败（最近 500 行）：${
+                        if (state.dnsFallbackFailures >= 0) state.dnsFallbackFailures.toString() else "-"
+                    }"
+                )
+                Text(
+                    "QUIC 被拒绝是预期行为：客户端会立即回落 TCP；DNS fallback 失败应接近 0。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("客户端 IPv6（普通设备）", style = MaterialTheme.typography.titleMedium)
                 val ipv6 = clientIpv6
                 if (ipv6 == null) {

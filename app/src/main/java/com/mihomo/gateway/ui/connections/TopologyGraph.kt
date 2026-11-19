@@ -272,9 +272,9 @@ fun TopologyGraph(
                             val signPaint = android.graphics.Paint().apply {
                                 isAntiAlias = true
                                 textSize = 15.sp.toPx()
-                                color = onSurface.toArgb()
+                                this.color = onSurface.toArgb()
                                 isFakeBoldText = true
-                                alpha = (255 * alpha.coerceAtLeast(0.65f)).toInt().coerceIn(0, 255)
+                                this.alpha = (255 * alpha.coerceAtLeast(0.65f)).toInt().coerceIn(0, 255)
                             }
                             canvas.nativeCanvas.drawText(
                                 if (expanded) "−" else "+",

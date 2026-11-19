@@ -22,7 +22,11 @@ data class DiagnosticsState(
     val latencyMs: Long = -1,
     val rules: String = "",
     val snapshotAt: Long = 0,
-    val error: String? = null
+    val error: String? = null,
+    val quicRejects: Int = -1,
+    val dnsFallbackFailures: Int = -1,
+    val nodeName: String = "",
+    val nodeDelay: Int = -1
 )
 
 class DiagnosticsViewModel(
@@ -52,6 +56,37 @@ class DiagnosticsViewModel(
                 )
             }
             refreshClientIpv6()
+            refreshNetworkStats()
+        }
+    }
+
+    /** 网络链路指标：QUIC 拒绝计数、DNS fallback 失败、当前节点延迟。 */
+    private suspend fun refreshNetworkStats() {
+        val quicRaw = shell.run("iptables -vnL MIHOMO_FWD 2>/dev/null | grep 'dpt:443' | head -1").stdout
+        val quic = quicRaw.trim().split(Regex("\\s+")).firstOrNull()?.toIntOrNull() ?: -1
+
+        val dnsRaw = shell.run(
+            "tail -n 500 /data/adb/mihomo/mihomo.log 2>/dev/null | grep -cE '(1\\.1\\.1\\.1|8\\.8\\.8\\.8):53'"
+        ).stdout
+        val dnsFailures = dnsRaw.trim().toIntOrNull() ?: -1
+
+        var nodeName = ""
+        var nodeDelay = -1
+        api.proxies().onSuccess { list ->
+            val group = list.firstOrNull { it.name == "良心云" }
+            var current = group?.now.orEmpty()
+            val currentProxy = list.firstOrNull { it.name == current }
+            if (currentProxy?.isGroup == true) current = currentProxy.now.orEmpty()
+            nodeName = current
+            nodeDelay = list.firstOrNull { it.name == current }?.delay ?: -1
+        }
+        _state.update {
+            it.copy(
+                quicRejects = quic,
+                dnsFallbackFailures = dnsFailures,
+                nodeName = nodeName,
+                nodeDelay = nodeDelay
+            )
         }
     }
 
