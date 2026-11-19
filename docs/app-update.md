@@ -80,6 +80,13 @@ v2.63.2  ↔  versionName = "2.63.2"
 
 ## 发布验证记录
 
+v2.63.2（2026-11-19）已验证：
+
+- Actions 产物 `NODUS.apk` 49,276,140 字节，包含 mihomo 内核
+- `sha256`：`a0c1f8d2…ab5b`，与 Release 附带的 `.sha256` 一致
+- CI 产物签名证书 SHA-256 与本机 keystore 一致（`0ab12892…296a`）
+- CI 产物可直接覆盖安装本地构建（同 versionCode 210 / 同签名）
+
 v2.63.1（2026-11-18）已验证：
 
 - Actions 产物 `NODUS.apk` 约 46.9 MB，包含 mihomo 内核
