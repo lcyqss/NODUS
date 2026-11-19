@@ -175,6 +175,10 @@ if [ "$HAS_IF" = "1" ]; then
     echo "apply: global redirect rule missing" >&2
     exit 1
   fi
+  if [ "$UDP_PROXY" = "1" ] && ! $IPT -w -t mangle -S MIHOMO_TPROXY4 2>/dev/null | grep -q 'TPROXY'; then
+    echo "apply: udp tproxy rule missing" >&2
+    exit 1
+  fi
 fi
 
 if [ "$IP_MODE" = "auto" ]; then
