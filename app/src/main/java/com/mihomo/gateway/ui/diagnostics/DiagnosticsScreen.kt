@@ -81,13 +81,13 @@ fun DiagnosticsScreen(
                     if (state.udpProxyEnabled) {
                         "QUIC：UDP/QUIC 代理已开启（走 TPROXY）"
                     } else {
-                        "QUIC 被拒绝：${
+                        "QUIC 被拒绝（自上次应用规则）：${
                             if (state.quicRejects >= 0) "${state.quicRejects} 个包" else "-"
                         }"
                     }
                 )
                 Text(
-                    "DNS fallback 失败（最近 500 行）：${
+                    "DNS fallback 失败（自上次应用规则）：${
                         if (state.dnsFallbackFailures >= 0) state.dnsFallbackFailures.toString() else "-"
                     }"
                 )

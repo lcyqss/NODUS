@@ -209,3 +209,14 @@ if [ "$IPV6_GATEWAY" = "1" ] && [ -x "$BASE/ipv6.sh" ]; then
     sh "$BASE/ipv6.sh" enable >> "$LOG" 2>&1
   fi
 fi
+
+# 日志裁剪 + 记录偏移：诊断页只统计“本次应用之后”的 DNS fallback 失败。
+# 用 cat 覆盖同一 inode，保持 mihomo 以 O_APPEND 打开的文件描述符仍然有效。
+if [ -f "$LOG" ]; then
+  LINES=$(wc -l < "$LOG" 2>/dev/null || echo 0)
+  if [ "$LINES" -gt 50000 ]; then
+    tail -n 20000 "$LOG" > "$LOG.trim" 2>/dev/null && cat "$LOG.trim" > "$LOG" && rm -f "$LOG.trim"
+    LINES=$(wc -l < "$LOG" 2>/dev/null || echo 0)
+  fi
+  echo "$LINES" > "$BASE/.log_offset" 2>/dev/null
+fi

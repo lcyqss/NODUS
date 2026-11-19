@@ -67,7 +67,10 @@ class DiagnosticsViewModel(
         val quic = quicRaw.trim().split(Regex("\\s+")).firstOrNull()?.toIntOrNull() ?: -1
 
         val dnsRaw = shell.run(
-            "tail -n 500 /data/adb/mihomo/mihomo.log 2>/dev/null | grep -cE '(1\\.1\\.1\\.1|8\\.8\\.8\\.8):53'"
+            "off=\$(cat /data/adb/mihomo/.log_offset 2>/dev/null); " +
+                "case \"\$off\" in ''|*[!0-9]*) off=0;; esac; " +
+                "tail -n +\$((off + 1)) /data/adb/mihomo/mihomo.log 2>/dev/null | " +
+                "grep -cE '1\\.1\\.1\\.1:53|8\\.8\\.8\\.8:53'"
         ).stdout
         val dnsFailures = dnsRaw.trim().toIntOrNull() ?: -1
 
