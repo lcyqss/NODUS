@@ -8,6 +8,30 @@ IPT=/system/bin/iptables
 IP6=/system/bin/ip6tables
 MACFILE=$BASE/mac-policy.tsv
 
+# 串行化 apply：设置切换、策略保存、网络事件可能同时触发，
+# 并发执行会把 iptables 链刷成半成品（DNS 劫持有了、TCP 重定向没加）。
+LOCK="$BASE/.apply.lock"
+acquire_lock() {
+  i=0
+  while ! mkdir "$LOCK" 2>/dev/null; do
+    old=$(cat "$LOCK/pid" 2>/dev/null)
+    if [ -n "$old" ] && ! kill -0 "$old" 2>/dev/null; then
+      rm -rf "$LOCK"
+      continue
+    fi
+    i=$((i + 1))
+    if [ "$i" -ge 50 ]; then
+      echo "apply: another apply is running" >&2
+      return 1
+    fi
+    sleep 0.2
+  done
+  echo $$ > "$LOCK/pid"
+  trap 'rm -rf "$LOCK"' EXIT INT TERM
+  return 0
+}
+acquire_lock || exit 1
+
 if ! pidof mihomo >/dev/null 2>&1; then
   echo "$(date '+%F %T') starting mihomo" >> "$LOG"
   (setsid "$BIN" -d "$BASE" -f "$CFG" </dev/null >>"$LOG" 2>&1 &)
