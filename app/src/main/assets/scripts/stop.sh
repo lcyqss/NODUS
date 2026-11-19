@@ -27,5 +27,15 @@ $IP6 -w -F MIHOMO6_FWD 2>/dev/null
 $IP6 -w -D FORWARD -j MIHOMO6_FWD 2>/dev/null
 $IP6 -w -X MIHOMO6_FWD 2>/dev/null
 
+# 清理 mangle：MSS 与 UDP TPROXY，否则停网关后客户端 UDP 443 会被指向已停止的内核
+$IPT -w -t mangle -F MIHOMO_MSS 2>/dev/null
+$IPT -w -t mangle -D FORWARD -j MIHOMO_MSS 2>/dev/null
+$IPT -w -t mangle -X MIHOMO_MSS 2>/dev/null
+$IPT -w -t mangle -F MIHOMO_TPROXY4 2>/dev/null
+$IPT -w -t mangle -D PREROUTING -j MIHOMO_TPROXY4 2>/dev/null
+$IPT -w -t mangle -X MIHOMO_TPROXY4 2>/dev/null
+ip rule del fwmark 0x1/0x1 table 100 priority 9999 2>/dev/null
+ip route del local default dev lo table 100 2>/dev/null
+
 killall mihomo 2>/dev/null
 echo "$(date '+%F %T') gateway stopped" >> "$BASE/mihomo.log"

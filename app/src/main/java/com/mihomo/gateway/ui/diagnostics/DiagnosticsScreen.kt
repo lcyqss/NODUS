@@ -78,9 +78,13 @@ fun DiagnosticsScreen(
                         if (state.nodeDelay > 0) "（${state.nodeDelay}ms）" else ""
                 )
                 Text(
-                    "QUIC 被拒绝：${
-                        if (state.quicRejects >= 0) "${state.quicRejects} 个包" else "-"
-                    }"
+                    if (state.udpProxyEnabled) {
+                        "QUIC：UDP/QUIC 代理已开启（走 TPROXY）"
+                    } else {
+                        "QUIC 被拒绝：${
+                            if (state.quicRejects >= 0) "${state.quicRejects} 个包" else "-"
+                        }"
+                    }
                 )
                 Text(
                     "DNS fallback 失败（最近 500 行）：${

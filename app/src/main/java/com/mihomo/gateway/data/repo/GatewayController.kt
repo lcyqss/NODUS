@@ -189,6 +189,10 @@ class GatewayControllerImpl(
         if (wrote.code != 0) {
             return Result.failure(IllegalStateException(wrote.stdout.take(200)))
         }
+        // 关闭 UDP/QUIC 代理时一并关闭全量 UDP，避免下次打开时代理范围意外扩大
+        if (!enabled) {
+            shell.run("sh $base/conf.sh UDP_PROXY_ALL 0")
+        }
         val applied = shell.run("sh $base/apply.sh", 30_000)
         if (applied.code != 0) {
             return Result.failure(IllegalStateException(applied.stdout.take(200)))

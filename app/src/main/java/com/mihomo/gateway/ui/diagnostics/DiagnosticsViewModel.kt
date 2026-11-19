@@ -26,7 +26,8 @@ data class DiagnosticsState(
     val quicRejects: Int = -1,
     val dnsFallbackFailures: Int = -1,
     val nodeName: String = "",
-    val nodeDelay: Int = -1
+    val nodeDelay: Int = -1,
+    val udpProxyEnabled: Boolean = false
 )
 
 class DiagnosticsViewModel(
@@ -70,6 +71,9 @@ class DiagnosticsViewModel(
         ).stdout
         val dnsFailures = dnsRaw.trim().toIntOrNull() ?: -1
 
+        val udpConf = shell.run("grep -m1 '^UDP_PROXY=' /data/adb/mihomo/gateway.conf 2>/dev/null").stdout
+        val udpProxyEnabled = udpConf.contains("=1")
+
         var nodeName = ""
         var nodeDelay = -1
         api.proxies().onSuccess { list ->
@@ -85,7 +89,8 @@ class DiagnosticsViewModel(
                 quicRejects = quic,
                 dnsFallbackFailures = dnsFailures,
                 nodeName = nodeName,
-                nodeDelay = nodeDelay
+                nodeDelay = nodeDelay,
+                udpProxyEnabled = udpProxyEnabled
             )
         }
     }

@@ -47,6 +47,11 @@ object BackupCodec {
         val conditionTemplates: String? = null,
         val policyIntervalSec: Int? = null,
         val ipFollowIntervalSec: Int? = null,
+        val directPrivateLan: Boolean? = null,
+        val udpProxy: Boolean? = null,
+        val udpProxyAll: Boolean? = null,
+        val autoCleanIdle: Boolean? = null,
+        val autoCleanThreshold: Int? = null,
         /** 运行模式 rule/global/direct；旧备份没有该字段。 */
         val runtimeMode: String? = null
     )
@@ -97,6 +102,11 @@ object BackupCodec {
                     .put("conditionTemplates", current.conditionTemplates)
                     .put("policyIntervalSec", current.policyIntervalSec)
                     .put("ipFollowIntervalSec", current.ipFollowIntervalSec)
+                    .put("directPrivateLan", current.directPrivateLan)
+                    .put("udpProxy", current.udpProxy)
+                    .put("udpProxyAll", current.udpProxyAll)
+                    .put("autoCleanIdle", current.autoCleanIdle)
+                    .put("autoCleanThreshold", current.autoCleanThreshold)
                     .put("runtimeMode", runtimeMode)
             )
             .put("rules", ruleArray)
@@ -127,6 +137,11 @@ object BackupCodec {
                 conditionTemplates = s.stringOrNull("conditionTemplates"),
                 policyIntervalSec = s.intOrNull("policyIntervalSec"),
                 ipFollowIntervalSec = s.intOrNull("ipFollowIntervalSec"),
+                directPrivateLan = s.booleanOrNull("directPrivateLan"),
+                udpProxy = s.booleanOrNull("udpProxy"),
+                udpProxyAll = s.booleanOrNull("udpProxyAll"),
+                autoCleanIdle = s.booleanOrNull("autoCleanIdle"),
+                autoCleanThreshold = s.intOrNull("autoCleanThreshold"),
                 runtimeMode = s.stringOrNull("runtimeMode")
             )
         }

@@ -196,7 +196,10 @@ class SettingsViewModel(
             _busy.value = true
             val result = gateway.setUdpProxy(enabled)
             if (result.isSuccess) {
-                store.update { it.copy(udpProxy = enabled) }
+                store.update {
+                    if (enabled) it.copy(udpProxy = true)
+                    else it.copy(udpProxy = false, udpProxyAll = false)
+                }
             }
             _message.value = if (result.isSuccess) {
                 if (enabled) "UDP/QUIC 代理已开启" else "UDP/QUIC 代理已关闭"
@@ -280,7 +283,12 @@ class SettingsViewModel(
                             nodeTags = s.nodeTags ?: c.nodeTags,
                             conditionTemplates = s.conditionTemplates ?: c.conditionTemplates,
                             policyIntervalSec = s.policyIntervalSec ?: c.policyIntervalSec,
-                            ipFollowIntervalSec = s.ipFollowIntervalSec ?: c.ipFollowIntervalSec
+                            ipFollowIntervalSec = s.ipFollowIntervalSec ?: c.ipFollowIntervalSec,
+                            directPrivateLan = s.directPrivateLan ?: c.directPrivateLan,
+                            udpProxy = s.udpProxy ?: c.udpProxy,
+                            udpProxyAll = s.udpProxyAll ?: c.udpProxyAll,
+                            autoCleanIdle = s.autoCleanIdle ?: c.autoCleanIdle,
+                            autoCleanThreshold = s.autoCleanThreshold ?: c.autoCleanThreshold
                         )
                     }
                 }
@@ -310,6 +318,14 @@ class SettingsViewModel(
                 runCatching { gateway.setIpv6Gateway(restored.ipv6Gateway) }
                 if (!restored.ipv6Gateway) {
                     runCatching { gateway.setBlockIpv6(restored.blockIpv6) }
+                }
+                backup.settings?.directPrivateLan?.let { enabled ->
+                    runCatching { gateway.setDirectPrivateLan(enabled) }
+                }
+                backup.settings?.udpProxy?.let { enabled ->
+                    runCatching { gateway.setUdpProxy(enabled) }
+                    val all = if (enabled) backup.settings?.udpProxyAll ?: false else false
+                    runCatching { gateway.setUdpProxyAll(all) }
                 }
                 backup.settings?.runtimeMode?.let { mode ->
                     gateway.setRuntimeMode(mode)
