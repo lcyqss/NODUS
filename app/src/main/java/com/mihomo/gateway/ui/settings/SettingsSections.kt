@@ -27,7 +27,8 @@ internal fun GatewaySection(
     onBlockIpv6: (Boolean) -> Unit,
     onIpv6Gateway: (Boolean) -> Unit,
     onDirectPrivateLan: (Boolean) -> Unit,
-    onUdpProxy: (Boolean) -> Unit
+    onUdpProxy: (Boolean) -> Unit,
+    onUdpProxyAll: (Boolean) -> Unit
 ) {
     SettingsGroup("网关") {
         SettingsRow(
@@ -88,6 +89,18 @@ internal fun GatewaySection(
             checked = settings.udpProxy,
             enabled = enabled,
             onChange = onUdpProxy
+        )
+        SettingsDivider()
+        SettingsSwitchRow(
+            title = "UDP 全量代理（实验）",
+            subtitle = if (settings.udpProxyAll) {
+                "所有 UDP（除 DNS/DHCP/内网）都按规则代理"
+            } else {
+                "仅代理 QUIC（UDP 443）"
+            },
+            checked = settings.udpProxyAll,
+            enabled = enabled && settings.udpProxy,
+            onChange = onUdpProxyAll
         )
     }
 }

@@ -38,6 +38,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
                 .putBoolean(KEY_IPV6_GATEWAY, next.ipv6Gateway)
                 .putBoolean(KEY_DIRECT_PRIVATE, next.directPrivateLan)
                 .putBoolean(KEY_UDP_PROXY, next.udpProxy)
+                .putBoolean(KEY_UDP_PROXY_ALL, next.udpProxyAll)
                 .putBoolean(KEY_AUTO_CLEAN, next.autoCleanIdle)
                 .putInt(KEY_AUTO_CLEAN_THRESHOLD, next.autoCleanThreshold)
                 .putBoolean(KEY_GEO_AUTO, next.geoAutoUpdate)
@@ -131,6 +132,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         ipv6Gateway = prefs.getBoolean(KEY_IPV6_GATEWAY, false),
         directPrivateLan = prefs.getBoolean(KEY_DIRECT_PRIVATE, false),
         udpProxy = prefs.getBoolean(KEY_UDP_PROXY, false),
+        udpProxyAll = prefs.getBoolean(KEY_UDP_PROXY_ALL, false),
         autoCleanIdle = prefs.getBoolean(KEY_AUTO_CLEAN, false),
         autoCleanThreshold = prefs.getInt(KEY_AUTO_CLEAN_THRESHOLD, 800),
         geoAutoUpdate = prefs.getBoolean(KEY_GEO_AUTO, false),
@@ -169,6 +171,7 @@ class SettingsStoreImpl(context: Context) : SettingsStore {
         private const val KEY_IPV6_GATEWAY = "ipv6_gateway"
     private const val KEY_DIRECT_PRIVATE = "direct_private_lan"
     private const val KEY_UDP_PROXY = "udp_proxy"
+    private const val KEY_UDP_PROXY_ALL = "udp_proxy_all"
     private const val KEY_AUTO_CLEAN = "auto_clean_idle"
     private const val KEY_AUTO_CLEAN_THRESHOLD = "auto_clean_threshold"
         private const val KEY_GEO_AUTO = "geo_auto_update"

@@ -133,7 +133,8 @@ private fun SettingsMain(
             onBlockIpv6 = vm::setBlockIpv6,
             onIpv6Gateway = vm::setIpv6Gateway,
             onDirectPrivateLan = vm::setDirectPrivateLan,
-            onUdpProxy = vm::setUdpProxy
+            onUdpProxy = vm::setUdpProxy,
+            onUdpProxyAll = vm::setUdpProxyAll
         )
 
         Spacer(Modifier.height(24.dp))

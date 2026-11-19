@@ -73,6 +73,15 @@ for IF in $(list_gateways); do
   # 蜂窝网络下 PMTU 黑洞会让大包卡住；按路径 MTU 收敛 MSS（对直连流量有效）
   $IPT -w -t mangle -A MIHOMO_MSS -i "$IF" -p tcp --tcp-flags SYN,RST SYN \
     -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
+  # UDP 代理的固定排除项：DNS / DHCP / 本网段 / 组播广播
+  if [ "$UDP_PROXY" = "1" ]; then
+    $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -p udp --dport 53 -j RETURN
+    $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -p udp --dport 67 -j RETURN
+    $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -p udp --dport 68 -j RETURN
+    $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -d "$NET" -j RETURN
+    $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -d 224.0.0.0/4 -j RETURN
+    $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -d 255.255.255.255 -j RETURN
+  fi
   if [ -f "$MACFILE" ]; then
     TAB=$(printf '\t')
     while IFS="$TAB" read -r MAC MODE P4 P6 IP4; do
@@ -83,7 +92,11 @@ for IF in $(list_gateways); do
       $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp -m mac --mac-source "$MAC" -j RETURN
       $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p udp -m mac --mac-source "$MAC" --dport 53 -j RETURN
       $IPT -w -A MIHOMO_FWD -i "$IF" -m mac --mac-source "$MAC" -p udp --dport 443 -j RETURN
-      $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -p udp -m mac --mac-source "$MAC" --dport 443 -j RETURN
+      if [ "$UDP_PROXY" = "1" ]; then
+        $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -p udp -m mac --mac-source "$MAC" -j RETURN
+      else
+        $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -p udp -m mac --mac-source "$MAC" --dport 443 -j RETURN
+      fi
     done < "$MACFILE"
   fi
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p udp --dport 53 -j REDIRECT --to-ports 1053
@@ -109,6 +122,18 @@ for IF in $(list_gateways); do
           case "$P4" in ''|*[!0-9]*) continue ;; esac
           $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -p tcp -m mac --mac-source "$MAC" \
             -j REDIRECT --to-ports "$P4"
+          if [ "$UDP_PROXY" = "1" ]; then
+            case "$P6" in ''|*[!0-9]*) ;; *)
+              if [ "$UDP_PROXY_ALL" = "1" ]; then
+                $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -p udp -m mac --mac-source "$MAC" \
+                  -j TPROXY --on-port "$P6" --tproxy-mark 0x1/0x1
+              else
+                $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -p udp -m mac --mac-source "$MAC" --dport 443 \
+                  -j TPROXY --on-port "$P6" --tproxy-mark 0x1/0x1
+              fi
+              ;;
+            esac
+          fi
           ;;
       esac
     done < "$MACFILE"
@@ -117,8 +142,13 @@ for IF in $(list_gateways); do
   # QUIC 无法走 redir 代理；默认用 REJECT 让客户端立刻回落 TCP。
   # 开启 UDP/QUIC 代理后改为 TPROXY 到 7895，由内核按规则转发。
   if [ "$UDP_PROXY" = "1" ]; then
-    $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 \
-      -j TPROXY --on-port 7895 --tproxy-mark 0x1/0x1
+    if [ "$UDP_PROXY_ALL" = "1" ]; then
+      $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -s "$NET" ! -d "$NET" -p udp \
+        -j TPROXY --on-port 7895 --tproxy-mark 0x1/0x1
+    else
+      $IPT -w -t mangle -A MIHOMO_TPROXY4 -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 \
+        -j TPROXY --on-port 7895 --tproxy-mark 0x1/0x1
+    fi
   else
     $IPT -w -A MIHOMO_FWD -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable
   fi

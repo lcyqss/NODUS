@@ -207,6 +207,22 @@ class SettingsViewModel(
         }
     }
 
+    fun setUdpProxyAll(enabled: Boolean) {
+        viewModelScope.launch {
+            _busy.value = true
+            val result = gateway.setUdpProxyAll(enabled)
+            if (result.isSuccess) {
+                store.update { it.copy(udpProxyAll = enabled) }
+            }
+            _message.value = if (result.isSuccess) {
+                if (enabled) "UDP 全量代理已开启" else "UDP 全量代理已关闭"
+            } else {
+                "设置失败: ${result.exceptionOrNull()?.message}"
+            }
+            _busy.value = false
+        }
+    }
+
     fun setAutoStart(enabled: Boolean) {
         viewModelScope.launch {
             store.update { it.copy(autoStart = enabled) }

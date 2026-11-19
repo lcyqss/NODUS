@@ -79,7 +79,8 @@ data class GatewayConf(
     val blockIpv6: Boolean = true,
     val ipv6Gateway: Boolean = false,
     val directPrivateLan: Boolean = false,
-    val udpProxy: Boolean = false
+    val udpProxy: Boolean = false,
+    val udpProxyAll: Boolean = false
 )
 
 data class GatewayState(
@@ -99,6 +100,7 @@ data class AppSettings(
     val ipv6Gateway: Boolean = false,
     val directPrivateLan: Boolean = false,
     val udpProxy: Boolean = false,
+    val udpProxyAll: Boolean = false,
     val autoCleanIdle: Boolean = false,
     val autoCleanThreshold: Int = 800,
     val geoAutoUpdate: Boolean = false,
