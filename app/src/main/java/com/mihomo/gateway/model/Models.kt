@@ -50,7 +50,11 @@ data class ConnectionInfo(
     val chains: List<String>,
     val upload: Long,
     val download: Long,
-    val start: Long
+    val start: Long,
+    /** 由 App 轮询差分推断：距离最后一次有流量的秒数。 */
+    val idleSeconds: Long = 0L,
+    /** true 表示空闲（界面上灰色显示）。 */
+    val inactive: Boolean = false
 )
 
 data class RuleInfo(val type: String, val payload: String, val proxy: String)
@@ -93,6 +97,8 @@ data class AppSettings(
     val blockIpv6: Boolean = true,
     val ipv6Gateway: Boolean = false,
     val directPrivateLan: Boolean = false,
+    val autoCleanIdle: Boolean = false,
+    val autoCleanThreshold: Int = 800,
     val geoAutoUpdate: Boolean = false,
     val geoUpdateIntervalDays: Int = 7,
     val lastGeoUpdateAt: Long = 0L,

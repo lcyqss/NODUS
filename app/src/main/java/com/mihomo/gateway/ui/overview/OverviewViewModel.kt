@@ -27,6 +27,8 @@ import kotlinx.coroutines.launch
 
 data class OverviewStats(
     val connections: Int = 0,
+    val activeConnections: Int = 0,
+    val idleConnections: Int = 0,
     val uploadTotal: Long = 0,
     val downloadTotal: Long = 0
 )
@@ -126,10 +128,13 @@ class OverviewViewModel(
         viewModelScope.launch {
             while (isActive) {
                 api.connections().onSuccess { list ->
+                    val annotated = AppContainer.connectionActivity.annotate(list)
                     _stats.value = OverviewStats(
-                        connections = list.size,
-                        uploadTotal = list.sumOf { it.upload },
-                        downloadTotal = list.sumOf { it.download }
+                        connections = annotated.size,
+                        activeConnections = annotated.count { !it.inactive },
+                        idleConnections = annotated.count { it.inactive },
+                        uploadTotal = annotated.sumOf { it.upload },
+                        downloadTotal = annotated.sumOf { it.download }
                     )
                 }
                 loadCurrentNode()

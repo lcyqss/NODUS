@@ -53,8 +53,10 @@ private class GNode(
     var x = 0f
     var y = 0f
     var count = 0
+    var idleCount = 0
     var traffic = 0L
     var portCount = 0
+    val allIdle: Boolean get() = count > 0 && idleCount >= count
     val hasChildren: Boolean get() = children.isNotEmpty() || portCount > 0
 }
 
@@ -189,13 +191,18 @@ fun TopologyGraph(
                             moveTo(start.x, start.y)
                             cubicTo(midX, start.y, midX, end.y, end.x, end.y)
                         }
-                        drawPath(path, lineColor, style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round))
+                        drawPath(
+                            path,
+                            if (child.allIdle) lineColor.copy(alpha = 0.12f) else lineColor,
+                            style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
+                        )
                     }
                 }
 
                 nodes.forEach { node ->
+                    val alpha = if (node.allIdle) 0.35f else 1f
                     val topLeft = Offset(node.x, node.y - nodeH / 2f)
-                    val color = colorFor(node.kind)
+                    val color = colorFor(node.kind).copy(alpha = alpha)
                     drawRoundRect(
                         color = surface,
                         topLeft = topLeft,
@@ -234,12 +241,16 @@ fun TopologyGraph(
                             textSize = 9.sp.toPx()
                             this.color = labelColor.toArgb()
                         }
+                        val paintAlpha = (255 * alpha).toInt().coerceIn(0, 255)
+                        titlePaint.alpha = paintAlpha
+                        subPaint.alpha = paintAlpha
                         val textX = topLeft.x + 34.dp.toPx()
                         val title = ellipsize(node.label, titlePaint, nodeW - 50.dp.toPx())
                         canvas.nativeCanvas.drawText(title, textX, node.y - 2.dp.toPx(), titlePaint)
 
                         val sub = buildString {
                             append("${node.count} 条")
+                            if (node.idleCount > 0) append(" · ${node.idleCount} 空闲")
                             if (node.traffic > 0) append(" · ").append(formatTraffic(node.traffic))
                         }
                         val subText = node.subtitle?.let { "$it · $sub" } ?: sub
@@ -428,11 +439,13 @@ private fun buildGraph(
 ): GNode {
     val root = GNode("root", "网关", null, NodeKind.ROOT)
     root.count = connections.size
+    root.idleCount = connections.count { it.inactive }
     root.traffic = connections.sumOf { it.upload + it.download }
 
     connections.groupBy { it.chains.getOrNull(1) ?: "DIRECT" }.forEach { (group, groupConns) ->
         val groupNode = GNode("g:$group", groupLabel(group), null, NodeKind.GROUP)
         groupNode.count = groupConns.size
+        groupNode.idleCount = groupConns.count { it.inactive }
         groupNode.traffic = groupConns.sumOf { it.upload + it.download }
         root.children += groupNode
         if (collapsed.contains(groupNode.id)) return@forEach
@@ -440,6 +453,7 @@ private fun buildGraph(
         groupConns.groupBy { it.chains.getOrNull(0) ?: "DIRECT" }.forEach { (proxy, proxyConns) ->
             val proxyNode = GNode("p:$group/$proxy", proxy, null, NodeKind.PROXY)
             proxyNode.count = proxyConns.size
+            proxyNode.idleCount = proxyConns.count { it.inactive }
             proxyNode.traffic = proxyConns.sumOf { it.upload + it.download }
             groupNode.children += proxyNode
             if (collapsed.contains(proxyNode.id)) return@forEach
@@ -452,6 +466,7 @@ private fun buildGraph(
             }.forEach { (rule, ruleConns) ->
                 val ruleNode = GNode("r:$group/$proxy/$rule", rule, null, NodeKind.RULE)
                 ruleNode.count = ruleConns.size
+                ruleNode.idleCount = ruleConns.count { it.inactive }
                 ruleNode.traffic = ruleConns.sumOf { it.upload + it.download }
                 proxyNode.children += ruleNode
                 if (collapsed.contains(ruleNode.id)) return@forEach
@@ -461,6 +476,7 @@ private fun buildGraph(
                     val clientId = "c:$group/$proxy/$rule/$ip"
                     val clientNode = GNode(clientId, labelOf(ip), ip, NodeKind.CLIENT)
                     clientNode.count = clientConns.size
+                    clientNode.idleCount = clientConns.count { it.inactive }
                     clientNode.traffic = clientConns.sumOf { it.upload + it.download }
                     clientNode.portCount = clientConns.map { it.sourcePort }.distinct().size
                     ruleNode.children += clientNode
@@ -474,6 +490,7 @@ private fun buildGraph(
                                 NodeKind.PORT
                             )
                             portNode.count = portConns.size
+                            portNode.idleCount = portConns.count { it.inactive }
                             portNode.traffic = portConns.sumOf { it.upload + it.download }
                             clientNode.children += portNode
                         }

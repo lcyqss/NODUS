@@ -3,6 +3,7 @@ package com.mihomo.gateway.di
 import com.mihomo.gateway.core.AppConfig
 import android.content.Context
 import com.mihomo.gateway.core.AssetInstaller
+import com.mihomo.gateway.core.ConnectionActivityTracker
 import com.mihomo.gateway.core.CoreInstaller
 import com.mihomo.gateway.core.GatewayHealthChecker
 import com.mihomo.gateway.core.NeighborResolver
@@ -42,6 +43,9 @@ object AppContainer {
 
     const val SECRET = AppConfig.SECRET
     const val BASE = AppConfig.BASE_DIR
+
+    /** 连接活跃度跟踪：首页和连接页共用，保证「活跃 / 空闲」口径一致。 */
+    val connectionActivity = ConnectionActivityTracker()
 
     lateinit var shell: ShellExecutor
         private set

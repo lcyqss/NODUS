@@ -2,6 +2,8 @@ package com.mihomo.gateway.ui.connections
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,10 +18,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -54,6 +59,7 @@ private data class TopoRow(
     val proxy: String,
     val rule: String,
     val count: Int,
+    val idleCount: Int,
     val traffic: Long
 )
 
@@ -66,6 +72,10 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     var paused by remember { mutableStateOf(false) }
     var frozen by remember { mutableStateOf<List<ConnectionInfo>>(emptyList()) }
     var deviceFilter by remember { mutableStateOf<String?>(null) }
+    var activityFilter by rememberSaveable { mutableIntStateOf(0) }
+    var showCleanDialog by remember { mutableStateOf(false) }
+    var showAutoDialog by remember { mutableStateOf(false) }
+    val autoCleanConfig by vm.autoCleanConfig.collectAsState()
 
     val neighborMap by vm.neighborMap.collectAsState()
     val deviceHistory by vm.deviceHistory.collectAsState()
@@ -88,7 +98,14 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     }
 
     val raw = if (paused) frozen else state.connections
-    val data = if (deviceFilter == null) raw else raw.filter { it.sourceIP == deviceFilter }
+    val deviceFiltered = if (deviceFilter == null) raw else raw.filter { it.sourceIP == deviceFilter }
+    val activeCount = deviceFiltered.count { !it.inactive }
+    val idleCount = deviceFiltered.count { it.inactive }
+    val data = when (activityFilter) {
+        1 -> deviceFiltered.filter { !it.inactive }
+        2 -> deviceFiltered.filter { it.inactive }
+        else -> deviceFiltered
+    }
     val filtered = remember(data, query) {
         if (query.isBlank()) data
         else data.filter {
@@ -138,6 +155,83 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
 
         Spacer(Modifier.height(8.dp))
 
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ActivityChip("全部 ${deviceFiltered.size}", activityFilter == 0) { activityFilter = 0 }
+                ActivityChip("活跃 $activeCount", activityFilter == 1) { activityFilter = 1 }
+                ActivityChip("空闲 $idleCount", activityFilter == 2) { activityFilter = 2 }
+            }
+            TextButton(
+                onClick = { showCleanDialog = true },
+                enabled = idleCount > 0
+            ) { Text("清理空闲", maxLines = 1) }
+            TextButton(onClick = { showAutoDialog = true }) {
+                Text(if (autoCleanConfig.first) "自动·开" else "自动", maxLines = 1)
+            }
+        }
+
+        if (showCleanDialog) {
+            val count = vm.cleanCandidates().size
+            AlertDialog(
+                onDismissRequest = { showCleanDialog = false },
+                title = { Text("清理空闲连接") },
+                text = { Text("将关闭 $count 条空闲超过 10 分钟且没有任何流量的连接。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showCleanDialog = false
+                        vm.cleanIdle()
+                    }) { Text("清理") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCleanDialog = false }) { Text("取消") }
+                }
+            )
+        }
+
+        if (showAutoDialog) {
+            val enabled = autoCleanConfig.first
+            val threshold = autoCleanConfig.second
+            AlertDialog(
+                onDismissRequest = { showAutoDialog = false },
+                title = { Text("自动清理空闲连接") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("超过 $threshold 条时自动清理", Modifier.weight(1f))
+                            Switch(
+                                checked = enabled,
+                                onCheckedChange = { vm.setAutoClean(it, threshold) }
+                            )
+                        }
+                        Text(
+                            "清理条件：空闲超过 30 分钟且没有任何流量；默认关闭。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text("触发阈值（连接总数）", style = MaterialTheme.typography.labelMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(500, 800, 1200, 2000).forEach { value ->
+                                ActivityChip("$value", threshold == value) {
+                                    vm.setAutoClean(enabled, value)
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAutoDialog = false }) { Text("完成") }
+                }
+            )
+        }
+
         SearchBar(
             value = query,
             onValueChange = { query = it },
@@ -162,7 +256,14 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
         }
 
         if (filtered.isEmpty()) {
-            EmptyState(if (mode == 0) "暂无活动连接" else "暂无活动连接，无法生成拓扑")
+            EmptyState(
+                when {
+                    activityFilter == 1 -> "暂无活跃连接"
+                    activityFilter == 2 -> "暂无空闲连接"
+                    mode == 0 -> "暂无活动连接"
+                    else -> "暂无活动连接，无法生成拓扑"
+                }
+            )
             return@Column
         }
 
@@ -295,6 +396,7 @@ private fun TopologyTable(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .alpha(if (row.count > 0 && row.idleCount >= row.count) 0.42f else 1f)
                     .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -309,7 +411,7 @@ private fun TopologyTable(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        "${row.count} 条",
+                        if (row.idleCount > 0) "${row.count} 条 · ${row.idleCount} 空闲" else "${row.count} 条",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -350,6 +452,7 @@ private fun ConnectionRow(
     Column(
         Modifier
             .fillMaxWidth()
+            .alpha(if (conn.inactive) 0.42f else 1f)
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
             .clickable(onClick = onToggle)
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -364,7 +467,12 @@ private fun ConnectionRow(
                     maxLines = 1
                 )
                 Text(
-                    "${conn.network} · ${conn.rule.ifBlank { "-" }} · ${conn.chains.joinToString(" → ")}",
+                    buildString {
+                        append(conn.network)
+                        append(" · ").append(conn.rule.ifBlank { "-" })
+                        append(" · ").append(conn.chains.joinToString(" → "))
+                        if (conn.inactive) append(" · 空闲 ").append(formatIdle(conn.idleSeconds))
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
@@ -475,7 +583,7 @@ private fun aggregate(connections: List<ConnectionInfo>): List<TopoRow> {
         val rule: String
     )
 
-    val map = linkedMapOf<Key, Pair<Int, Long>>()
+    val map = linkedMapOf<Key, Triple<Int, Int, Long>>()
     connections.forEach { conn ->
         val group = conn.chains.getOrNull(1) ?: "DIRECT"
         val proxy = conn.chains.getOrNull(0) ?: "DIRECT"
@@ -484,8 +592,12 @@ private fun aggregate(connections: List<ConnectionInfo>): List<TopoRow> {
             if (conn.rulePayload.isNotBlank()) append(": ${conn.rulePayload}")
         }
         val key = Key(conn.sourceIP, conn.sourcePort, group, proxy, rule)
-        val (count, traffic) = map[key] ?: (0 to 0L)
-        map[key] = (count + 1) to (traffic + conn.upload + conn.download)
+        val (count, idle, traffic) = map[key] ?: Triple(0, 0, 0L)
+        map[key] = Triple(
+            count + 1,
+            idle + if (conn.inactive) 1 else 0,
+            traffic + conn.upload + conn.download
+        )
     }
 
     return map.map { (key, value) ->
@@ -496,9 +608,32 @@ private fun aggregate(connections: List<ConnectionInfo>): List<TopoRow> {
             proxy = key.proxy,
             rule = key.rule,
             count = value.first,
-            traffic = value.second
+            idleCount = value.second,
+            traffic = value.third
         )
     }.sortedByDescending { it.traffic }
+}
+
+@Composable
+private fun ActivityChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    val bg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    Text(
+        text,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        style = MaterialTheme.typography.labelSmall,
+        color = fg
+    )
+}
+
+private fun formatIdle(seconds: Long): String = when {
+    seconds < 60 -> "${seconds}s"
+    seconds < 3600 -> "${seconds / 60}m"
+    else -> "${seconds / 3600}h${(seconds % 3600) / 60}m"
 }
 
 private fun groupLabel(group: String): String = when (group) {

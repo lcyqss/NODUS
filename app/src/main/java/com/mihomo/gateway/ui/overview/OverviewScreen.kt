@@ -241,7 +241,7 @@ fun OverviewScreen(vm: OverviewViewModel = viewModel(), onOpenNodes: () -> Unit 
 
         SectionCard(title = "运行统计") {
             Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                Metric("连接数", "${stats.connections}", MaterialTheme.colorScheme.onSurface)
+                Metric("连接（活跃/空闲）", "${stats.activeConnections} / ${stats.idleConnections}", MaterialTheme.colorScheme.onSurface)
                 Metric("内存", formatMemory(memory), MaterialTheme.colorScheme.onSurface)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {

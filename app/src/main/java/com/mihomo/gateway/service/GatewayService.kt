@@ -131,6 +131,15 @@ class GatewayService : Service() {
             }
         }
 
+        // 空闲连接自动清理：每 2 分钟检查一次，开关和阈值在「连接」页设置
+        scope.launch {
+            while (isActive) {
+                delay(120_000L)
+                runCatching { com.mihomo.gateway.core.ConnectionMaintenance.runAutoClean() }
+                    .onFailure { Log.w(TAG, "auto clean idle: ${it.message}") }
+            }
+        }
+
         // Geo 数据：默认关闭，开启后按天检查；仅在到期时下载并重启内核
         scope.launch {
             delay(30_000L)

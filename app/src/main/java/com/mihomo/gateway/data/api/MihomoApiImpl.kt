@@ -289,7 +289,7 @@ class MihomoApiImpl(
                 chains = chains,
                 upload = c.optLong("upload"),
                 download = c.optLong("download"),
-                start = c.optLong("start")
+                start = parseConnectionStart(c)
             )
         }
     }
@@ -394,4 +394,14 @@ class MihomoApiImpl(
             "Selector", "URLTest", "Fallback", "LoadBalance", "Relay", "Compatible"
         )
     }
+}
+
+/** mihomo 的 start 是 RFC3339 字符串，optLong 会得到 0，这里统一转成毫秒。 */
+private fun parseConnectionStart(c: org.json.JSONObject): Long {
+    val raw = c.opt("start")
+    if (raw is Number) return raw.toLong()
+    val text = raw?.toString().orEmpty()
+    if (text.isBlank()) return 0L
+    return runCatching { java.time.OffsetDateTime.parse(text).toInstant().toEpochMilli() }
+        .getOrElse { 0L }
 }
