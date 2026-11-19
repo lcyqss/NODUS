@@ -82,7 +82,9 @@ for IF in $(list_gateways); do
     done < "$MACFILE"
   fi
   $IPT -w -t nat -A MIHOMO_NAT -i "$IF" -s "$NET" ! -d "$NET" -p tcp -j REDIRECT --to-ports 7892
-  $IPT -w -A MIHOMO_FWD -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 -j DROP
+  # QUIC 无法走 redir 代理；用 REJECT 让客户端立刻回落 TCP，
+  # 比 DROP 静默丢包快很多（淘宝/支付宝等 App 会先尝试 HTTP/3）。
+  $IPT -w -A MIHOMO_FWD -i "$IF" -s "$NET" ! -d "$NET" -p udp --dport 443 -j REJECT --reject-with icmp-port-unreachable
   $IPT -w -A MIHOMO_IN -i "$IF" -p tcp --dport 9090 -j DROP
   $IPT -w -A MIHOMO_IN -i "$IF" -p tcp --dport 7890 -j DROP
   if [ "$BLOCK_IPV6" = "1" ] && [ "$IPV6_GATEWAY" != "1" ]; then
