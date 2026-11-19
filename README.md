@@ -16,7 +16,7 @@
 
 <https://github.com/lcyqss/NODUS/releases/latest>
 
-当前版本：**v2.63.1**（versionCode 185）。
+当前版本：**v2.63.2**（versionCode 210）。
 
 ## 界面预览
 
@@ -54,6 +54,7 @@
 ## 功能
 
 - 手机热点共享代理，支持 IPv4 与 IPv6
+- QUIC：默认拒绝并立即回落 TCP；可选 TPROXY 代理（仅 443 / 全量 UDP，实验）
 - 设备策略：按 MAC 选择节点标签，支持条件表达式、延迟调度、IP 跟随
 - 分流规则：自定义规则与订阅规则
 - mihomo 内核与 Geo 数据更新
@@ -72,7 +73,7 @@
 | 分流规则 | 自定义 / 订阅 | 真机验证 |
 | 内核更新 | mihomo release + 回滚 | 真机验证 |
 | Geo 更新 | GeoIP / GeoSite + SHA256 | 真机验证 |
-| 应用更新 | GitHub Release + APK 校验 | v2.63.1 已验证签名一致、可覆盖安装 |
+| 应用更新 | GitHub Release + APK 校验 | v2.63.2 已验证签名一致、可覆盖安装 |
 | 诊断 | 日志、健康检查、规则快照 | 真机验证 |
 
 ## 代码结构
@@ -213,8 +214,8 @@ rm -rf /data/adb/mihomo
 # 1. 修改 versionCode / versionName
 # 2. 提交代码
 # 3. 打 tag 并推送
-git tag v2.63.1
-git push origin v2.63.1
+git tag v2.63.2
+git push origin v2.63.2
 ```
 
 GitHub Actions 会使用仓库 Secrets 中的签名文件构建 `NODUS.apk`，并在 Release 中附带 `NODUS.apk.sha256`。
@@ -263,12 +264,13 @@ KEYSTORE_KEY_PASSWORD
 
 ## 版本
 
-当前版本：**v2.63.1**（versionCode 185）。
+当前版本：**v2.63.2**（versionCode 210）。
 
 近期变更：
 
 | 版本 | 内容 |
 |---|---|
+| v2.63.2 | 新应用图标；连接页活跃/空闲拆分、清理空闲、关闭全部二次确认、拓扑折叠/展开；QUIC 默认回落 TCP 并可选 TPROXY 代理；DNS fallback 改 DoH、fake-IP TTL 60；TCP MSS clamp、apply 串行锁、停止网关清理 mangle；诊断新增节点延迟/QUIC/DNS 指标；备份覆盖内网直连、UDP 代理与自动清理 |
 | v2.63.1 | 修复运行模式不持久化、恢复备份顺序、停止网关改写 IPv6 拦截、策略子规则不更新、DIRECT 模式 fake-IP 断网；新增客户端 IPv6 诊断与备份运行模式 |
 | v2.63.0 | 结构优化：备份 schema 测试、常量集中化、设备策略 / 规则 / 设置页文件拆分；修复恢复备份后规则状态不同步与订阅缓存缺失 |
 | v2.61.9 | 应用内更新、GitHub Release、GitHub Actions |

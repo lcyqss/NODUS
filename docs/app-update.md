@@ -30,7 +30,7 @@ NODUS.apk.sha256
 Tag 必须和 `versionName` 一致：
 
 ```text
-v2.63.1  ↔  versionName = "2.63.1"
+v2.63.2  ↔  versionName = "2.63.2"
 ```
 
 每次发布前递增 `versionCode`。
@@ -59,8 +59,8 @@ v2.63.1  ↔  versionName = "2.63.1"
 ```text
 1. 修改 versionCode / versionName
 2. 提交代码
-3. 打 tag：git tag v2.63.1
-4. 推送 tag：git push origin v2.63.1
+3. 打 tag：git tag v2.63.2
+4. 推送 tag：git push origin v2.63.2
 5. GitHub Actions 构建并创建 Release
 ```
 
