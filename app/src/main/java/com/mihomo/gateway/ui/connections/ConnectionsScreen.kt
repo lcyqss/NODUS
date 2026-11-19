@@ -75,6 +75,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
     var activityFilter by rememberSaveable { mutableIntStateOf(0) }
     var showCleanDialog by remember { mutableStateOf(false) }
     var showAutoDialog by remember { mutableStateOf(false) }
+    var showCloseAllDialog by remember { mutableStateOf(false) }
     val autoCleanConfig by vm.autoCleanConfig.collectAsState()
 
     val neighborMap by vm.neighborMap.collectAsState()
@@ -150,7 +151,7 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
             HeaderIcon(
                 GwIcon.Close,
                 tint = MaterialTheme.colorScheme.error
-            ) { vm.closeAll() }
+            ) { showCloseAllDialog = true }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -228,6 +229,30 @@ fun ConnectionsScreen(vm: ConnectionsViewModel = viewModel()) {
                 },
                 confirmButton = {
                     TextButton(onClick = { showAutoDialog = false }) { Text("完成") }
+                }
+            )
+        }
+
+        if (showCloseAllDialog) {
+            AlertDialog(
+                onDismissRequest = { showCloseAllDialog = false },
+                title = { Text("关闭全部连接") },
+                text = {
+                    Text(
+                        "将关闭全部 ${raw.size} 条连接（含活跃连接），" +
+                            "所有设备的当前会话都会中断，且无法恢复。"
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showCloseAllDialog = false
+                        vm.closeAll()
+                    }) {
+                        Text("全部关闭", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCloseAllDialog = false }) { Text("取消") }
                 }
             )
         }
