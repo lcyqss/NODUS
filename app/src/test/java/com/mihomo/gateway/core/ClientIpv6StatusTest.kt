@@ -12,7 +12,8 @@ class ClientIpv6StatusTest {
         block: String = "0",
         gateway: String = "0",
         ra: String = "0",
-        upstream: String = "    inet6 2408:8557:3270:da80::1/64 scope global"
+        upstream: String = "    inet6 2408:8557:3270:da80::1/64 scope global\n" +
+            "    default via fe80::1 dev rmnet_data2 proto ra metric 1024"
     ) = """
         IF=wlan2
 $gatewayAddr
@@ -24,6 +25,18 @@ $gatewayAddr
         |UP|
 $upstream
     """.trimIndent()
+
+    @Test
+    fun `address without default route means no usable upstream`() {
+        val status = ClientIpv6Status.parse(
+            raw(upstream = "    inet6 2408:8557:3270:da80::1/64 scope global"),
+            policyCount = 0
+        )
+
+        assertTrue(status.upstreamAddress)
+        assertFalse(status.defaultRoute)
+        assertFalse(status.upstream)
+    }
 
     @Test
     fun `both switches off means clients have no ipv6`() {

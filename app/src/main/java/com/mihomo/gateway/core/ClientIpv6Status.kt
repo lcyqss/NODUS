@@ -13,8 +13,12 @@ package com.mihomo.gateway.core
  * 不在本状态范围内，仅通过 [policyCount] 提示存在例外。
  */
 data class ClientIpv6Status(
-    /** 手机自身有全局 IPv6（rmnet 等上游接口）。 */
+    /** 手机自身有可用的全局 IPv6（地址 + 默认路由）。 */
     val upstream: Boolean,
+    /** 上游存在 IPv6 默认路由；只有地址但没有默认路由时视为不可用。 */
+    val defaultRoute: Boolean,
+    /** 上游是否存在非 ULA 的全局 IPv6 地址。 */
+    val upstreamAddress: Boolean,
     /** 热点接口拿到非 ULA 的全局 IPv6，说明 Android 原生共享已生效。 */
     val nativeTethering: Boolean,
     /** App 的 ULA 地址在热点接口上。 */
@@ -53,7 +57,7 @@ data class ClientIpv6Status(
     /** 给诊断页和分享报告用的多行说明。 */
     val detail: String
         get() = buildString {
-            appendLine("上游 IPv6：${if (upstream) "有" else "无"}")
+            appendLine("上游 IPv6：${if (upstream) "有" else if (upstreamAddress) "有地址但无默认路由" else "无"}")
             appendLine("热点原生共享：${if (nativeTethering) "可用" else "不可用"}")
             appendLine("ULA 代理：${if (proxyActive) "开启" else "关闭"}")
             appendLine("IPv6 拦截：${if (blocked) "开启" else "关闭"}")
@@ -115,11 +119,17 @@ data class ClientIpv6Status(
                 .any { it.trim() == "BLOCK_IPV6=1" }
             val raRunning = raPart.lineSequence().any { it.trim() == "1" }
 
-            val upstream = upstreamPart.lineSequence()
-                .any { it.trim().startsWith("inet6 ") }
+            val upstreamAddrs = upstreamPart.lineSequence()
+                .filter { it.trim().startsWith("inet6 ") }
+                .toList()
+            val defaultRoute = upstreamPart.lineSequence()
+                .any { it.trim().startsWith("default ") }
+            val upstream = upstreamAddrs.isNotEmpty() && defaultRoute
 
             return ClientIpv6Status(
                 upstream = upstream,
+                defaultRoute = defaultRoute,
+                upstreamAddress = upstreamAddrs.isNotEmpty(),
                 nativeTethering = nativeTethering,
                 ula = ula,
                 raRunning = raRunning,
@@ -145,6 +155,7 @@ data class ClientIpv6Status(
             pidof v6ra >/dev/null 2>&1 && echo 1 || echo 0
             echo '|UP|'
             ip -6 addr show scope global 2>/dev/null | grep 'inet6 ' | grep -v 'fd00:1234::'
+            ip -6 route show default 2>/dev/null | head -3
         """.trimIndent()
     }
 }

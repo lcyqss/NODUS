@@ -140,6 +140,14 @@ class GatewayControllerImpl(
     }
 
     override suspend fun setIpv6Gateway(enabled: Boolean): Result<Unit> = mutex.withLock {
+        if (enabled) {
+            val route = shell.run("ip -6 route show default 2>/dev/null").stdout
+            if (route.isBlank()) {
+                return Result.failure(
+                    IllegalStateException("当前网络没有 IPv6 默认路由，无法开启 IPv6 代理")
+                )
+            }
+        }
         if (enabled && detectUpstreamRa()) {
             return Result.failure(
                 IllegalStateException("检测到主路由 IPv6 RA，旁路由下无法保证 IPv6 全部代理")

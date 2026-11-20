@@ -107,7 +107,11 @@ fun DiagnosticsScreen(
                     Text("检测中…", style = MaterialTheme.typography.bodySmall)
                 } else {
                     Text(
-                        "上游 IPv6：${if (ipv6.upstream) "有" else "无"}",
+                        "上游 IPv6：" + when {
+                            ipv6.upstream -> "有"
+                            ipv6.upstreamAddress -> "有地址但无默认路由"
+                            else -> "无"
+                        },
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(

@@ -207,10 +207,17 @@ ipv6_ready() {
 }
 
 if [ "$IPV6_GATEWAY" = "1" ] && [ -x "$BASE/ipv6.sh" ]; then
-  if ipv6_ready; then
-    sh "$BASE/ipv6.sh" syncmac >> "$LOG" 2>&1
+  # 运营商可能只下发 IPv6 地址而没有默认路由；此时继续开 ULA/TPROXY
+  # 会让客户端优先走 IPv6 然后全部 network unreachable。
+  if ip -6 route show default 2>/dev/null | grep -q '^default'; then
+    if ipv6_ready; then
+      sh "$BASE/ipv6.sh" syncmac >> "$LOG" 2>&1
+    else
+      sh "$BASE/ipv6.sh" enable >> "$LOG" 2>&1
+    fi
   else
-    sh "$BASE/ipv6.sh" enable >> "$LOG" 2>&1
+    sh "$BASE/ipv6.sh" stop >> "$LOG" 2>&1
+    echo "$(date '+%F %T') ipv6 gateway skipped: no default route" >> "$LOG"
   fi
 fi
 
